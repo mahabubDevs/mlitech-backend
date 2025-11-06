@@ -1,0 +1,411 @@
+// schema.prisma
+
+datasource db {
+  provider = "postgresql" // MySQL হলে "mysql" ব্যবহার করো
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id             String   @id @default(uuid())
+  firstName      String
+  lastName       String
+  appId          String?
+  fcmToken       String?
+  role           USER_ROLES @default(USER)
+  phoneNumber    String?
+  email          String   @unique
+  phone          String?
+  password       String
+  address        String?
+  profile        String   @default("https://res.cloudinary.com/dzo4husae/image/upload/v1733459922/zfyfbvwgfgshmahyvfyk.png")
+  documentVerified String[]
+  photo          String?
+  emailVerified  Boolean  @default(false)
+  phoneVerified  Boolean  @default(false)
+  verified       Boolean  @default(false)
+  status         USER_STATUS @default(ACTIVE)
+  userReport     USER_REPORT @default(NO_REPORT)
+  stripeAccountId String?
+
+  accountInformation Json? // JSON হিসেবে রাখা হয়েছে
+  pages          String[]
+  datingIntentions String?
+  interestedIn   String?
+  languages      String?
+  age            Int?
+  height         Int?
+  minHeight      Int?
+  maxHeight      Int?
+  drinking       Boolean @default(false)
+  marijuana      Boolean @default(false)
+  smoking        Boolean @default(false)
+  gender         Gender? @default(UNKNOWN)
+  children       Boolean @default(false)
+  politics       String  @default("Not political")
+  educationLevel String  @default("Prefer not to say")
+  ethnicity      String?
+  zodiacPreference String?
+  lastActive     DateTime @default(now())
+
+  subscriptions  Subscription[]
+  packages       Package[]
+  createdShops   Shop[]
+  createdOffers  Offer[]
+  createdEvents  Event[]
+  createdGames   Game[]
+  createdPromos  Promo[]
+  createdPush    Push[]
+  notifications  Notification[]
+  matchesAsUser  Matching[] @relation("User_Matches")
+  matchesAsTarget Matching[] @relation("Target_Matches")
+  chatsSent      Chat[] @relation("SentChats")
+  chatsReceived  Chat[] @relation("ReceivedChats")
+  preferences    UserPreference?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Subscription {
+  id               String   @id @default(uuid())
+  customerId       String
+  price            Float
+  trxId            String
+  subscriptionId   String
+  currentPeriodStart String
+  currentPeriodEnd   String
+  remaining        Int
+  status           SubscriptionStatus @default(active)
+
+  user   User   @relation(fields: [userId], references: [id])
+  userId String @unique
+
+  package   Package @relation(fields: [packageId], references: [id])
+  packageId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Shop {
+  id          String   @id @default(uuid())
+  status      ShopStatus @default(active)
+  bundleType  BundleType
+  callBundleEnterTime Int?
+  callBundleNeededAura Int?
+  auraBundleAuraNumber Int?
+  auraBundleAmount Float?
+
+  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdById String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Offer {
+  id        String   @id @default(uuid())
+  name      String
+  duration  OfferDuration
+  price     Float
+  status    OfferStatus @default(active)
+
+  createdBy   User?  @relation(fields: [createdById], references: [id])
+  createdById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Rule {
+  id      String   @id @default(uuid())
+  content String
+  type    RuleType?
+}
+
+model Role {
+  id       String   @id @default(uuid())
+  roleName String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Push {
+  id          String   @id @default(uuid())
+  title       String
+  body        String
+  state       String
+  sentCount   Int @default(0)
+  failedCount Int @default(0)
+
+  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdById String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Promo {
+  id           String   @id @default(uuid())
+  promoCode    String   @unique
+  discountType DiscountType
+  value        Float
+  usageLimit   Int
+  usedCount    Int @default(0)
+  startDate    DateTime
+  endDate      DateTime
+  image        String?
+  isActive     Boolean @default(true)
+
+  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdById String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model UserPreference {
+  id            String   @id @default(uuid())
+  datingIntentions String?
+  interestedIn   String?
+  languages      String?
+  minHeight      Int?
+  maxHeight      Int?
+  minAge         Int?
+  maxAge         Int?
+  drinking       Boolean @default(false)
+  marijuana      Boolean @default(false)
+  smoking        Boolean @default(false)
+  gender         String?
+  children       Boolean @default(false)
+  politics       String  @default("Not political")
+  educationLevel String  @default("Prefer not to say")
+  ethnicity      String?
+  zodiacPreference String?
+
+  user   User   @relation(fields: [userId], references: [id])
+  userId String @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Package {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  price       Float
+  duration    PackageDuration
+  paymentType PaymentType
+  features    String[]
+  productId   String
+  priceId     String
+  loginLimit  Int
+  paymentLink String
+  status      PackageStatus @default(Active)
+  payoutAccountId String?
+
+  admin   User   @relation(fields: [adminId], references: [id])
+  adminId String
+
+  subscriptions Subscription[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  text      String
+  referenceId String?
+  screen    String?
+  read      Boolean @default(false)
+  type      NotificationType?
+
+  receiver   User?   @relation(fields: [receiverId], references: [id])
+  receiverId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Matching {
+  id          String   @id @default(uuid())
+  status      MatchStatus @default(CALLED)
+  callRoomId  String?
+
+  user        User   @relation("User_Matches", fields: [userId], references: [id])
+  userId      String
+
+  targetUser  User   @relation("Target_Matches", fields: [targetUserId], references: [id])
+  targetUserId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Game {
+  id          String   @id @default(uuid())
+  gameTitle   String   @unique
+  description String
+  image       String?
+  isActive    Boolean @default(true)
+
+  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdById String
+
+  events      Event[] @relation("GameToEvent")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Event {
+  id          String   @id @default(uuid())
+  eventName   String
+  eventType   EventType
+  state       String
+  startDate   DateTime
+  endDate     DateTime
+  image       String?
+  offAPPercentage Int?
+  status      EventStatus @default(Scheduled)
+  selectedGame   Game?   @relation("GameToEvent", fields: [selectedGameId], references: [id])
+  selectedGameId String?
+
+  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdById String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Chat {
+  id        String   @id @default(uuid())
+  message   String
+  images    String[]
+  isRead    Boolean @default(false)
+
+  roomId    String
+
+  sender   User @relation("SentChats", fields: [senderId], references: [id])
+  senderId String
+
+  receiver User @relation("ReceivedChats", fields: [receiverId], references: [id])
+  receiverId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ---------- ENUMS ----------
+enum USER_ROLES {
+  ADMIN
+  USER
+}
+
+enum USER_STATUS {
+  ACTIVE
+  BLOCK
+}
+
+enum USER_REPORT {
+  NO_REPORT
+  REPORTED
+}
+
+enum Gender {
+  MAN
+  WOMEN
+  NON_BINARY
+  TRANS_MAN
+  TRANS_WOMAN
+  UNKNOWN
+}
+
+enum SubscriptionStatus {
+  expired
+  active
+  cancel
+}
+
+enum ShopStatus {
+  active
+  block
+}
+
+enum BundleType {
+  call
+  aura
+}
+
+enum OfferDuration {
+  ONE_DAY   @map("1_day")
+  ONE_WEEK  @map("1_week")
+  ONE_MONTH @map("1_month")
+  ONE_YEAR  @map("1_year")
+}
+
+enum OfferStatus {
+  active
+  block
+}
+
+enum RuleType {
+  privacy
+  terms
+  about
+}
+
+enum DiscountType {
+  Percentage_Discount
+  Fixed_Amount_Discount
+  Free_Ap
+  Aura_Trial_Days
+}
+
+enum PackageDuration {
+  ONE_MONTH   @map("1 month")
+  THREE_MONTHS @map("3 months")
+  SIX_MONTHS   @map("6 months")
+  ONE_YEAR     @map("1 year")
+}
+
+enum PaymentType {
+  Monthly
+  Yearly
+}
+
+enum PackageStatus {
+  Active
+  Delete
+}
+
+enum NotificationType {
+  ADMIN
+}
+
+enum MatchStatus {
+  PASSED
+  CALLED
+  LIKED
+  PENDING
+  MATCHED
+}
+
+enum EventType {
+  Unlimited_Ad_Time
+  Unlimited_Games
+  Unlimited_Select_City
+  Off_APshop
+}
+
+enum EventStatus {
+  Active
+  Expired
+  Scheduled
+}

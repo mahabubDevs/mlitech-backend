@@ -1,0 +1,31 @@
+import WebSocket, { WebSocketServer } from "ws";
+import { chatHandler } from "./chat";
+import { notificationHandler } from "./notification";
+import { healthHandler } from "./health";
+
+// Map share করতে চাইলে export করতে পারেন (optional)
+export const clients = new Map<string, WebSocket>();
+
+// WebSocket server setup function
+export function setupWebSocketServer(serverOrPort: any) {
+  // যদি number দেন → নতুন port, যদি HTTP server দেন → attach
+  const wss =
+    typeof serverOrPort === "number"
+      ? new WebSocketServer({ port: serverOrPort })
+      : new WebSocketServer({ server: serverOrPort });
+
+  console.log("🟢 WebSocket server running");
+
+  wss.on("connection", (ws: WebSocket) => {
+    ws.on("message", async (message: string) => {
+      const msg = JSON.parse(message);
+
+      // আলাদা handler call
+      if (msg.type.startsWith("chat")) await chatHandler(ws, msg);
+      else if (msg.type.startsWith("notification")) await notificationHandler(ws, msg);
+      else if (msg.type.startsWith("health")) await healthHandler(ws, msg);
+    });
+  });
+
+  return wss;
+}

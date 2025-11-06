@@ -1,0 +1,248 @@
+>>>>>>>>>>>>>>linux_setup_configuration >>>>>>>>>>>>>>>
+
+#!/bin/bash
+
+# ==========================
+# AlmaLinux 9.6 Backend Setup
+# ==========================
+
+# Update and upgrade system
+sudo dnf update -y
+
+# Install necessary packages
+sudo dnf install -y git curl wget file nano zsh gcc gcc-c++ make
+
+# Install zsh and set it as default shell for root
+sudo chsh -s $(which zsh) $USER
+
+# Install Oh My Zsh
+sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+
+# Clone zsh-autosuggestions plugin
+git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
+
+# Clone zsh-syntax-highlighting plugin
+git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting
+
+# Add plugins to ~/.zshrc
+plugins_to_add=(git zsh-autosuggestions zsh-syntax-highlighting nvm jsontools dirhistory history colored-man-pages)
+
+# Ensure ~/.zshrc exists
+touch ~/.zshrc
+
+# Add plugins to ~/.zshrc if they are not already present
+for plugin in "${plugins_to_add[@]}"; do
+    if ! grep -q "^plugins=.*$plugin.*" ~/.zshrc; then
+        sed -i "s/^plugins=(/plugins=($plugin /" ~/.zshrc
+    fi
+done
+
+# Install NVM (Node Version Manager)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+
+# Configure NVM
+export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+
+# Install latest LTS Node.js
+nvm install --lts
+nvm use --lts
+
+# Install PM2, Bun, PNPM globally
+npm install -g pm2 bun pnpm
+
+# Check versions
+echo "Node Version:"
+node -v
+echo "NPM Version:"
+npm -v
+echo "PM2 Version:"
+pm2 -v
+echo "PNPM Version:"
+pnpm -v
+
+# Zsh info
+echo "Zsh version:"
+zsh --version
+echo "Location of zsh:"
+which zsh
+echo "Current default shell:"
+echo $SHELL
+
+# Source ~/.zshrc to apply changes
+source ~/.zshrc
+
+echo "AlmaLinux backend setup completed."
+
+>>>>>>>>>>>>>>linux_setup_configuration >>>>>>>>>>>>>>>
+
+
+start
+>>>>>>>>>>>>>git_user_setup.sh >>>>>>>>>>>>>>>>>>>>>>>>>> 
+
+#!/bin/bash
+
+# ===============================
+# AlmaLinux 9.6 GitHub CLI Setup
+# ===============================
+
+# Install wget if not present
+if ! command -v wget &> /dev/null
+then
+    sudo dnf install -y wget
+fi
+
+# Install Git if not present
+if ! command -v git &> /dev/null
+then
+    sudo dnf install -y git
+fi
+
+# Add GitHub CLI repo for RHEL/CentOS/AlmaLinux
+sudo dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo
+
+# Install GitHub CLI
+sudo dnf install -y gh
+
+# Configure Git to store credentials
+git config --global credential.helper store
+
+# Authenticate GitHub CLI
+echo "Opening GitHub CLI login..."
+gh auth login
+
+# Prompt user for Git email and username
+read -p "Your GitHub email: " email
+read -p "Your GitHub username: " name
+
+# Set Git global configuration
+git config --global user.email "$email"
+git config --global user.name "$name"
+
+# Print confirmation
+echo "GitHub CLI installed and configured!"
+git --version
+gh --version
+git config --list | grep user
+
+
+>>>>>>>>>>>>>git_user_setup.sh >>>>>>>>>>>>>>>>
+end
+
+>>>>>>>>>>>>deployment >>>>>>>>>>>>>>>>>>>>>>>>>
+
+
+#!/bin/bash
+
+# ======================
+# NGINX + SSL Deployment Script (AlmaLinux / RHEL Compatible)
+# ======================
+
+set -euo pipefail
+
+GREEN='\033[0;32m'; RED='\033[0;31m'; NC='\033[0m'
+log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+
+if [ "$EUID" -ne 0 ]; then
+    log_error "Please run as root"
+    exit 1
+fi
+
+# --- Update System ---
+log_info "Updating system..."
+dnf -y update
+
+# --- Enable EPEL repo for certbot ---
+dnf install -y epel-release
+
+# --- Install required packages ---
+PACKAGES="nginx certbot python3-certbot-nginx firewalld bind-utils"
+for pkg in $PACKAGES; do
+    if ! rpm -q $pkg &>/dev/null; then
+        log_info "Installing $pkg..."
+        dnf install -y $pkg
+    else
+        log_info "$pkg already installed"
+    fi
+done
+
+# --- Enable and start firewall ---
+systemctl enable --now firewalld
+firewall-cmd --permanent --add-service=http
+firewall-cmd --permanent --add-service=https
+firewall-cmd --permanent --add-service=ssh
+firewall-cmd --reload
+
+# --- Prompt for application port ---
+while true; do
+    read -p "Enter the port number for your application: " APP_PORT
+    if ! [[ "$APP_PORT" =~ ^[0-9]+$ ]] || [ "$APP_PORT" -lt 1 ] || [ "$APP_PORT" -gt 65535 ]; then
+        log_error "Invalid port. Must be 1–65535."
+        continue
+    fi
+    if ss -tulpn | grep -q ":$APP_PORT "; then
+        log_error "Port $APP_PORT is in use."
+        continue
+    fi
+    break
+done
+
+# --- Prompt for domain & email ---
+read -p "Enter your domain (e.g. example.com): " DOMAIN
+if ! [[ "$DOMAIN" =~ ^[A-Za-z0-9.-]+$ ]]; then
+    log_error "Invalid domain name."
+    exit 1
+fi
+read -p "Enter your email for Let's Encrypt registration: " EMAIL
+
+# --- Nginx config path ---
+NGINX_CONF="/etc/nginx/conf.d/${DOMAIN}.conf"
+
+# --- Remove old config if exists ---
+if [ -f "$NGINX_CONF" ]; then
+    log_info "Removing old Nginx config for $DOMAIN..."
+    rm -f "$NGINX_CONF"
+fi
+
+# --- Write new Nginx config ---
+log_info "Creating Nginx config for $DOMAIN → port $APP_PORT"
+cat > "$NGINX_CONF" <<EOF
+server {
+    listen 80;
+    server_name $DOMAIN www.$DOMAIN;
+    location / {
+        proxy_pass http://127.0.0.1:$APP_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_cache_bypass \$http_upgrade;
+    }
+}
+EOF
+
+# --- Validate & reload Nginx ---
+nginx -t
+systemctl enable --now nginx
+systemctl restart nginx
+
+# --- Obtain SSL certificate ---
+if certbot certificates | grep -q "Domains:.*\b${DOMAIN}\b"; then
+    log_info "Certificate for $DOMAIN already present — skipping issue."
+else
+    log_info "Issuing certificate for $DOMAIN..."
+    certbot --nginx -d "$DOMAIN" -d "www.$DOMAIN" --email "$EMAIL" --agree-tos --non-interactive
+fi
+
+# --- Setup renewal cron job ---
+if ! crontab -l | grep -q 'certbot renew'; then
+    log_info "Adding daily certbot renew cron job..."
+    (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet") | crontab -
+fi
+
+log_info "Deployment complete! Your site is live at https://$DOMAIN"
+
+
+>>>>>>>>>>>>>>>>>>end Deployment  >>>>>>>>>>>>>>>>>>>>>>>>
+
