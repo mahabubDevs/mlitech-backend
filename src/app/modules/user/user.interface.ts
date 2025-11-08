@@ -88,50 +88,39 @@ export type EthnicityOption =
   | "Pisces";
 
 export interface IUser {
-    _id?: Types.ObjectId;
-    name?: string;
-    appId?: string;
-    fcmToken? : string;
-    role?: string;
-    phoneNumber?: string;
-    email?: string;
-    phone?: string;
-    password?: string;
-    address?: string;
-    location?: string;
-    refferalId?: string;
-    profile?: string;
-    documentVerified?: string[];
-    photo?: string;
-    verified?: boolean;
-    status: USER_STATUS;
-    userReport: USER_REPORT;
-    stripeAccountId?: string;
-    authentication?: IAuthenticationProps;
-    accountInformation?: IStripeAccountInfo;
-    pages?: string[];
-    datingIntentions?: string;
-    interestedIn?: string;
-    languages?: string;
-    age?:number;
-    height?: number;
-    minHeight?: number;
-    maxHeight?: number;
-    drinking?: boolean;
-    marijuana?: boolean;
-    smoking?: boolean;
-    gender?: GenderOption;
-    children?: boolean;
-    politics?: string;
-    educationLevel?: string;
-    ethnicity?: EthnicityOption;
-    zodiacPreference?: string;
-    emailVerified?: boolean;
-    phoneVerified?: boolean;
-    balance?: number;
-    availableTime?: number;
-    lastActive: Date;
-    // Add other properties here as needed
+  _id?: Types.ObjectId;
+  firstName?: string;
+  lastName?: string;
+  businessName?: string;
+  appId?: string;
+  fcmToken?: string;
+  referenceId?: string;
+  role?: string;
+  phone?: string;
+  email?: string;
+  password?: string;
+  website?: string;
+  country?: string;
+  city?: string;
+  service?: string;
+  prefreances?: string[];
+  about?: string;
+  address?: string;
+  location?: {
+    type: "Point";
+    coordinates: number[];
+  };
+  profile?: string;
+  documentVerified?: string[];
+  photo?: string;
+  verified?: boolean;
+  status: USER_STATUS;
+  userReport: USER_REPORT;
+  stripeAccountId?: string;
+  authentication?: IAuthenticationProps;
+  accountInformation?: IStripeAccountInfo;
+  gender?: string;
+  lastActive: Date;
 }
 
 export type UserModal = {

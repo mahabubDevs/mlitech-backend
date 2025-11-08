@@ -13,6 +13,7 @@ import { NotificationService } from "../notification/notification.service";
 import { last } from "pdf-lib";
 import { Subscription } from "../subscription/subscription.model";
 import { IPackage } from "../shopAuraSubscription/aurashop.interface";
+import { sendOtp } from "../../../shared/twilioService";
 
 interface IPackageWithId extends IPackage {
   _id: string;
@@ -38,47 +39,36 @@ const createAdminToDB = async (payload: any): Promise<IUser> => {
 }
 
 const createUserToDB = async (payload: Partial<IUser>): Promise<IUser> => {
+  const createUser = await User.create(payload);
+  if (!createUser) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Failed to create user");
+  }
 
-    const createUser = await User.create(payload);
-    if (!createUser) {
-        throw new ApiError(StatusCodes.BAD_REQUEST, 'Failed to create user');
-    }
+  // Generate OTP
+  const otp = generateOTP();
 
-    //send email
-    const otp = generateOTP();
-    const values = {
-        name: createUser.firstName ?? "",
-        lastName: createUser.lastName ?? "",
-        otp: otp,
-        email: createUser.email ?? ""
-    };
-
-    const createAccountTemplate = emailTemplate.createAccount(values);
-    emailHelper.sendEmail(createAccountTemplate);
-
-    //save to DB
-    const authentication = {
-        oneTimeCode: otp,
-        expireAt: new Date(Date.now() + 3 * 60000),
-    };
-
-    await User.findOneAndUpdate({ _id: createUser._id }, {
+  // Save OTP to DB
+  await User.findByIdAndUpdate(createUser._id, {
     $set: {
-        "authentication.emailOTP": {
-            code: otp,
-            expireAt: new Date(Date.now() + 3 * 60000)
-        }
-    }
-});
+      "authentication.phoneOTP": {
+        code: otp,
+        expireAt: new Date(Date.now() + 3 * 60000), // 3 minutes validity
+      },
+    },
+  });
 
+  console.log("Generated OTP for user:", otp)  // Send OTP to user's phone
+//   if (createUser.phoneNumber) {
+//     // sendOtp expects string arguments, ensure OTP is converted to string
+//     await sendOtp(createUser.phoneNumber, String(otp));
+//   } else {
+//     console.warn("⚠️ No phone number found for user:", createUser._id);
+//   }
 
-    // await NotificationService.createNotificationToDB({
-    //     text: `New user registered: ${createUser.name}`,
-    //     type: 'ADMIN',           // Admin notification
-    //     read: false
-    // });
-    return createUser;
+  return createUser;
 };
+
+
 
 const getUserProfileFromDB = async (user: JwtPayload): Promise<Partial<IUser> & { totalPigeons: number, subscriptions: any[] }> => {
     const { _id } = user;

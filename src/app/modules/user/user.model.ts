@@ -9,9 +9,19 @@ import { boolean, object } from "zod";
 
 const userSchema = new Schema<IUser, UserModal>(
     {
-        name: {
+        firstName: {
             type: String,
             required: true,
+        },
+        lastName: {
+            type: String,
+            required: false,
+            unique: false,
+            lowercase: false,
+        },
+        businessName: {
+            type: String,
+            required: false,
         },
         appId: {
             type: String,
@@ -21,16 +31,15 @@ const userSchema = new Schema<IUser, UserModal>(
           type: String,
           
         },
+        referenceId: {
+          type: String,
+          required: false,
+        },
         role: {
             type: String,
             enum: Object.values(USER_ROLES),
             default: USER_ROLES.USER,
             required: false,
-        },
-        phoneNumber:{
-            type: String,
-            required: false,
-            default: null,
         },
         email: {
             type: String,
@@ -40,7 +49,8 @@ const userSchema = new Schema<IUser, UserModal>(
         },
         phone: {
             type: String,
-            required: false,
+            required: true,
+            unique: true,
         },
         password: {
             type: String,
@@ -48,11 +58,23 @@ const userSchema = new Schema<IUser, UserModal>(
             select: 0,
             minlength: 8,
         },
-        refferalId:{
+        country: {
             type: String,
             required: false,
         },
-        address: {
+        website: {
+            type: String,
+            required: false,
+        },
+        city: {
+            type: String,
+            required: false,
+        },
+        service: {
+            type: String,
+            required: false,
+        },
+        about: {
             type: String,
             required: false,
         },
@@ -68,14 +90,8 @@ const userSchema = new Schema<IUser, UserModal>(
             type: String,
             default: null,
         },
-        emailVerified: {
-        type: Boolean,
-        default: false,
-        },
-        phoneVerified: {
-        type: Boolean,
-        default: false,
-        },
+        
+        
         verified: {
             type: Boolean,
             default: false,
@@ -141,80 +157,16 @@ const userSchema = new Schema<IUser, UserModal>(
             }
         },
         // pages: [{ type: String }],
-        datingIntentions: {
-        type: String,
-      },
-      interestedIn: {
-        type: String,
-      },
-      languages: {
-        type: String,
-      },
-      age:{
-        type: Number,
-      },
-      height: {
-        type: Number, // cm
-        min: 30,
-        max: 250,
-      },
-      minHeight: {
-        type: Number,
-        min: 30,
-        max: 250,
-      },
-      maxHeight: {
-        type: Number,
-        min: 30,
-        max: 250,
-      },
-      drinking: {
-        type: Boolean,
-        default:false,
-      },
-      marijuana: {
-        type: Boolean,
-        default:false,
-      },
-      smoking: {
-        type: Boolean,
-        default:false,
-      },
+        
+      prefreances: [
+        { type: String }
+      ]
+     ,
+      
       // gender: {
       //   type: String,
       // },
-      gender: {
-        type: String,
-        enum: ["MAN", "WOMEN", "NON-BINARY", "TRANS MAN", "TRANS WOMAN","Unknown"],
-        default: "Unknown", 
-      },
-      children: {
-        type: Boolean,
-        default:false,
-      },
-      politics: {
-        type: String,
-        default: "Not political",
-      },
-      educationLevel: {
-        type: String,
-        default: "Prefer not to say",
-      },
-      ethnicity: {
-        type: String,
-      },
-      zodiacPreference: {
-        type: String,
-        required: false,
-      },
-      balance: {
-        type: Number,
-        default: 0,
-      },
-      availableTime: {
-        type: Number,
-        default: 0,
-      },
+   
       lastActive: { type: Date, default: new Date() },
     },
     {
@@ -230,9 +182,9 @@ userSchema.virtual("id").get(function () {
 
 // Virtual for fully verified
 
-userSchema.virtual("isFullyVerified").get(function () {
-  return this.emailVerified && this.phoneVerified;
-});
+// userSchema.virtual("isFullyVerified").get(function () {
+//   return this.emailVerified && this.phoneVerified;
+// });
 //exist user check
 userSchema.statics.isExistUserById = async (id: string) => {
     const isExist = await User.findById(id);

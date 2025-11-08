@@ -8,16 +8,28 @@ const createVerifyEmailZodSchema = z.object({
 });
 
 const createLoginZodSchema = z.object({
-    body: z.object({
-        email: z.string({ required_error: 'Email is required' }).email({ message: 'Invalid email address' }),
-        password: z.string({ required_error: 'Password is required' })
-    })
+  body: z.object({
+    identifier: z
+      .string({ required_error: 'Email or phone is required' })
+      .refine((val) => {
+        // check if it looks like email or phone
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const phoneRegex = /^[0-9]{6,15}$/; // adjust length if needed
+        return emailRegex.test(val) || phoneRegex.test(val);
+      }, { message: "Must be a valid email or phone number" }),
+    password: z.string({ required_error: 'Password is required' })
+  })
 });
   
 const createForgetPasswordZodSchema = z.object({
-    body: z.object({
-        email: z.string({ required_error: 'Email is required' }).email({ message: 'Invalid email address' }),
-    })
+  body: z.object({
+    phone: z
+      .string({ required_error: 'Phone number is required' })
+      .refine((val) => {
+        const phoneRegex = /^[0-9]{6,15}$/; // adjust length as needed
+        return phoneRegex.test(val);
+      }, { message: "Invalid phone number" })
+  })
 });
   
 const createResetPasswordZodSchema = z.object({

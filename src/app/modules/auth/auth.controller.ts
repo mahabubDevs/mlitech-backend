@@ -12,44 +12,38 @@ import { Secret } from 'jsonwebtoken';
 
 
 
-const verifyEmail = catchAsync(async (req: Request, res: Response) => {
-    const { ...verifyData } = req.body;
-    const result = await AuthService.verifyEmailToDB(verifyData);
+// const verifyEmail = catchAsync(async (req: Request, res: Response) => {
+//     const { ...verifyData } = req.body;
+//     const result = await AuthService.verifyEmailToDB(verifyData);
 
-    sendResponse(res, {
-        success: true,
-        statusCode: StatusCodes.OK,
-        message: result.message,
-        data: result.data,
-    });
-});
-const verifyPhone = catchAsync(async (req: Request, res: Response) => {
-    const { ...verifyData } = req.body;
-
-    console.log(req.user);
-    // const tockens = req.headers.authorization;
-    
-    
-    if (!req.user) {
-        throw new ApiError(StatusCodes.UNAUTHORIZED, "User not authenticated");
-    }
+//     sendResponse(res, {
+//         success: true,
+//         statusCode: StatusCodes.OK,
+//         message: result.message,
+//         data: result.data,
+//     });
+// });
 
 
-    
-    const userId = (req.user as any)._id;
-    const result = await AuthService.verifyPhoneOtpToDB(verifyData, userId);
+const verifyPhone = catchAsync(async (req, res) => {
+  // OTP + phone number comes from request body
+  const result = await AuthService.verifyPhoneOtpToDB(req.body);
 
-    sendResponse(res, {
-        success: true,
-        statusCode: StatusCodes.OK,
-        message: result.message,
-        data: result,
-    });
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: result.message,
+    data: {
+      accessToken: result.accessToken,
+      resetToken: result.resetToken, // ✅ include reset token
+    },
+  });
 });
 
 
 const loginUser = catchAsync(async (req: Request, res: Response) => {
     const { ...loginData } = req.body;
+    console.log("Login Data Received:", loginData);
     const result = await AuthService.loginUserFromDB(loginData);
 
     sendResponse(res, {
@@ -61,16 +55,17 @@ const loginUser = catchAsync(async (req: Request, res: Response) => {
 });
 
 const forgetPassword = catchAsync(async (req: Request, res: Response) => {
-    const email = req.body.email;
-    const result = await AuthService.forgetPasswordToDB(email);
+    const phone = req.body.phone; // email এর পরিবর্তে phone
+    const result = await AuthService.forgetPasswordToDB(phone);
 
     sendResponse(res, {
         success: true,
         statusCode: StatusCodes.OK,
-        message: 'Please check your email, we send a OTP!',
+        message: 'Please check your phone, we sent an OTP!',
         data: result
     });
 });
+
 
 const resetPassword = catchAsync(async (req: Request, res: Response) => {
     const token = req.headers.authorization;
@@ -156,23 +151,46 @@ const deleteUser = catchAsync(async (req: Request, res: Response) => {
     });
 });
 
+const deleteOwnUser = async (req: Request, res: Response) => {
+  // ✅ Step 1: Get logged-in user ID from token
+  const userId = req.user?._id;
+  console.log("Logged-in userId from token:", userId);
+
+
+  // ✅ Step 2: Validate input
+  if (!userId) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "User ID missing in request token");
+  }
+
+  const { password } = req.body;
+  if (!password) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Password is required to delete account");
+  }
+console.log("Password received for account deletion" , password);
+  // ✅ Step 3: Call service to delete user
+  const result = await AuthService.deleteOwnUserAccount(userId, password);
+
+  // ✅ Step 4: Send response
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: "User account deleted successfully",
+    data: result,
+  });
+};
+
+
+
 const sendPhoneOtp = catchAsync(async (req: Request, res: Response) => {
     const { phone } = req.body;
     console.log("Received phone number:", phone);
-    
-    if (!req.user) {
-        throw new ApiError(StatusCodes.UNAUTHORIZED, "User not authenticated");
-    }
-
-    // Type assertion
-    const userId = (req.user as any)._id;
 
     if (!phone) {
         throw new ApiError(StatusCodes.BAD_REQUEST, "Phone number is required");
     }
 
-    // Call service
-    const result = await AuthService.sendPhoneOtpToDB(phone, userId);
+    // Call service directly
+    const result = await AuthService.sendPhoneOtpToDB(phone);
 
     res.status(StatusCodes.OK).json({
         success: true,
@@ -180,7 +198,6 @@ const sendPhoneOtp = catchAsync(async (req: Request, res: Response) => {
         data: result
     });
 });
-
 const uploadDocumentImages = async (req: Request, res: Response) => {
   const userId = req.user && (req.user as any)._id;
   console.log("User ID from request:", userId);
@@ -235,7 +252,7 @@ const archiveUser = catchAsync(async (req: Request, res: Response) => {
 
 
 export const AuthController = {
-    verifyEmail,
+    // verifyEmail,
     loginUser,
     forgetPassword,
     resetPassword,
@@ -244,6 +261,7 @@ export const AuthController = {
     // resendVerificationEmail,
     // socialLogin,
     deleteUser,
+    deleteOwnUser,
     sendPhoneOtp,
     verifyPhone,
     uploadDocumentImages,

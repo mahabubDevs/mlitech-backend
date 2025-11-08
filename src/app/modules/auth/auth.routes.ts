@@ -21,6 +21,7 @@ router.post(
     AuthController.forgetPassword
 );
 
+
 router.post(
     '/refresh-token',
     AuthController.newAccessToken
@@ -32,7 +33,7 @@ router.post(
 // );
 router.post(
     '/phone-otp',
-    auth(USER_ROLES.ADMIN, USER_ROLES.USER),
+    // auth(USER_ROLES.ADMIN, USER_ROLES.USER),
     AuthController.sendPhoneOtp
 );
 // router.post(
@@ -44,23 +45,23 @@ router.post(
 //     AuthController.resendVerificationEmail
 // );
 
-router.post(
-    '/verify-email',
-    async (req: Request, res: Response, next: NextFunction) => {
+// router.post(
+//     '/verify-email',
+//     async (req: Request, res: Response, next: NextFunction) => {
 
-        try {
-            const { email, oneTimeCode } = req.body;
+//         try {
+//             const { email, oneTimeCode } = req.body;
 
-            req.body = { email, oneTimeCode: Number(oneTimeCode)};
-            next();
+//             req.body = { email, oneTimeCode: Number(oneTimeCode)};
+//             next();
 
-        } catch (error) {
-            return res.status(500).json({ message: "Failed to convert string to number" });
-        }
-    },
-    validateRequest(AuthValidation.createVerifyEmailZodSchema),
-    AuthController.verifyEmail
-);
+//         } catch (error) {
+//             return res.status(500).json({ message: "Failed to convert string to number" });
+//         }
+//     },
+//     validateRequest(AuthValidation.createVerifyEmailZodSchema),
+//     AuthController.verifyEmail
+// );
 
 router.post(
     '/verify-phone',
@@ -76,7 +77,7 @@ router.post(
             return res.status(500).json({ message: "Failed to convert string to number" });
         }
     },
-    auth(),
+    // auth(),
     validateRequest(AuthValidation.createVerifyPhoneZodSchema),
     AuthController.verifyPhone
 );
@@ -89,7 +90,7 @@ router.post(
 
 router.post(
     '/change-password',
-    auth(USER_ROLES.ADMIN, USER_ROLES.USER, ),
+    auth(),
     validateRequest(AuthValidation.createChangePasswordZodSchema),
     AuthController.changePassword
 );
@@ -122,6 +123,11 @@ router.delete(
     '/delete-account',
     auth(USER_ROLES.ADMIN),
     AuthController.deleteUser
+);
+router.delete(
+    '/user-delete-account',
+    auth(),
+    AuthController.deleteOwnUser
 );
 
 

@@ -2,10 +2,12 @@ export enum USER_ROLES {
     ADMIN = 'ADMIN',
     SUPER_ADMIN = 'SUPER_ADMIN',
     USER = 'USER',
+    MERCENT = 'MERCENT',
 }
 
 export enum USER_STATUS {
     ACTIVE = "active",
+    INACTIVE = "inActive",
     BLOCK = "block",
     ARCHIVE = "archive",
 }

@@ -4,7 +4,7 @@ export type IVerifyEmail = {
 };
 
 export type ILoginData = {
-    email: string;
+     identifier: string; // email or phone
     password: string;
 };
 

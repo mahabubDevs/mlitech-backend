@@ -12,7 +12,9 @@ const createAdminZodSchema = z.object({
 const createUserZodSchema = z.object({
     body: z.object({
         firstName: z.string({ required_error: 'First name is required' }),
-        lastName: z.string({ required_error: 'Last name is required' }),
+        // lastName: z.string({ required_error: 'Last name is required' }),
+        country: z.string({ required_error: 'countrey'}).optional(),
+        phone : z.string({ required_error: 'Phone number is required' }),
         email: z.string({ required_error: 'Email is required' }).email({ message: 'Invalid email address' }),
         password: z.string({ required_error: 'Password is required' }),
         // gender: z.enum(["MAN", "WOMEN", "NON-BINARY", "TRANS MAN", "TRANS WOMAN"]).optional()

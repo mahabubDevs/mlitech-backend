@@ -10,7 +10,7 @@ import { JwtPayload } from 'jsonwebtoken';
 const createUser = catchAsync( async (req: Request, res: Response, next: NextFunction) => {
     const userData = {
   ...req.body,
-  gender: req.body.gender || "Unknown",
+//   gender: req.body.gender || "Unknown",
 };
 
     const result = await UserService.createUserToDB(userData);
@@ -18,7 +18,7 @@ const createUser = catchAsync( async (req: Request, res: Response, next: NextFun
     sendResponse(res, {
         success: true,
         statusCode: StatusCodes.OK,
-        message: `Enter the verification code sent to your email. please verify your email ${result.email}  `,
+        message: `Enter the verification code sent to your phone. please verify your phone ${result.phone}  `,
     })
 });
 
