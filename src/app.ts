@@ -11,10 +11,10 @@ import passport from "./config/passport"; // Adjust the path as necessary
 
 //  SubscriptionRoutes import 
 import handleStripeWebhook from "./helpers/handleStripeWebhook";
-import { apiLogger } from "./app/middlewares/apiLogger";
+
 
 const app = express();
-app.use(apiLogger);
+
 // ⚡️ Stripe webhook route must be before json parser
 app.post(
   '/api/v1/subscription/webhook',

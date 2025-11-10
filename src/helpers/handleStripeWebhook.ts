@@ -17,6 +17,7 @@ import { SubscriptionService } from '../app/modules/subscription/subscription.se
 const handleStripeWebhook = async (req: Request, res: Response) => {
     const signature = req.headers['stripe-signature'] as string;
     const webhookSecret = config.stripe.webhookSecret as string;
+    console.log("webhook", signature, webhookSecret);
 
     let event: Stripe.Event;
 
@@ -29,29 +30,22 @@ const handleStripeWebhook = async (req: Request, res: Response) => {
 
     try {
         switch (event.type) {
-            case 'checkout.session.completed':
-                // ✅ New code for session-based subscription
+           case 'checkout.session.completed':
                 const session = event.data.object as Stripe.Checkout.Session;
-
-                // client_reference_id = userId
                 const userId = session.client_reference_id;
-                 // metadata null check
-                    if (!session.metadata) {
-                        throw new ApiError(StatusCodes.BAD_REQUEST, "Session metadata is missing");
-                    }
-                const packageId = session.metadata.packageId; // Ensure you send this in session creation
+                const packageId = session.metadata?.packageId;
                 const subscriptionId = session.subscription as string;
 
                 if (!userId || !packageId || !subscriptionId) {
                     throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid session metadata");
                 }
 
-                // Retrieve the Stripe subscription
                 const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionId);
 
-                // Call service to save subscription in DB
+                // Save subscription in DB
                 await SubscriptionService.activateSubscriptionInDB(userId, packageId, stripeSubscription);
-                break;
+            break;
+
 
             case 'customer.subscription.created':
                 await handleSubscriptionCreated(event.data.object as Stripe.Subscription);

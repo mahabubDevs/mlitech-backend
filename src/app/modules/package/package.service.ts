@@ -3,129 +3,97 @@ import ApiError from "../../../errors/ApiErrors";
 import { IPackage } from "./package.interface";
 import { Package } from "./package.model";
 import mongoose from "mongoose";
-import { createSubscriptionProduct } from "../../../helpers/createSubscriptionProductHelper";
 import stripe from "../../../config/stripe";
 import Stripe from "stripe";
+import { createSubscriptionProduct } from "../../../helpers/createSubscriptionProductHelper";
 
-const createPackageToDB = async (payload: IPackage): Promise<IPackage | null> => {
-    // Step 0: Check if package already exists for this admin and title
-    const existingPackage = await Package.findOne({
-        title: payload.title,
-        admin: payload.admin,
-        status: "Active"
-    });
+const createPackageToDB = async (payload: Partial<IPackage>): Promise<IPackage> => {
+  // Check existing package
+  const existingPackage = await Package.findOne({ title: payload.title, admin: payload.admin, status: "Active" });
+  if (existingPackage) return existingPackage;
 
-    if (existingPackage) {
-        console.log("Package already exists in DB, skipping Stripe creation.");
-        return existingPackage; // Stripe create হবে না
-    }
+  // Create Stripe Product + Price
+  const product = await createSubscriptionProduct({
+    title: payload.title!,
+    description: payload.description!,
+    duration: payload.duration!,
+    price: payload.price!,
+  });
 
-    const productPayload = {
-        title: payload.title,
-        description: payload.description,
-        duration: payload.duration,
-        price: Number(payload.price),
-    };
+  // Assign only available fields
+  payload.productId = product.productId;
+  payload.priceId = product.priceId;
 
-    // Step 1: Create product in Stripe
-    const product = await createSubscriptionProduct(productPayload);
+  // Remove any reference to paymentLink
+  // payload.paymentLink = ???  <-- remove this line
 
-    if (!product) {
-        throw new ApiError(StatusCodes.BAD_REQUEST, "Failed to create subscription product");
-    }
+  // Save to DB
+  const result = await Package.create(payload as IPackage);
+  if (!result) {
+    // Optionally: delete Stripe product if DB save fails
+    await stripe.products.del(product.productId);
+  }
 
-    // Step 2: Check again if Stripe price already exists for this product
-    const existingPrices = await stripe.prices.list({ product: product.productId });
-    let price: Stripe.Price;
-    if (existingPrices.data.length > 0) {
-        price = existingPrices.data[0]; // if exists, use the first one
-        console.log("Using existing Stripe price:", price.id);
-    } else {
-        price = await stripe.prices.create({
-            unit_amount: payload.price * 100,
-            currency: "usd",
-            product: product.productId,
-            recurring: {
-                interval: payload.paymentType?.toLowerCase() === "monthly" ? "month" : "year",
-            },
-        });
-    }
-
-    // Step 3: Add Stripe productId, priceId, and paymentLink to payload
-    payload.paymentLink = product.paymentLink;
-    payload.productId = product.productId;
-    payload.priceId = price.id;
-
-    // Step 4: Save package in DB
-    const result = await Package.create(payload);
-
-    if (!result) {
-        await stripe.products.del(product.productId);
-        throw new ApiError(StatusCodes.BAD_REQUEST, "Failed to create Package");
-    }
-
-    return result;
+  return result;
 };
 
 
-
-const updatePackageToDB = async(id: string, payload: IPackage): Promise<IPackage | null>=>{
-
-    if(!mongoose.Types.ObjectId.isValid(id)){
-        throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid ID")
+const updatePackageToDB = async (id: string, payload: Partial<IPackage>): Promise<IPackage | null> => {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+        throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid ID");
     }
 
-    const result = await Package.findByIdAndUpdate(
-        {_id: id},
-        payload,
-        { new: true } 
-    );
+    const existingPackage = await Package.findById(id);
+    if (!existingPackage) throw new ApiError(StatusCodes.BAD_REQUEST, "Package not found");
 
-    if(!result){
-        throw new ApiError(StatusCodes.BAD_REQUEST, "Failed to Update Package")
+    // Update Stripe product
+    if (payload.title || payload.description) {
+        await stripe.products.update(existingPackage.productId, {
+            name: payload.title || existingPackage.title,
+            description: payload.description || existingPackage.description,
+        });
     }
+
+    // Update Stripe price if price changed
+    if (payload.price && payload.price !== existingPackage.price) {
+        const newPrice = await stripe.prices.create({
+            unit_amount: payload.price * 100,
+            currency: "usd",
+            product: existingPackage.productId,
+            recurring: { interval: payload.paymentType?.toLowerCase() === 'monthly' ? 'month' : 'year' },
+        });
+
+        payload.priceId = newPrice.id;
+
+        const paymentLink = await stripe.paymentLinks.create({
+            line_items: [{ price: newPrice.id, quantity: 1 }]
+        });
+
+        payload.paymentLink = paymentLink.url;
+    }
+
+    return Package.findByIdAndUpdate(id, payload, { new: true });
+};
+
+const getPackageFromDB = async(paymentType?: string): Promise<IPackage[]> => {
+    const query: any = { status: "Active" };
+    if(paymentType) query.paymentType = paymentType;
+    return Package.find(query);
+};
+
+const getPackageDetailsFromDB = async(id: string): Promise<IPackage | null> => {
+    if(!mongoose.Types.ObjectId.isValid(id)) throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid ID");
+    return Package.findById(id);
+};
+
+const deletePackageToDB = async(id: string): Promise<IPackage | null> => {
+    if(!mongoose.Types.ObjectId.isValid(id)) throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid ID");
+
+    const result = await Package.findByIdAndDelete(id);
+    if(!result) throw new ApiError(StatusCodes.BAD_REQUEST, "Failed to delete package");
 
     return result;
-}
-
-
-const getPackageFromDB = async(paymentType: string): Promise<IPackage[]>=>{
-    const query:any = {
-        status: "Active"
-    }
-    if(paymentType){
-        query.paymentType = paymentType
-    }
-
-    const result = await Package.find(query);
-    return result;
-}
-
-const getPackageDetailsFromDB = async(id: string): Promise<IPackage | null>=>{
-    if(!mongoose.Types.ObjectId.isValid(id)){
-        throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid ID")
-    }
-    const result = await Package.findById(id);
-    return result;
-}
-
-const deletePackageToDB = async(id: string): Promise<IPackage | null>=>{
-    if(!mongoose.Types.ObjectId.isValid(id)){
-        throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid ID")
-    }
-
-    const result = await Package.findByIdAndUpdate(
-        {_id: id},
-        {status: "Delete"},
-        {new: true}
-    );
-
-    if(!result){
-        throw new ApiError(StatusCodes.BAD_REQUEST, "Failed to deleted Package")
-    }
-
-    return result;
-}
+};
 
 export const PackageService = {
     createPackageToDB,
@@ -133,4 +101,4 @@ export const PackageService = {
     getPackageFromDB,
     getPackageDetailsFromDB,
     deletePackageToDB
-}
+};

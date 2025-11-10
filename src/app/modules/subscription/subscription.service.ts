@@ -1,67 +1,220 @@
-// src/modules/subscription/subscription.service.ts
-
-import stripe from "../../../config/stripe";
-import ApiError from "../../../errors/ApiErrors";
-import { Package } from "../shopAuraSubscription/aurashop.module";
-// import { Package } from "../package/package.model";
+import { JwtPayload } from "jsonwebtoken";
+import { Package } from "../package/package.model";
+import { ISubscription } from "./subscription.interface";
 import { Subscription } from "./subscription.model";
-import { StatusCodes } from "http-status-codes";
+import stripe from "../../../config/stripe";
+import { User } from "../user/user.model";
+import Stripe from "stripe";
+import { Types } from "mongoose";
 
+const createSubscriptionSession = async (userId: string, packageId: string) => {
+    const pkg = await Package.findById(packageId);
+    if (!pkg) throw new Error("Package not found");
+
+    // Create Stripe Checkout session
+    const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        mode: "subscription",
+        customer_email: (await User.findById(userId))?.email,
+        line_items: [
+            {
+                price: pkg.priceId,
+                quantity: 1,
+            },
+        ],
+        success_url: `https://yourfrontend.com/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `https://yourfrontend.com/payment-cancel`,
+        client_reference_id: userId,
+        metadata: {
+            packageId: pkg._id.toString(),
+        },
+    });
+
+    return { sessionId: session.id, url: session.url };
+};
+
+// Called from webhook to save subscription after payment success
+
+
+const activateSubscriptionInDB = async (
+  userId: string,
+  packageId: string,
+  stripeSubscription: any
+): Promise<ISubscription> => {
+
+  console.log("🚀 Activating subscription in DB", { userId, packageId, stripeSubscriptionId: stripeSubscription.id });
+
+  // Prevent duplicate subscription
+  const existingSub = await Subscription.findOne({ subscriptionId: stripeSubscription.id });
+  if (existingSub) {
+    console.log("⚠️ Subscription already exists in DB", existingSub._id);
+    // Update user profile correctly
+    await User.findByIdAndUpdate(userId, { subscription: "active" }, { new: true });
+    return existingSub;
+  }
+
+  const subscriptionData: Partial<ISubscription> = {
+    user: new Types.ObjectId(userId),
+    package: new Types.ObjectId(packageId),
+    price: stripeSubscription.plan?.amount / 100 || 0,
+    customerId: stripeSubscription.customer,
+    subscriptionId: stripeSubscription.id,
+    remaining: 0,
+    currentPeriodStart: new Date(stripeSubscription.current_period_start * 1000).toISOString(),
+    currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000).toISOString(),
+    trxId: stripeSubscription.latest_invoice || "N/A",
+    status: stripeSubscription.status === "active" ? "active" : "expired",
+  };
+
+  console.log("📌 Subscription data prepared:", subscriptionData);
+
+  const subscription = await Subscription.create(subscriptionData);
+
+  console.log("✅ Subscription saved:", subscription);
+
+  // Update user profile
+  await User.findByIdAndUpdate(userId, { subscription: "active" }, { new: true });
+  console.log("✅ User subscription updated in profile");
+
+  return subscription;
+};
+
+
+
+const cancelSubscription = async (user: JwtPayload) => {
+
+    // 1️⃣ DB থেকে active subscription খুঁজে বের করো
+    const subscription = await Subscription.findOne({ user: user._id, status: "active" });
+    if (!subscription) {
+        throw new Error("Active subscription not found");
+    }
+
+    // 2️⃣ Stripe এ cancel_at_period_end set করো
+    await stripe.subscriptions.update(subscription.subscriptionId, {
+        cancel_at_period_end: true
+    });
+
+    // 3️⃣ DB তে status update করো (optional: 'cancelling')
+    subscription.status = "cancel"; // তুমি চাইলে 'cancelling' রাখতে পারো
+    await subscription.save();
+
+    // 4️⃣ User এর isSubscribed update করতে পারো (optional)
+    await User.findByIdAndUpdate(user.id, { isSubscribed: false });
+
+    return {
+        subscriptionId: subscription.subscriptionId,
+        currentPeriodEnd: subscription.currentPeriodEnd
+    };
+};
+
+
+const subscriptionDetailsFromDB = async (user: JwtPayload): Promise<{ subscription: ISubscription | {} }> => {
+
+    const subscription = await Subscription.findOne({ user: user.id }).populate("package", "title credit").lean();
+    if (!subscription) {
+        return { subscription: {} }; // Return empty object if no subscription found
+    }
+
+    const subscriptionFromStripe = await stripe.subscriptions.retrieve(subscription.subscriptionId);
+
+    // Check subscription status and update database accordingly
+    if (subscriptionFromStripe?.status !== "active") {
+        await Promise.all([
+            User.findByIdAndUpdate(user.id, { isSubscribed: false }, { new: true }),
+            Subscription.findOneAndUpdate({ user: user.id }, { status: "expired" }, { new: true }),
+        ]);
+    }
+
+    return { subscription };
+};
+
+const companySubscriptionDetailsFromDB = async (id: string): Promise<{ subscription: ISubscription | {} }> => {
+
+    const subscription = await Subscription.findOne({ user: id }).populate("package", "title credit").lean();
+    if (!subscription) {
+        return { subscription: {} }; // Return empty object if no subscription found
+    }
+
+    const subscriptionFromStripe = await stripe.subscriptions.retrieve(subscription.subscriptionId);
+
+    // Check subscription status and update database accordingly
+    if (subscriptionFromStripe?.status !== "active") {
+        await Promise.all([
+            User.findByIdAndUpdate(id, { isSubscribed: false }, { new: true }),
+            Subscription.findOneAndUpdate({ user: id }, { status: "expired" }, { new: true }),
+        ]);
+    }
+
+    return { subscription };
+};
+
+
+
+const subscriptionsFromDB = async (query: Record<string, unknown>): Promise<ISubscription[]> => {
+    const anyConditions: any[] = [];
+
+    const { search, limit, page, paymentType } = query;
+
+    if (search) {
+        const matchingPackageIds = await Package.find({
+            $or: [
+                { title: { $regex: search, $options: "i" } },
+                { paymentType: { $regex: search, $options: "i" } },
+            ]
+        }).distinct("_id");
+    
+        if (matchingPackageIds.length) {
+            anyConditions.push({
+                package: { $in: matchingPackageIds }
+            });
+        }
+    }
+    
+    
+
+    if (paymentType) {
+        anyConditions.push({
+            package: { $in: await Package.find({paymentType: paymentType}).distinct("_id")  }
+        })
+    }
+
+    const whereConditions = anyConditions.length > 0 ? { $and: anyConditions } : {};
+    const pages = parseInt(page as string) || 1;
+    const size = parseInt(limit as string) || 10;
+    const skip = (pages - 1) * size;
+
+    const result = await Subscription.find(whereConditions).populate([
+        {
+            path: "package",
+            select: "title paymentType credit description"
+        },
+        {
+            path: "user",
+            select: "email name linkedIn contact company website "
+        },
+    ])
+        .select("user package price trxId currentPeriodStart currentPeriodEnd status")
+        .skip(skip)
+        .limit(size);
+
+    const count = await Subscription.countDocuments(whereConditions);
+    
+    const data: any = {
+        data: result,
+        meta: {
+            page: pages,
+            total: count
+        }
+    }
+
+    return data;
+}
 
 export const SubscriptionService = {
-  createCheckoutSession: async (userId: string, packageId: string, successUrl: string, cancelUrl: string) => {
-    const selectedPackage = await Package.findById(packageId);
-    if (!selectedPackage) throw new ApiError(StatusCodes.NOT_FOUND, "Package not found");
-
-    const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      payment_method_types: ["card"],
-      line_items: [
-        {
-          price: selectedPackage.priceId,
-          quantity: 1,
-        },
-      ],
-      client_reference_id: userId,
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-      metadata: {
-        packageId: selectedPackage._id.toString(), // ✅ Add packageId here
-      },
-    });
-
-    return session.url;
-  },
-
- // ✅ Step 2: Webhook থেকে subscription DB তে save করা
-  activateSubscriptionInDB: async (
-    userId: string,
-    packageId: string,
-    stripeSubscription: any,
-    trxId?: string
-  ) => {
-    const currentPeriodStart = new Date(
-      stripeSubscription.current_period_start * 1000
-    );
-    const currentPeriodEnd = new Date(
-      stripeSubscription.current_period_end * 1000
-    );
-
-    const newSub = await Subscription.create({
-      user: userId,
-      package: packageId,
-      customerId: stripeSubscription.customer,
-      subscriptionId: stripeSubscription.id,
-      trxId: trxId || "", // ✅ payment_intent / charge id save করো
-      price: stripeSubscription.items?.data[0]?.plan?.amount
-        ? stripeSubscription.items.data[0].plan.amount / 100
-        : 0,
-      status: stripeSubscription.status || "active",
-      currentPeriodStart: currentPeriodStart.toISOString(),
-      currentPeriodEnd: currentPeriodEnd.toISOString(),
-      remaining: 1,
-    });
-
-    return newSub;
-  },
-};
+    createSubscriptionSession,
+    activateSubscriptionInDB,
+    subscriptionDetailsFromDB,
+    subscriptionsFromDB,
+    companySubscriptionDetailsFromDB,
+    cancelSubscription
+}

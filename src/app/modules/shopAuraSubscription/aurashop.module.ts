@@ -1,25 +1,25 @@
-// src/modules/package/package.interface.ts
+// // src/modules/package/package.interface.ts
 
 
-// src/modules/package/package.model.ts
-import mongoose, { Schema } from "mongoose";
-import { IPackage } from "./aurashop.interface";
+// // src/modules/package/package.model.ts
+// import mongoose, { Schema } from "mongoose";
+// import { IPackage } from "./aurashop.interface";
 
-const PackageSchema = new Schema<IPackage>(
-  {
-    title: { type: String, required: true },
-    description: { type: String, required: true },
-    price: { type: Number, required: true },
-    isActive: { type: Boolean, default: true },
-    duration: {
-      type: String,
-      enum: ['1 day','1 week','1 month','3 months','6 months','1 year'],
-      required: true,
-    },
-    priceId: { type: String },
-    productId: { type: String },
-  },
-  { timestamps: true }
-);
+// const PackageSchema = new Schema<IPackage>(
+//   {
+//     title: { type: String, required: true },
+//     description: { type: String, required: true },
+//     price: { type: Number, required: true },
+//     isActive: { type: Boolean, default: true },
+//     duration: {
+//       type: String,
+//       enum: ['1 day','1 week','1 month','3 months','6 months','1 year'],
+//       required: true,
+//     },
+//     priceId: { type: String },
+//     productId: { type: String },
+//   },
+//   { timestamps: true }
+// );
 
-export const Package = mongoose.model<IPackage>("Package", PackageSchema);
+// export const Package = mongoose.model<IPackage>("Package", PackageSchema);

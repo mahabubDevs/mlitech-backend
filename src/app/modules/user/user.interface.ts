@@ -103,6 +103,7 @@ export interface IUser {
   country?: string;
   city?: string;
   service?: string;
+  subscription?: string;
   prefreances?: string[];
   about?: string;
   address?: string;

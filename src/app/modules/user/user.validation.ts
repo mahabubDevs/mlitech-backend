@@ -17,6 +17,8 @@ const createUserZodSchema = z.object({
         phone : z.string({ required_error: 'Phone number is required' }),
         email: z.string({ required_error: 'Email is required' }).email({ message: 'Invalid email address' }),
         password: z.string({ required_error: 'Password is required' }),
+        role: z.enum(["MERCENT", "USER"]).optional().transform(val => val?.toLowerCase()),
+
         // gender: z.enum(["MAN", "WOMEN", "NON-BINARY", "TRANS MAN", "TRANS WOMAN"]).optional()
 
         // phoneNumber: z.string({ required_error: 'Phone number is required' }),

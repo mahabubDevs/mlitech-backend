@@ -24,12 +24,13 @@ const subscriptionSchema = new Schema<ISubscription, SubscriptionModel>(
         },
         trxId: {
             type: String,
-            required: true
-        },
-        subscriptionId: {
-            type: String,
-            required: true
-        },
+            required: function(this: any) {
+                return this.price > 0;
+            }
+        }
+        ,   
+        subscriptionId: { type: String, unique: true, required: true },
+
         currentPeriodStart: {
             type: String,
             required: true

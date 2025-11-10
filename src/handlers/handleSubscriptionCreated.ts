@@ -6,7 +6,8 @@ import { Subscription } from '../app/modules/subscription/subscription.model';
 import { User } from '../app/modules/user/user.model';
 // import { Package } from '../app/modules/package/package.model';
 import { NotificationService } from '../app/modules/notification/notification.service';
-import { Package } from '../app/modules/shopAuraSubscription/aurashop.module';
+import { Package } from '../app/modules/package/package.model';
+
 
 export const handleSubscriptionCreated = async (data: Stripe.Subscription) => {
     try {

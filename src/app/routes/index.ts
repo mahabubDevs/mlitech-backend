@@ -3,7 +3,6 @@ import { UserRoutes } from '../modules/user/user.routes';
 import { AuthRoutes } from '../modules/auth/auth.routes';
 // import { PostRoutes } from '../modules/blogpost/post.route';
 import { UserManagementRoutes } from '../modules/userManagement/usermanagement.routes';
-import { UserPreferenceRoutes } from '../modules/preferences/preferences.route';
 // import { MatchingRoutes } from '../modules/matching/matching.routes';
 // import { ChatRoutes } from '../modules/chat/chat.route';
 // import { GameRoutes } from '../modules/game/game.routes';
@@ -15,6 +14,7 @@ import { RuleRoutes } from '../modules/rule/rule.route';
 // import { ServerHealthRoutes } from '../modules/analytics-real-time-server/analytic.route';
 import { DashboardRoutes } from '../modules/dashbordOverview/dashboard.routes';
 import { SubscriptionRoutes } from '../modules/subscription/subscription.routes';
+import { PackageRoutes } from '../modules/package/package.routes';
 // import { AuraBundleRoute } from '../modules/shopAuroBundle/auraBundle.routes';
 // import { BuyCall } from '../modules/buy/buy.routes';
 // import { CallBundleRoute } from '../modules/shopCallBundle/callBundle.routes';
@@ -34,12 +34,12 @@ const router = express.Router();
 const apiRoutes = [
     { path: "/user", route: UserRoutes },
     { path: "/auth", route: AuthRoutes },
-    {path: "/preference", route:UserPreferenceRoutes},
     {path: "/usermanagement", route:UserManagementRoutes},
     { path: "/overview", route: DashboardRoutes },
     { path: "/subscription", route: SubscriptionRoutes },
     {path: "/rule", route:RuleRoutes},
     {path: "/promo", route:PromoRoutes},
+    {path: "/package", route:PackageRoutes},
     // {path: "/chat", route:ChatRoutes},
     // {path: "/game", route:GameRoutes},
     // {path: "/event", route:EventRoutes},

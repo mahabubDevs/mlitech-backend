@@ -117,6 +117,10 @@ const userSchema = new Schema<IUser, UserModal>(
             default: [0, 0],
           },
         },
+        subscription: {
+            type: String,
+            default: false
+        },
         stripeAccountId: { type: String, default: null },
 
     
