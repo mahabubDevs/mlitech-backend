@@ -1,16 +1,12 @@
-import { Model, Types } from 'mongoose';
-import { USER_REPORT, USER_ROLES, USER_STATUS } from '../../../enums/user';
+import { Model, Types } from "mongoose";
+import { USER_REPORT, USER_ROLES, USER_STATUS } from "../../../enums/user";
 
 export interface IStripeAccountInfo {
-    status: string;
-    stripeAccountId: string;
-    externalAccountId: string;
-    currency: string;
+  status: string;
+  stripeAccountId: string;
+  externalAccountId: string;
+  currency: string;
 }
-
-
-
-
 
 export interface IAuthenticationProps {
   isResetPassword?: boolean;
@@ -27,8 +23,6 @@ export interface IAuthenticationProps {
     expireAt?: Date;
   };
 }
-
-
 
 // export interface IUserPreferences {
 //   datingIntentions?: ("Life partner" | "Long-Term Relationship" | "Short-time Relationship" | "Does Not Matter")[];
@@ -65,13 +59,18 @@ export interface IAuthenticationProps {
 //     stripeAccountId?: string;
 //     pages?: string[];
 //     customeRole?: string;
-    
+
 //     // ----- Preferences -----
 //   preferences?: IUserPreferences;
 
 // }
 
-export type GenderOption = "MAN" | "WOMEN" | "NON-BINARY" | "TRANS MAN" | "TRANS WOMAN";
+export type GenderOption =
+  | "MAN"
+  | "WOMEN"
+  | "NON-BINARY"
+  | "TRANS MAN"
+  | "TRANS WOMAN";
 
 export type EthnicityOption =
   | "Black / Africa Decent"
@@ -116,6 +115,7 @@ export interface IUser {
   photo?: string;
   verified?: boolean;
   status: USER_STATUS;
+  lastStatusChanged?: Date;
   userReport: USER_REPORT;
   stripeAccountId?: string;
   authentication?: IAuthenticationProps;
@@ -125,9 +125,8 @@ export interface IUser {
 }
 
 export type UserModal = {
-    isExistUserById(id: string): any;
-    isExistUserByEmail(email: string): any;
-    isAccountCreated(id: string): any;
-    isMatchPassword(password: string, hashPassword: string): boolean;
+  isExistUserById(id: string): any;
+  isExistUserByEmail(email: string): any;
+  isAccountCreated(id: string): any;
+  isMatchPassword(password: string, hashPassword: string): boolean;
 } & Model<IUser>;
-

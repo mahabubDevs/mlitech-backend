@@ -3,6 +3,9 @@ import { USER_ROLES } from "../../../enums/user";
 import auth from "../../middlewares/auth";
 import { SalesRepController } from "./salesRep.controller";
 
+import { SalesRepValidation } from "./salesRep.validation";
+import validateRequest from "../../middlewares/validateRequest";
+
 const router = express.Router();
 
 router.post("/", auth(USER_ROLES.USER), SalesRepController.createSalesRepData);
@@ -22,6 +25,7 @@ router.post(
 router.post(
   "/validate",
   auth(USER_ROLES.USER),
+  validateRequest(SalesRepValidation.validateTokenZodSchema),
   SalesRepController.validateToken
 );
 
