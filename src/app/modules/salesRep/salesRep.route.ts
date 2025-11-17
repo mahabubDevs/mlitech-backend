@@ -19,4 +19,10 @@ router.post(
   SalesRepController.generateToken
 );
 
+router.post(
+  "/validate",
+  auth(USER_ROLES.USER),
+  SalesRepController.validateToken
+);
+
 export const SalesRepRoutes = router;

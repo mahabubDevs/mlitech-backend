@@ -48,9 +48,20 @@ const generateToken = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const validateToken = catchAsync(async (req: Request, res: Response) => {
+  const user = req.user as JwtPayload;
+  await SalesRepService.validateToken(user.id, req.body.token);
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: "Token validated  successfully",
+  });
+});
 export const SalesRepController = {
   createSalesRepData,
   getSalesRepData,
   updateUserAcknowledgeStatus,
   generateToken,
+  validateToken,
 };

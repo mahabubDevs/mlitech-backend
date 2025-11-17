@@ -6,6 +6,9 @@ import ApiError from "../../../errors/ApiErrors";
 import { StatusCodes } from "http-status-codes";
 import { USER_STATUS } from "../../../enums/user";
 import { generateCashToken } from "../../../util/generateCashToken";
+import { ISubscription } from "../subscription/subscription.interface";
+import { Types } from "mongoose";
+import { Subscription } from "../subscription/subscription.model";
 
 const createSalesRepData = async (user: JwtPayload) => {
   await SalesRep.create({
@@ -13,7 +16,10 @@ const createSalesRepData = async (user: JwtPayload) => {
   });
 };
 const getSalesRepData = async (query: Record<string, unknown>) => {
-  const baseQuery = SalesRep.find();
+  const baseQuery = SalesRep.find().populate(
+    "customerId",
+    "firstName lastName email phone  status"
+  );
 
   const salesRepQuery = new QueryBuilder(baseQuery, query)
     .paginate()
@@ -61,10 +67,30 @@ const generateToken = async (userId: string) => {
     { runValidators: true }
   );
 };
+const validateToken = async (userId: string, token: string) => {
+  const result = await SalesRep.findOne({ customerId: userId });
+
+  if (!result) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid request");
+  }
+  if (result.token !== token) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid Token");
+  }
+
+  result.paymentStatus = "paid";
+  await result.save();
+
+  await User.findByIdAndUpdate(
+    userId,
+    { subscription: "active" },
+    { new: true }
+  );
+};
 
 export const SalesRepService = {
   createSalesRepData,
   getSalesRepData,
   updateUserAcknowledgeStatus,
   generateToken,
+  validateToken,
 };
