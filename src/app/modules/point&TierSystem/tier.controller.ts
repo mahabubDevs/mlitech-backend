@@ -1,33 +1,24 @@
 import { Request, Response } from "express";
-import catchAsync from "../../../shared/catchAsync";
-import { TierService } from "./tier.service";
-import sendResponse from "../../../shared/sendResponse";
 import { StatusCodes } from "http-status-codes";
+import catchAsync from "../../../shared/catchAsync";
+import sendResponse from "../../../shared/sendResponse";
 import ApiError from "../../../errors/ApiErrors";
+import { TierService } from "./tier.service";
 import { createTierSchema, updateTierSchema } from "./tier.validation";
+import { ITier } from "./tier.interface";
 
 const createTier = catchAsync(async (req: Request, res: Response) => {
-  const body = req.body.data ? JSON.parse(req.body.data) : req.body;
-
-  await createTierSchema.parseAsync({
-    name: body.name,
-    pointsThreshold: Number(body.pointsThreshold),
-    reward: body.reward,
-    accumulationRule: body.accumulationRule,
-    redemptionRule: body.redemptionRule,
-    minTotalSpend: Number(body.minTotalSpend),
-    isActive: body.isActive !== undefined ? Boolean(body.isActive) : undefined,
+  const validatedBody = await createTierSchema.parseAsync({
+    ...req.body,
+    pointsThreshold: Number(req.body.pointsThreshold),
+    minTotalSpend: Number(req.body.minTotalSpend),
+    isActive: req.body.isActive !== undefined ? Boolean(req.body.isActive) : undefined,
   });
 
-  const payload: any = {
-    name: body.name,
-    pointsThreshold: Number(body.pointsThreshold),
-    reward: body.reward,
-    accumulationRule: body.accumulationRule,
-    redemptionRule: body.redemptionRule,
-    minTotalSpend: Number(body.minTotalSpend),
-    isActive: body.isActive !== undefined ? Boolean(body.isActive) : true,
+  const payload: Partial<ITier> = {
+    ...validatedBody,
     admin: (req.user as any)?._id,
+    isActive: validatedBody.isActive ?? true,
   };
 
   const result = await TierService.createTierToDB(payload);
@@ -42,17 +33,16 @@ const createTier = catchAsync(async (req: Request, res: Response) => {
 
 const updateTier = catchAsync(async (req: Request, res: Response) => {
   const body = req.body.data ? JSON.parse(req.body.data) : req.body;
-
-  await updateTierSchema.parseAsync(body);
+  const validatedBody = await updateTierSchema.parseAsync(body);
 
   const payload: any = {
-    ...(body.name && { name: body.name }),
-    ...(body.pointsThreshold && { pointsThreshold: Number(body.pointsThreshold) }),
-    ...(body.reward && { reward: body.reward }),
-    ...(body.accumulationRule && { accumulationRule: body.accumulationRule }),
-    ...(body.redemptionRule && { redemptionRule: body.redemptionRule }),
-    ...(body.minTotalSpend && { minTotalSpend: Number(body.minTotalSpend) }),
-    ...(body.isActive !== undefined && { isActive: Boolean(body.isActive) }),
+    ...(validatedBody.name && { name: validatedBody.name }),
+    ...(validatedBody.pointsThreshold !== undefined && { pointsThreshold: Number(validatedBody.pointsThreshold) }),
+    ...(validatedBody.reward && { reward: validatedBody.reward }),
+    ...(validatedBody.accumulationRule && { accumulationRule: validatedBody.accumulationRule }),
+    ...(validatedBody.redemptionRule && { redemptionRule: validatedBody.redemptionRule }),
+    ...(validatedBody.minTotalSpend !== undefined && { minTotalSpend: Number(validatedBody.minTotalSpend) }),
+    ...(validatedBody.isActive !== undefined && { isActive: Boolean(validatedBody.isActive) }),
   };
 
   const result = await TierService.updateTierToDB(req.params.id, payload);

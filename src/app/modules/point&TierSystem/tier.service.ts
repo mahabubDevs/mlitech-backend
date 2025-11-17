@@ -1,6 +1,5 @@
-import { ITier } from "./tier.interface";
 import { Tier } from "./tier.model";
-
+import { ITier } from "./tier.interface";
 
 const createTierToDB = async (payload: Partial<ITier>): Promise<ITier> => {
   const tier = new Tier(payload);

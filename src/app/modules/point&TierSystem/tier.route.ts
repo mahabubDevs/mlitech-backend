@@ -1,24 +1,18 @@
-import express from "express";
+import { Router } from "express";
 import { TierController } from "./tier.controller";
 import auth from "../../middlewares/auth";
-import validateRequest from "../../middlewares/validateRequest";
-import { createTierSchema, updateTierSchema } from "./tier.validation";
+import { USER_ROLES } from "../../../enums/user";
 
-const router = express.Router();
 
-// Create Tier
-router.post("/", auth(), validateRequest(createTierSchema), TierController.createTier);
+const router = Router();
 
-// Get all tiers for admin
-router.get("/", auth(), TierController.getTier);
+router.route("/")
+  .get(auth(), TierController.getTier)
+  .post(auth(USER_ROLES.ADMIN,USER_ROLES.SUPER_ADMIN), TierController.createTier);
 
-// Get single tier
-router.get("/:id", auth(), TierController.getSingleTier);
-
-// Update tier
-router.patch("/:id", auth(), validateRequest(updateTierSchema), TierController.updateTier);
-
-// Delete tier
-router.delete("/:id", auth(), TierController.deleteTier);
+router.route("/:id")
+  .get(auth(), TierController.getSingleTier)
+  .patch(auth(USER_ROLES.ADMIN,USER_ROLES.SUPER_ADMIN), TierController.updateTier)
+  .delete(auth(USER_ROLES.ADMIN,USER_ROLES.SUPER_ADMIN), TierController.deleteTier);
 
 export const TierRoutes = router;

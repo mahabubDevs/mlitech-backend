@@ -58,12 +58,12 @@ const createUserToDB = async (payload: Partial<IUser>): Promise<IUser> => {
   });
 
   console.log("Generated OTP for user:", otp)  // Send OTP to user's phone
-//   if (createUser.phoneNumber) {
-//     // sendOtp expects string arguments, ensure OTP is converted to string
-//     await sendOtp(createUser.phoneNumber, String(otp));
-//   } else {
-//     console.warn("⚠️ No phone number found for user:", createUser._id);
-//   }
+  // if (createUser.phoneNumber) {
+  //   // sendOtp expects string arguments, ensure OTP is converted to string
+  //   await sendOtp(createUser.phoneNumber, String(otp));
+  // } else {
+  //   console.warn("⚠️ No phone number found for user:", createUser._id);
+  // }
 
 
   return createUser ;
