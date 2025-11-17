@@ -4,6 +4,7 @@ export type ISalesRep = {
   customerId: Types.ObjectId;
   acknowledged: boolean;
   token?: string;
+  paymentStatus: "paid" | "unpaid" | "expired";
   createdAt: Date;
   updatedAt: Date;
 };

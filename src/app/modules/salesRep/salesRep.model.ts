@@ -15,8 +15,16 @@ const salesRepSchema = new Schema<ISalesRep, SalesRepModel>(
     token: {
       type: String,
     },
+    paymentStatus: {
+      type: String,
+      enum: ["paid", "unpaid", "expired"],
+      default: "unpaid",
+    },
   },
   { timestamps: true }
 );
 
-export const Rule = model<ISalesRep, SalesRepModel>("SelesRep", salesRepSchema);
+export const SalesRep = model<ISalesRep, SalesRepModel>(
+  "SalesRep",
+  salesRepSchema
+);
