@@ -27,7 +27,30 @@ const getSalesRepData = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const updateUserAcknowledgeStatus = catchAsync(
+  async (req: Request, res: Response) => {
+    await SalesRepService.updateUserAcknowledgeStatus(req.params.id);
+
+    sendResponse(res, {
+      statusCode: StatusCodes.OK,
+      success: true,
+      message: "Acknowledge status updated successfully",
+    });
+  }
+);
+const generateToken = catchAsync(async (req: Request, res: Response) => {
+  await SalesRepService.updateUserAcknowledgeStatus(req.params.id);
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: "Token generated successfully",
+  });
+});
+
 export const SalesRepController = {
   createSalesRepData,
   getSalesRepData,
+  updateUserAcknowledgeStatus,
+  generateToken,
 };

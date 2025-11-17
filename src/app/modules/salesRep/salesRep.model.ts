@@ -12,8 +12,14 @@ const salesRepSchema = new Schema<ISalesRep, SalesRepModel>(
       type: Boolean,
       default: false,
     },
+    acknowledgeDate: {
+      type: Date,
+    },
     token: {
       type: String,
+    },
+    tokenGenerateDate: {
+      type: Date,
     },
     paymentStatus: {
       type: String,

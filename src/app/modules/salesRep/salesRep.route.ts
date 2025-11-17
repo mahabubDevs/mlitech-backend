@@ -6,5 +6,17 @@ import { SalesRepController } from "./salesRep.controller";
 const router = express.Router();
 
 router.post("/", auth(USER_ROLES.USER), SalesRepController.createSalesRepData);
-router.get("/", auth(USER_ROLES.USER), SalesRepController.getSalesRepData);
+router.get(
+  "/",
+  auth(USER_ROLES.SUPER_ADMIN),
+  SalesRepController.getSalesRepData
+);
+router.patch("/acknowledge/users/:Id", auth(USER_ROLES.SUPER_ADMIN));
+
+router.post(
+  "/token/users/:id",
+  auth(USER_ROLES.SUPER_ADMIN),
+  SalesRepController.generateToken
+);
+
 export const SalesRepRoutes = router;
