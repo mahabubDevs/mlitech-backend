@@ -1,4 +1,4 @@
-import { USER_ROLES } from "../../../enums/user";
+import { USER_ROLES, USER_STATUS } from "../../../enums/user";
 import { IUser } from "./user.interface";
 import { JwtPayload } from "jsonwebtoken";
 import { User } from "./user.model";
@@ -48,7 +48,14 @@ const createUserToDB = async (payload: Partial<IUser>): Promise<IUser> => {
   if (isExitByEmail || isExitByPhone) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "User Already Exist");
   }
-  const createUser = await User.create(payload);
+  const userData = {
+    ...payload,
+    status:
+      payload.role === USER_ROLES.MERCENT
+        ? USER_STATUS.INACTIVE
+        : USER_STATUS.ACTIVE,
+  };
+  const createUser = await User.create(userData);
   if (!createUser) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Failed to create user");
   }
