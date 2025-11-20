@@ -151,33 +151,29 @@ const deleteUser = catchAsync(async (req: Request, res: Response) => {
     });
 });
 
-const deleteOwnUser = async (req: Request, res: Response) => {
-  // ✅ Step 1: Get logged-in user ID from token
+const deleteOwnUser = catchAsync(async (req: Request, res: Response) => {
+  // Step 1: Get logged-in user ID
   const userId = req.user && (req.user as any)._id;
-  console.log("Logged-in userId from token:", userId);
-
-
-  // ✅ Step 2: Validate input
-  if (!userId) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, "User ID missing in request token");
-  }
-
+  if (!userId) throw new ApiError(StatusCodes.BAD_REQUEST, "User ID missing in request token");
+  
+  // Step 2: Get password from request
   const { password } = req.body;
-  if (!password) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, "Password is required to delete account");
-  }
-console.log("Password received for account deletion" , password);
-  // ✅ Step 3: Call service to delete user
+  if (!password) throw new ApiError(StatusCodes.BAD_REQUEST, "Password is required to delete account");
+
+  console.log("Logged-in userId from token:", userId);
+  console.log("Password received for account deletion:", password);
+
+  // Step 3: Call service
   const result = await AuthService.deleteOwnUserAccount(userId, password);
 
-  // ✅ Step 4: Send response
+  // Step 4: Send response
   sendResponse(res, {
-    statusCode: StatusCodes.OK,
     success: true,
+    statusCode: StatusCodes.OK,
     message: "User account deleted successfully",
-    data: result,
+    data: result
   });
-};
+});
 
 
 

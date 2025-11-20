@@ -500,18 +500,12 @@ const deleteOwnUserAccount = async (userId: string, password: string) => {
   }
 
   const user = await User.findById(userId).select("+password");
-  if (!user) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
-  }
+  if (!user) throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
+  if (!user.password) throw new ApiError(StatusCodes.BAD_REQUEST, "This account has no password set");
 
-  if (!user.password) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, "This account has no password set");
-  }
-
-  const isMatch = await bcrypt.compare(password, user.password);
-  if (!isMatch) {
-    throw new ApiError(StatusCodes.UNAUTHORIZED, "Incorrect password");
-  }
+  // Trim password to avoid whitespace issues
+  const isMatch = await bcrypt.compare(password.trim(), user.password);
+  if (!isMatch) throw new ApiError(StatusCodes.UNAUTHORIZED, "Incorrect password");
 
   await User.findByIdAndDelete(userId);
   return { deletedUserId: userId };
