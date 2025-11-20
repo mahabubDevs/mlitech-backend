@@ -93,7 +93,7 @@ export interface IUser {
   businessName?: string;
   appId?: string;
   fcmToken?: string;
-  referenceId?: string;
+  referenceId: string;
   role?: string;
   phone?: string;
   email?: string;

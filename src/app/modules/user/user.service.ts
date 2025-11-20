@@ -14,6 +14,7 @@ import { last } from "pdf-lib";
 import { Subscription } from "../subscription/subscription.model";
 import { IPackage } from "../shopAuraSubscription/aurashop.interface";
 import { sendOtp } from "../../../shared/twilioService";
+import { createUniqueReferralId } from "../../../util/generateRefferalId";
 
 interface IPackageWithId extends IPackage {
   _id: string;
@@ -25,9 +26,13 @@ const createAdminToDB = async (payload: any): Promise<IUser> => {
   if (isExistAdmin) {
     throw new ApiError(StatusCodes.CONFLICT, "This Email already taken");
   }
-
+  const referenceId = await createUniqueReferralId();
+  const adminData = {
+    ...payload,
+    referenceId,
+  };
   // create admin to db
-  const createAdmin = await User.create(payload);
+  const createAdmin = await User.create(adminData);
   if (!createAdmin) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Failed to create Admin");
   } else {
@@ -48,8 +53,10 @@ const createUserToDB = async (payload: Partial<IUser>): Promise<IUser> => {
   if (isExitByEmail || isExitByPhone) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "User Already Exist");
   }
+  const referenceId = await createUniqueReferralId();
   const userData = {
     ...payload,
+    referenceId,
     status:
       payload.role === USER_ROLES.MERCENT
         ? USER_STATUS.INACTIVE
