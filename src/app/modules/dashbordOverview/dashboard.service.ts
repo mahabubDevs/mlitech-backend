@@ -1,6 +1,6 @@
-import { Query } from "mongoose";
 import { Subscription } from "../subscription/subscription.model";
 import { User } from "../user/user.model";
+import { USER_ROLES, USER_STATUS } from "../../../enums/user";
 
 const getTotalRevenue = async (query: any) => {
   const startDate = new Date(query.start);
@@ -91,119 +91,59 @@ const getTotalRevenue = async (query: any) => {
   return finalData;
 };
 
-// Ethnicity Distribution
+const getStatisticsForAdminDashboard = async (range: string) => {
+  const now = new Date();
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
 
-const getEthnicityDistribution = async () => {
-  const options = [
-    "Black / Africa Decent",
-    "East Asia",
-    "Hispanic/Latino",
-    "Middle Eastern",
-    "Native American",
-    "Pacific Islander",
-    "South Asian",
-    "Southeast Asian",
-    "White Caucasion",
-    "Other",
-    "Open to All",
-    "Pisces",
-  ];
+  const ranges: Record<string, Date | undefined> = {
+    today: todayStart,
+    "7d": new Date(now.setDate(now.getDate() - 7)),
+    "30d": new Date(now.setDate(now.getDate() - 30)),
+    all: undefined,
+  };
 
-  const rawData = await User.aggregate([
-    {
-      $match: { ethnicity: { $in: options } }, // Optional: only known options
-    },
-    {
-      $group: {
-        _id: "$ethnicity",
-        count: { $sum: 1 },
-      },
-    },
-  ]);
+  const startDate = range === "all" ? undefined : ranges[range] ?? ranges["7d"];
 
-  // Initialize formatted object
-  const formatted: Record<string, number> = {};
-  options.forEach((opt) => (formatted[opt] = 0));
-  formatted["Unknown"] = 0;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const matchStage: any = {};
+  if (startDate) matchStage.createdAt = { $gte: startDate };
 
-  rawData.forEach((item) => {
-    if (options.includes(item._id)) formatted[item._id] = item.count;
-    else formatted["Unknown"] += item.count;
-  });
-
-  return formatted;
-};
-
-// Gender Distribution
-
-const getGenderDistribution = async () => {
-  const options = ["MAN", "WOMEN", "NON-BINARY", "TRANS MAN", "TRANS WOMAN"];
-
-  const rawData = await User.aggregate([
-    {
-      $match: { gender: { $in: options } }, // optional filter
-    },
-    {
-      $group: {
-        _id: "$gender",
-        count: { $sum: 1 },
-      },
-    },
-  ]);
-
-  // Total users
-  const totalUsers = await User.countDocuments();
-
-  // Initialize formatted object
-  const formatted: Record<string, { total: number; percentage: string }> = {};
-  options.forEach((opt) => (formatted[opt] = { total: 0, percentage: "0%" }));
-  formatted["Unknown"] = { total: 0, percentage: "0%" };
-
-  rawData.forEach((item) => {
-    if (options.includes(item._id)) {
-      formatted[item._id].total = item.count;
-      formatted[item._id].percentage =
-        ((item.count / totalUsers) * 100).toFixed(2) + "%";
-    } else {
-      formatted["Unknown"].total += item.count;
-    }
-  });
-
-  // If Unknown exists, calculate percentage
-  if (formatted["Unknown"].total > 0) {
-    formatted["Unknown"].percentage =
-      ((formatted["Unknown"].total / totalUsers) * 100).toFixed(2) + "%";
-  }
-
-  return formatted;
-};
-
-const getMonthlySignups = async () => {
-  const monthlySignups = await User.aggregate([
-    {
-      $group: {
-        _id: {
-          year: { $year: "$createdAt" },
-          month: { $month: "$createdAt" },
+  const [revenueResult, customerCount, providerCount, pendingApprovals] =
+    await Promise.all([
+      Subscription.aggregate([
+        {
+          $match: matchStage,
         },
-        totalUsers: { $sum: 1 },
-      },
-    },
-    { $sort: { "_id.year": 1, "_id.month": 1 } },
-  ]);
+        { $group: { _id: null, totalRevenue: { $sum: "$price" } } },
+      ]),
 
-  const formatted = monthlySignups.map((item) => ({
-    year: item._id.year,
-    month: item._id.month,
-    totalUsers: item.totalUsers,
-  }));
+      User.countDocuments({
+        role: USER_ROLES.USER,
+        ...(startDate ? { createdAt: { $gte: startDate } } : {}),
+      }),
 
-  return formatted;
+      User.countDocuments({
+        role: USER_ROLES.MERCENT,
+        ...(startDate ? { createdAt: { $gte: startDate } } : {}),
+      }),
+
+      User.countDocuments({
+        role: USER_ROLES.MERCENT,
+        status: USER_STATUS.INACTIVE,
+        ...(startDate ? { createdAt: { $gte: startDate } } : {}),
+      }),
+    ]);
+
+  return {
+    range,
+    customers: customerCount,
+    providers: providerCount,
+    pendingApprovals,
+    subscriptionRevenue: revenueResult[0]?.totalRevenue || 0,
+  };
 };
-
 export const DashboardService = {
   getTotalRevenue,
-  getEthnicityDistribution,
-  getGenderDistribution,
-  getMonthlySignups,
+  getStatisticsForAdminDashboard,
 };

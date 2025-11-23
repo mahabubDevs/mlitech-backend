@@ -17,6 +17,13 @@ const totalRevenueZodSchema = z.object({
   }),
 });
 
+const getStatisticsForAdminDashboardZodSchema = z.object({
+  query: z.object({
+    range: z.enum(["today", "7d", "30d", "all"]).optional().default("7d"),
+  }),
+});
+
 export const DashboardValidation = {
   totalRevenueZodSchema,
+  getStatisticsForAdminDashboardZodSchema,
 };

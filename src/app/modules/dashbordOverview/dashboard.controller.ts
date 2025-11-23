@@ -15,46 +15,20 @@ const getTotalRevenue = catchAsync(async (req: Request, res: Response) => {
     data: result,
   });
 });
-
-const getEthnicityDistribution = catchAsync(
+const getStatisticsForAdminDashboard = catchAsync(
   async (req: Request, res: Response) => {
-    const data = await DashboardService.getEthnicityDistribution();
+    const range = (req.query.range as string) || "7d";
+    const result = await DashboardService.getStatisticsForAdminDashboard(range);
     sendResponse(res, {
       statusCode: StatusCodes.OK,
       success: true,
-      message: "Ethnicity distribution fetched successfully",
-      data,
+      message: "Statistics fetched successfully",
+      data: result,
     });
   }
 );
-
-// Gender distribution
-const getGenderDistribution = catchAsync(
-  async (req: Request, res: Response) => {
-    const data = await DashboardService.getGenderDistribution();
-    sendResponse(res, {
-      statusCode: StatusCodes.OK,
-      success: true,
-      message: "Gender distribution fetched successfully",
-      data,
-    });
-  }
-);
-
-// Monthly signups
-const getMonthlySignups = catchAsync(async (req: Request, res: Response) => {
-  const data = await DashboardService.getMonthlySignups();
-  sendResponse(res, {
-    statusCode: StatusCodes.OK,
-    success: true,
-    message: "Monthly user signups fetched successfully",
-    data,
-  });
-});
 
 export const DashboardController = {
   getTotalRevenue,
-  getEthnicityDistribution,
-  getGenderDistribution,
-  getMonthlySignups,
+  getStatisticsForAdminDashboard,
 };

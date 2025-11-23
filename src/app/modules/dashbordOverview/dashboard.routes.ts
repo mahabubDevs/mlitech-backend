@@ -14,25 +14,11 @@ router.get(
   validateRequest(DashboardValidation.totalRevenueZodSchema),
   DashboardController.getTotalRevenue
 );
-
 router.get(
-  "/ethnicity-distribution",
+  "/admin-statistics",
   auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
-  DashboardController.getEthnicityDistribution
-);
-
-// Gender distribution
-router.get(
-  "/gender-distribution",
-  auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
-  DashboardController.getGenderDistribution
-);
-
-// Monthly signups
-router.get(
-  "/monthly-signups",
-  auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
-  DashboardController.getMonthlySignups
+  validateRequest(DashboardValidation.getStatisticsForAdminDashboardZodSchema),
+  DashboardController.getStatisticsForAdminDashboard
 );
 
 export const DashboardRoutes = router;
