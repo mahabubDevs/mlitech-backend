@@ -20,5 +20,11 @@ router.get(
   validateRequest(DashboardValidation.getStatisticsForAdminDashboardZodSchema),
   DashboardController.getStatisticsForAdminDashboard
 );
+router.get(
+  "/yearly-revenue",
+  auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  validateRequest(DashboardValidation.getYearlyRevenueZodSchema),
+  DashboardController.getYearlyRevenue
+);
 
 export const DashboardRoutes = router;

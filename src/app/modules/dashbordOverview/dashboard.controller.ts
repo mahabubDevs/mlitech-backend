@@ -3,6 +3,7 @@ import catchAsync from "../../../shared/catchAsync";
 import sendResponse from "../../../shared/sendResponse";
 import { StatusCodes } from "http-status-codes";
 import { DashboardService } from "./dashboard.service";
+import { get } from "mongoose";
 
 // Dashboard Stats
 
@@ -27,8 +28,18 @@ const getStatisticsForAdminDashboard = catchAsync(
     });
   }
 );
+const getYearlyRevenue = catchAsync(async (req: Request, res: Response) => {
+  const result = await DashboardService.getYearlyRevenue(req.query);
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: "Statistics fetched successfully",
+    data: result,
+  });
+});
 
 export const DashboardController = {
   getTotalRevenue,
   getStatisticsForAdminDashboard,
+  getYearlyRevenue,
 };

@@ -143,7 +143,49 @@ const getStatisticsForAdminDashboard = async (range: string) => {
     subscriptionRevenue: revenueResult[0]?.totalRevenue || 0,
   };
 };
+
+const getYearlyRevenue = async (query: any) => {
+  const startDate = query.start ? new Date(query.start) : undefined;
+  const endDate = query.end ? new Date(query.end) : undefined;
+  const matchStage: Record<string, any> = {};
+
+  if (startDate || endDate) {
+    matchStage.createdAt = {};
+    if (startDate) matchStage.createdAt.$gte = startDate;
+    if (endDate) matchStage.createdAt.$lte = endDate;
+  }
+
+  // Aggregate revenue by year
+  const revenueData = await Subscription.aggregate([
+    { $match: matchStage },
+    {
+      $group: {
+        _id: { year: { $year: "$createdAt" } },
+        totalRevenue: { $sum: "$price" },
+      },
+    },
+    { $sort: { "_id.year": 1 } },
+  ]);
+
+  // Determine start and end year
+  const years = revenueData.map((r) => r._id.year);
+  const minYear = startDate ? startDate.getFullYear() : Math.min(...years);
+  const maxYear = endDate ? endDate.getFullYear() : Math.max(...years);
+
+  // Fill missing years with 0 revenue
+  const result: { year: number; totalRevenue: number }[] = [];
+  for (let y = minYear; y <= maxYear; y++) {
+    const yearData = revenueData.find((r) => r._id.year === y);
+    result.push({
+      year: y,
+      totalRevenue: yearData?.totalRevenue || 0,
+    });
+  }
+
+  return result;
+};
 export const DashboardService = {
   getTotalRevenue,
   getStatisticsForAdminDashboard,
+  getYearlyRevenue,
 };
