@@ -32,7 +32,8 @@ const userSchema = new Schema<IUser, UserModal>(
     },
     referenceId: {
       type: String,
-      required: false,
+      unique: true,
+      required: true,
     },
     role: {
       type: String,

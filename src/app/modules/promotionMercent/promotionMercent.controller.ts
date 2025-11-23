@@ -39,7 +39,7 @@ console.log("REQ.BODY:", req.body);
         createdBy: (req.user as any)?._id,
     };
 
-    const result = await PromotionService.createPromotion(payload);
+    const result = await PromotionService.createPromotionToDB(payload);
 
     sendResponse(res, {
         statusCode: StatusCodes.OK,
@@ -51,7 +51,7 @@ console.log("REQ.BODY:", req.body);
 
 
 const getAllPromotions = catchAsync(async (req: Request, res: Response) => {
-    const result = await PromotionService.getAllPromotions();
+    const result = await PromotionService.getAllPromotionsFromDB();
     sendResponse(res, {
         statusCode: StatusCodes.OK,
         success: true,
@@ -61,7 +61,7 @@ const getAllPromotions = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getSinglePromotion = catchAsync(async (req: Request, res: Response) => {
-    const result = await PromotionService.getSinglePromotion(req.params.id);
+    const result = await PromotionService.getSinglePromotionFromDB(req.params.id);
     if (!result) throw new ApiError(StatusCodes.NOT_FOUND, "Promotion not found");
     sendResponse(res, {
         statusCode: StatusCodes.OK,
@@ -97,7 +97,7 @@ const updatePromotion = catchAsync(async (req: Request, res: Response) => {
   }
 
   // 🔹 Step 4: Update document
-  const result = await PromotionService.updatePromotion(req.params.id, payload);
+  const result = await PromotionService.updatePromotionToDB(req.params.id, payload);
 
   if (!result) {
     throw new ApiError(StatusCodes.NOT_FOUND, "Promotion not found");
@@ -114,7 +114,7 @@ const updatePromotion = catchAsync(async (req: Request, res: Response) => {
 
 
 const deletePromotion = catchAsync(async (req: Request, res: Response) => {
-    const result = await PromotionService.deletePromotion(req.params.id);
+    const result = await PromotionService.deletePromotionFromDB(req.params.id);
     if (!result) throw new ApiError(StatusCodes.NOT_FOUND, "Promotion not found");
 
     sendResponse(res, {
@@ -126,7 +126,7 @@ const deletePromotion = catchAsync(async (req: Request, res: Response) => {
 });
 
 const togglePromotion = catchAsync(async (req: Request, res: Response) => {
-    const result = await PromotionService.togglePromotion(req.params.id);
+    const result = await PromotionService.togglePromotionInDB(req.params.id);
     if (!result) throw new ApiError(StatusCodes.NOT_FOUND, "Promotion not found");
 
     sendResponse(res, {

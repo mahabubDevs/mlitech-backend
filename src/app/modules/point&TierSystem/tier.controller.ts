@@ -6,6 +6,8 @@ import ApiError from "../../../errors/ApiErrors";
 import { TierService } from "./tier.service";
 import { createTierSchema, updateTierSchema } from "./tier.validation";
 import { ITier } from "./tier.interface";
+import QueryBuilder from "../../../util/queryBuilder";
+import { Tier } from "./tier.model";
 
 const createTier = catchAsync(async (req: Request, res: Response) => {
   const validatedBody = await createTierSchema.parseAsync({
@@ -57,12 +59,36 @@ const updateTier = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getTier = catchAsync(async (req: Request, res: Response) => {
-  const result = await TierService.getTierFromDB((req.user as any)?._id);
+  // Build the query
+  const queryBuilder = new QueryBuilder(
+    Tier.find(), // base model query
+    {
+      ...req.query,
+      admin: (req.user as any)?._id, // add adminId if logged in
+    }
+  );
+
+  // Apply query builder features
+  queryBuilder
+    .search(['name', 'description']) // searchable fields in Tier
+    .filter()
+    .sort()
+    .paginate()
+    .fields();
+
+  // Execute query
+  const tiers = await queryBuilder.modelQuery;
+
+  // Get pagination info
+  const pagination = await queryBuilder.getPaginationInfo();
+
+  // Send response
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
     message: "Tiers retrieved successfully",
-    data: result,
+    data: tiers,
+     pagination,
   });
 });
 
