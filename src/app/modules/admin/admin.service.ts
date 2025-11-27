@@ -3,6 +3,7 @@ import { IUser } from "../user/user.interface";
 import { User } from "../user/user.model";
 import { USER_STATUS } from "../../../enums/user";
 import ApiError from "../../../errors/ApiErrors";
+import QueryBuilder from "../../../util/queryBuilder";
 
 const createAdminToDB = async (payload: IUser): Promise<IUser> => {
   const createAdmin: any = await User.create(payload);
@@ -43,9 +44,31 @@ const updateUserStatus = async (id: string, status: USER_STATUS) => {
   );
 };
 
+const getAllCustomers = async (query: Record<string, unknown>) => {
+  const baseQuery = User.find({ role: "USER" }).select(
+    "firstName lastName phone email status address "
+  );
+
+  const allCusomtersQuery = new QueryBuilder(baseQuery, query)
+    .search(["firstName", "lastName", "email", "phone"])
+    .filter()
+    .paginate()
+    .sort();
+
+  const [allcustomers, pagination] = await Promise.all([
+    allCusomtersQuery.modelQuery.lean(),
+    allCusomtersQuery.getPaginationInfo(),
+  ]);
+  return {
+    allcustomers,
+    pagination,
+  };
+};
+
 export const AdminService = {
   createAdminToDB,
   deleteAdminFromDB,
   getAdminFromDB,
   updateUserStatus,
+  getAllCustomers,
 };

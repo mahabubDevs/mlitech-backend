@@ -50,9 +50,21 @@ const updateUserStatus = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getAllCustomers = catchAsync(async (req: Request, res: Response) => {
+  const result = await AdminService.getAllCustomers(req.query);
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: "All customers Retrieved Successfully",
+    data: result.allcustomers,
+    pagination: result.pagination,
+  });
+});
+
 export const AdminController = {
   deleteAdmin,
   createAdmin,
   getAdmin,
   updateUserStatus,
+  getAllCustomers,
 };

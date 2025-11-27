@@ -2,30 +2,31 @@ import { Types } from "mongoose";
 import { IGiftCard } from "./giftCard.model";
 import { IDigitalCard } from "./digitalCard.model";
 
+// interfaces/giftCard.interface.ts
+
+
 export interface IFindCustomerByCardResult {
-  customer: any | null; // replace 'any' with your IUser interface if available
-  digitalCard: IDigitalCard | null;
-  giftCards: IGiftCard[];
+  customer: any | null;
+  digitalCard: Partial<IDigitalCard> & {
+    merchant?: { businessName: string; photo: string } | null;
+  } | null;
+  giftCards: any[];
 }
 
 // Payload for buying a gift card (user redeems)
 export interface IBuyGiftCardPayload {
-  merchantId: string | Types.ObjectId;
-  userId: string | Types.ObjectId; // buyer user id
-  points: number;
-  expiry?: Date | string | null;
-  code?: string; // optional custom code
-  tierId?: string | Types.ObjectId | null; // optional, if user redeems tier-specific gift card
-  discount?: number | null; // optional, discount value applied
+  giftCardId: string;
+  userId: string;
 }
 
 // Payload for creating a gift card (merchant creates)
 export interface ICreateGiftCardPayload {
+  title: string;
   merchantId: string | Types.ObjectId;
   points: number;
   expiry?: Date | string | null;
   code?: string; // optional custom code
   userId?: string | Types.ObjectId | null; // optional, user-specific gift card
   tierId?: string | Types.ObjectId | null; // optional, tier-specific gift card
-  discount?: number | null; // optional, fixed or tier discount %
+  // discount?: number | null; // optional, fixed or tier discount %
 }

@@ -30,4 +30,10 @@ router.patch(
   validateRequest(AdminValidation.updateUserStausZodSchema),
   AdminController.updateUserStatus
 );
+
+router.get(
+  "/customers",
+  auth(USER_ROLES.SUPER_ADMIN),
+  AdminController.getAllCustomers
+);
 export const AdminRoutes = router;

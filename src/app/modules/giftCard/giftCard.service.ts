@@ -4,8 +4,10 @@ import { IBuyGiftCardPayload, ICreateGiftCardPayload, IFindCustomerByCardResult 
 import mongoose from "mongoose";
 import { User } from "../user/user.model";
 
-function genUniqueId(prefix = "DC") {
-  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+function genUniqueId(prefix = "GC") {
+  const fourDigits = Math.floor(1000 + Math.random() * 9000); // 1000-9999
+  const threeDigits = Math.floor(100 + Math.random() * 900);  // 100-999
+  return `${prefix}-${fourDigits}-${threeDigits}`;
 }
 
 const createDigitalCardIfNotExists = async (userId: any, merchantId: any) => {
@@ -21,42 +23,63 @@ const createDigitalCardIfNotExists = async (userId: any, merchantId: any) => {
   return digital;
 };
 
-const buyGiftCard = async (payload: IBuyGiftCardPayload) => {
+
+const listUserGiftCards = async (userId: string) => {
+  // 1️⃣ Find all digital cards for this user
+  const digitalCards = await DigitalCard.find({ userId: new mongoose.Types.ObjectId(userId) }).lean();
+
+  if (!digitalCards.length) return [];
+
+  const digitalCardIds = digitalCards.map(dc => dc._id);
+
+  // 2️⃣ Fetch all gift cards for these digital cards (ignore merchant info)
+  const giftCards = await GiftCard.find({ 
+    digitalCardId: { $in: digitalCardIds },
+    userId: new mongoose.Types.ObjectId(userId) // only those the user bought
+  })
+  .select("_id code points tierId expiry isActive digitalCardId") // select only necessary fields
+  .lean();
+
+  return giftCards;
+};
+
+
+const buyGiftCard = async (payload: { giftCardId: string, userId: string }) => {
   const session = await mongoose.startSession();
   session.startTransaction();
+
   try {
-    const { merchantId, userId, points, expiry, code, tierId, discount } = payload;
+    const { giftCardId, userId } = payload;
 
-    const merchant = await User.findById(merchantId).session(session);
-    if (!merchant) throw new Error("Merchant not found");
+    // giftCardId কে ObjectId তে convert করা
+    const giftCard = await GiftCard.findOne({ _id: new mongoose.Types.ObjectId(giftCardId) }).session(session);
+    if (!giftCard) throw new Error("Gift card not found");
+    if (!giftCard.isActive) throw new Error("Gift card is not active");
 
-    const buyer = await User.findById(userId).session(session);
+    // merchantId DB থেকে already ObjectId
+    const merchantId = giftCard.merchantId;
+
+    // buyer খুঁজে বের করা
+    const buyer = await User.findById(new mongoose.Types.ObjectId(userId)).session(session);
     if (!buyer) throw new Error("Buyer not found");
 
     const digital = await createDigitalCardIfNotExists(userId, merchantId);
 
-    const giftCode = code || genUniqueId("GC");
-    const giftCard = await GiftCard.create([{
-      code: giftCode,
-      merchantId,
-      userId,
-      tierId: tierId || null,
-      discount: discount || null,
-      digitalCardId: digital._id,
-      points,
-      expiry: expiry ? new Date(expiry as any) : null,
-    }], { session });
+    // giftCard কে user assign করা
+    giftCard.userId = new mongoose.Types.ObjectId(userId);
+    await giftCard.save({ session });
 
-    digital.totalPoints = (digital.totalPoints || 0) + points;
+    // DigitalCard update
+    digital.totalPoints = (digital.totalPoints || 0) + giftCard.points;
     if (digital.pointsHistory) {
-      digital.pointsHistory.push({ points, type: "earn", createdAt: new Date() });
+      digital.pointsHistory.push({ points: giftCard.points, type: "earn", createdAt: new Date() });
     }
     await digital.save({ session });
 
     await session.commitTransaction();
     session.endSession();
 
-    return { digitalCard: digital, giftCard: (giftCard as any)[0] };
+    return { digitalCard: digital, giftCard };
   } catch (err) {
     await session.abortTransaction();
     session.endSession();
@@ -65,29 +88,89 @@ const buyGiftCard = async (payload: IBuyGiftCardPayload) => {
 };
 
 const findCustomerByUniqueCardId = async (uniqueId: string): Promise<IFindCustomerByCardResult> => {
-  const digital = await DigitalCard.findOne({ uniqueId }).lean();
+  // Digital card fetch, only required fields
+  const digital = await DigitalCard.findOne({ uniqueId })
+    .select("uniqueId totalPoints pointsHistory") .populate({
+    path: "merchantId",
+    select: "businessName photo", // merchant-er required fields
+    model: "User"
+  }) // fetch only these
+    .lean();
+
   if (!digital) return { customer: null, digitalCard: null, giftCards: [] };
 
-  const customer = await User.findById(digital.userId).lean();
-  const giftCards = await GiftCard.find({ digitalCardId: digital._id }).lean();
+  // Merchant info
+  // const merchant = await User.findById(digital.merchantId)
+  //   .select("businessName photo") // fetch only business name and photo
+  //   .lean();
 
-  return { customer, digitalCard: digital as any, giftCards: giftCards as any };
+  return { 
+    customer: null, // customer info na lage, tai null
+    digitalCard: { 
+      photo: (digital as any).merchantId?.photo || null,
+      businessName: (digital as any).merchantId?.businessName || null,
+      uniqueId: digital.uniqueId,
+      totalPoints: digital.totalPoints,
+      pointsHistory: digital.pointsHistory,
+      // merchantId: merchant || null
+    },
+    giftCards: [] // optional, na pathale empty
+  };
 };
+
 
 const getGiftCardsByDigitalCard = async (digitalCardId: string) => {
   return GiftCard.find({ digitalCardId }).sort({ createdAt: -1 });
 };
 
+const listDigitalCardsByUser = async (userId: string) => {
+  const digitalCards = await DigitalCard.aggregate([
+    {
+      $match: {
+        userId: new mongoose.Types.ObjectId(userId),
+      },
+    },
+    {
+      $lookup: {
+        from: "users",                       // MUST be "users"
+        localField: "merchantId",
+        foreignField: "_id",
+        as: "merchant",
+      },
+    },
+    { $unwind: "$merchant" },
+    {
+      $project: {
+        _id: 0,
+        uniqueId: 1,
+        totalPoints: 1,
+        merchantId: 1,
+        merchantBusinessName: "$merchant.businessName",
+        merchantLogo: "$merchant.photo",
+      },
+    },
+  ]);
+
+  return digitalCards;
+};
+
+
+
+
+
+
+
+
 const createGiftCard = async (payload: ICreateGiftCardPayload) => {
-  const { merchantId, points, expiry, code, userId, tierId, discount } = payload;
+  const {title, merchantId, points, expiry, code, userId, tierId } = payload;
   const giftCode = code || genUniqueId("GC");
 
   const giftCard = new GiftCard({
+    title,
     code: giftCode,
     merchantId, // token user id
     userId: userId || null,
     tierId: tierId || null,
-    discount: discount || null,
     digitalCardId: null,
     points,
     expiry: expiry ? new Date(expiry as any) : null,
@@ -96,15 +179,33 @@ const createGiftCard = async (payload: ICreateGiftCardPayload) => {
   return giftCard.save();
 };
 
+const getAllGiftCardById = () => {
+  return GiftCard.find(); // Query object return
+};
 const getGiftCardById = async (id: string) => GiftCard.findById(id);
-const updateGiftCard = async (id: string, payload: Partial<IGiftCard>) => GiftCard.findByIdAndUpdate(id, payload, { new: true, runValidators: true });
+// Service
+const updateGiftCard = async (id: string, payload: Partial<IGiftCard>) => {
+  // শুধু title এবং points নিতে হবে
+  const allowedUpdates: Partial<Pick<IGiftCard, "title" | "points">> = {};
+  
+  if (payload.title !== undefined) allowedUpdates.title = payload.title;
+  if (payload.points !== undefined) allowedUpdates.points = payload.points;
+
+  return GiftCard.findByIdAndUpdate(id, allowedUpdates, {
+    new: true,
+    runValidators: true,
+  });
+};
 const deleteGiftCard = async (id: string) => GiftCard.findByIdAndDelete(id);
 
 export const GiftCardService = {
   buyGiftCard,
   findCustomerByUniqueCardId,
   getGiftCardsByDigitalCard,
+  listDigitalCardsByUser,
+  listUserGiftCards,
   createGiftCard,
+  getAllGiftCardById,
   getGiftCardById,
   updateGiftCard,
   deleteGiftCard,

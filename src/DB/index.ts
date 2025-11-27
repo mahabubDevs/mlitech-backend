@@ -9,6 +9,7 @@ const superUser = {
   firstName: "Super", // put client first name
   lastName: "Admin", // put client last name
   role: USER_ROLES.SUPER_ADMIN,
+  phone: "+8801700000000", // put client phone number
   email: config.admin.email,
   password: config.admin.password,
   verified: true,

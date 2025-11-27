@@ -19,6 +19,7 @@ import { PromoMercentRoutes } from "../modules/promotionMercent/promotionMercent
 import { TierRoutes } from "../modules/point&TierSystem/tier.route";
 import { SalesRepRoutes } from "../modules/salesRep/salesRep.route";
 import { GiftCardRoute } from "../modules/giftCard/giftCard.route";
+import { AdminRoutes } from "../modules/admin/admin.route";
 // import { AuraBundleRoute } from '../modules/shopAuroBundle/auraBundle.routes';
 // import { BuyCall } from '../modules/buy/buy.routes';
 // import { CallBundleRoute } from '../modules/shopCallBundle/callBundle.routes';
@@ -48,6 +49,7 @@ const apiRoutes = [
   { path: "/package", route: PackageRoutes },
   { path: "/sales-rep", route: SalesRepRoutes },
   { path: "/gift-card", route: GiftCardRoute },
+  { path: "/admin", route: AdminRoutes },
   // {path: "/chat", route:ChatRoutes},
   // {path: "/game", route:GameRoutes},
   // {path: "/event", route:EventRoutes},
