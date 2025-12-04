@@ -8,6 +8,7 @@ const sellSchema = new Schema({
   totalBill: { type: Number, required: true },
   discountedBill: { type: Number, required: true },
   pointsEarned: { type: Number, required: true },
+  status: { type: String, enum: ["completed", "pending"], default: "pending" },
 }, { timestamps: true });
 
 export const Sell = model("Sell", sellSchema);

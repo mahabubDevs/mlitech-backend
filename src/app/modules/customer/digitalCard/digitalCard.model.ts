@@ -35,7 +35,7 @@ const digitalCardSchema = new Schema(
         status: {
           type: String,
           enum: ["unused", "used", "expired","pending"],
-          default: "unused",
+          default: "pending",
         },
         usedAt: {
           type: Date,
