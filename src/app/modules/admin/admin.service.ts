@@ -66,7 +66,7 @@ const getAllCustomers = async (query: Record<string, unknown>) => {
 };
 const getAllMerchants = async (query: Record<string, unknown>) => {
   const baseQuery = User.find({ role: USER_ROLES.MERCENT }).select(
-    "firstName lastName phone email status address  "
+    "firstName lastName phone email status address approveStatus "
   );
 
   const allMerchantsQuery = new QueryBuilder(baseQuery, query)

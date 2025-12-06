@@ -67,7 +67,7 @@ const updateProfile = catchAsync(
     if (typeof req.body.data === "string") {
       bodyData = JSON.parse(req.body.data);
     }
-    console.log(req.files);
+
     let profile;
     if (req.files && "profile" in req.files && req.files.profile[0]) {
       profile = `/images/${req.files.profile[0].filename}`;
@@ -77,6 +77,16 @@ const updateProfile = catchAsync(
       photo = `/images/${req.files.coverPhoto[0].filename}`;
     }
 
+    if (bodyData?.latitude && bodyData?.longitude) {
+      bodyData.location = {
+        type: "Point",
+        coordinates: [
+          parseFloat(bodyData.longitude),
+          parseFloat(bodyData.latitude),
+        ],
+      };
+    }
+    console.log(bodyData);
     const data = {
       profile,
       photo,
