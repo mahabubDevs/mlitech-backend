@@ -1,5 +1,10 @@
 import { Model, Types } from "mongoose";
-import { USER_REPORT, USER_ROLES, USER_STATUS } from "../../../enums/user";
+import {
+  APPROVE_STATUS,
+  USER_REPORT,
+  USER_ROLES,
+  USER_STATUS,
+} from "../../../enums/user";
 
 export interface IStripeAccountInfo {
   status: string;
@@ -115,6 +120,7 @@ export interface IUser {
   photo?: string;
   verified?: boolean;
   status: USER_STATUS;
+  approveStatus?: APPROVE_STATUS;
   lastStatusChanged?: Date;
   userReport: USER_REPORT;
   stripeAccountId?: string;

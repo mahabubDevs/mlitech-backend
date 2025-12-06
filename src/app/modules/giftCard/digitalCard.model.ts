@@ -30,3 +30,37 @@ const digitalCardSchema = new Schema<IDigitalCard>({
 }, { timestamps: true });
 
 export const DigitalCard = model<IDigitalCard>("DigitalCard", digitalCardSchema);
+
+
+
+
+
+// import { Schema, model } from "mongoose";
+
+// const digitalCardSchema = new Schema(
+//   {
+//     userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+
+//     merchantId: { type: Schema.Types.ObjectId, ref: "Merchant", required: true },
+
+//     promotions: [
+//       { type: Schema.Types.ObjectId, ref: "PromotionMercent" }
+//     ],
+
+//     // ⭐ POINTS (Only Digital Card)
+//     points: {
+//       type: Number,
+//       default: 0
+//     },
+
+//     cardCode: {
+//       type: String,
+//       unique: true,
+//       default: () =>
+//         Math.random().toString(36).substring(2, 10).toUpperCase(),
+//     },
+//   },
+//   { timestamps: true }
+// );
+
+// export const DigitalCard = model("DigitalCard", digitalCardSchema);

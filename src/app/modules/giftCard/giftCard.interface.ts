@@ -28,5 +28,6 @@ export interface ICreateGiftCardPayload {
   code?: string; // optional custom code
   userId?: string | Types.ObjectId | null; // optional, user-specific gift card
   tierId?: string | Types.ObjectId | null; // optional, tier-specific gift card
+  status?: "active" | "pending" | "approved" | "redeem";
   // discount?: number | null; // optional, fixed or tier discount %
 }

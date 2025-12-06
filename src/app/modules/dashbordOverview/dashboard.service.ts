@@ -93,18 +93,43 @@ const getTotalRevenue = async (query: any) => {
 
 const getStatisticsForAdminDashboard = async (range: string) => {
   const now = new Date();
+
+  // Start of today
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
+  // Start of this month
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  // Start of this year
+  const yearStart = new Date(now.getFullYear(), 0, 1);
+
+  // Start of last 1,7,30 days
+  const last1Day = new Date();
+  last1Day.setDate(now.getDate() - 1);
+  last1Day.setHours(0, 0, 0, 0);
+
+  const last7Days = new Date();
+  last7Days.setDate(now.getDate() - 7);
+
+  const last30Days = new Date();
+  last30Days.setDate(now.getDate() - 30);
+
   const ranges: Record<string, Date | undefined> = {
+    "1d": last1Day,
+    "7d": last7Days,
+    "30d": last30Days,
     today: todayStart,
-    "7d": new Date(now.setDate(now.getDate() - 7)),
-    "30d": new Date(now.setDate(now.getDate() - 30)),
+    month: monthStart,
+    year: yearStart,
     all: undefined,
   };
+  const startDate = range === "all" ? undefined : ranges[range];
 
-  const startDate = range === "all" ? undefined : ranges[range] ?? ranges["7d"];
 
+  // const startDate = ranges[range] ?? ranges["7d"];
+
+  // Build match stage
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const matchStage: any = {};
   if (startDate) matchStage.createdAt = { $gte: startDate };
@@ -112,22 +137,17 @@ const getStatisticsForAdminDashboard = async (range: string) => {
   const [revenueResult, customerCount, providerCount, pendingApprovals] =
     await Promise.all([
       Subscription.aggregate([
-        {
-          $match: matchStage,
-        },
+        { $match: matchStage },
         { $group: { _id: null, totalRevenue: { $sum: "$price" } } },
       ]),
-
       User.countDocuments({
         role: USER_ROLES.USER,
         ...(startDate ? { createdAt: { $gte: startDate } } : {}),
       }),
-
       User.countDocuments({
         role: USER_ROLES.MERCENT,
         ...(startDate ? { createdAt: { $gte: startDate } } : {}),
       }),
-
       User.countDocuments({
         role: USER_ROLES.MERCENT,
         status: USER_STATUS.INACTIVE,
@@ -143,6 +163,7 @@ const getStatisticsForAdminDashboard = async (range: string) => {
     subscriptionRevenue: revenueResult[0]?.totalRevenue || 0,
   };
 };
+
 
 const getYearlyRevenue = async (query: any) => {
   const startDate = query.start ? new Date(query.start) : undefined;

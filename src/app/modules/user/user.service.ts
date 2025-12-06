@@ -1,4 +1,4 @@
-import { USER_ROLES, USER_STATUS } from "../../../enums/user";
+import { APPROVE_STATUS, USER_ROLES, USER_STATUS } from "../../../enums/user";
 import { IUser } from "./user.interface";
 import { JwtPayload } from "jsonwebtoken";
 import { User } from "./user.model";
@@ -65,6 +65,10 @@ const createUserToDB = async (payload: Partial<IUser>): Promise<IUser> => {
       payload.role === USER_ROLES.MERCENT
         ? USER_STATUS.INACTIVE
         : USER_STATUS.ACTIVE,
+
+    ...(payload.role === USER_ROLES.MERCENT && {
+      approveStatus: APPROVE_STATUS.PENDING,
+    }),
   };
 
   const createUser = await User.create(userData);
@@ -159,11 +163,15 @@ const updateProfileToDB = async (
   if (payload.profile) {
     unlinkFile(isExistUser.profile);
   }
+  if (payload.photo) {
+    unlinkFile(isExistUser.photo);
+  }
 
   const updateDoc = await User.findOneAndUpdate({ _id: _id }, payload, {
     new: true,
+    runValidators: true,
   });
-  console.log("updateDoc", updateDoc);
+
   return updateDoc;
 };
 

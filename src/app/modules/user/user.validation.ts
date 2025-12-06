@@ -1,53 +1,77 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 const createAdminZodSchema = z.object({
-    body: z.object({
-        name: z.string({ required_error: 'Name is required' }),
-        email: z.string({ required_error: 'Email is required' }).email({ message: 'Invalid email address' }),
-        password: z.string({ required_error: 'Password is required' }),
-        role: z.string({ required_error: 'Role is required' })
-    })
+  body: z.object({
+    name: z.string({ required_error: "Name is required" }),
+    email: z
+      .string({ required_error: "Email is required" })
+      .email({ message: "Invalid email address" }),
+    password: z.string({ required_error: "Password is required" }),
+    role: z.string({ required_error: "Role is required" }),
+  }),
 });
 
 const createUserZodSchema = z.object({
-    body: z.object({
-        firstName: z.string({ required_error: 'First name is required' }),
-        // lastName: z.string({ required_error: 'Last name is required' }),
-        country: z.string({ required_error: 'countrey'}).optional(),
-        phone : z.string({ required_error: 'Phone number is required' }).min(7, 'Phone number must be at least 7 characters').max(15, 'Phone number must be at most 15 characters') ,
-        email: z.string({ required_error: 'Email is required' }).email({ message: 'Invalid email address' }),
-        password: z.string({ required_error: 'Password is required' }),
-        role: z.enum(["MERCENT", "USER"]).optional().transform(val => val?.toLowerCase()),
+  body: z.object({
+    firstName: z.string({ required_error: "First name is required" }),
+    // lastName: z.string({ required_error: 'Last name is required' }),
+    country: z.string({ required_error: "countrey" }).optional(),
+    phone: z
+      .string({ required_error: "Phone number is required" })
+      .min(7, "Phone number must be at least 7 characters")
+      .max(15, "Phone number must be at most 15 characters"),
+    email: z
+      .string({ required_error: "Email is required" })
+      .email({ message: "Invalid email address" }),
+    password: z.string({ required_error: "Password is required" }),
+    role: z.enum(["MERCENT", "USER"]),
 
-        // gender: z.enum(["MAN", "WOMEN", "NON-BINARY", "TRANS MAN", "TRANS WOMAN"]).optional()
+    // gender: z.enum(["MAN", "WOMEN", "NON-BINARY", "TRANS MAN", "TRANS WOMAN"]).optional()
 
-        // phoneNumber: z.string({ required_error: 'Phone number is required' }),
-        // location: z.string({ required_error: 'Location is required' }),
-    })
-})
-
-
-
-
-
-
-
-
-
+    // phoneNumber: z.string({ required_error: 'Phone number is required' }),
+    // location: z.string({ required_error: 'Location is required' }),
+  }),
+});
 
 const updateUserZodSchema = z.object({
   body: z.object({
     firstName: z.string().optional(), // keep as is
-    lastName: z.string().optional(),  // keep as is
-    appId: z.string().optional(),     // keep as is
+    lastName: z.string().optional(), // keep as is
+    appId: z.string().optional(), // keep as is
 
-    role: z.enum(["SUPER_ADMIN", "ADMIN", "USER"]).optional().transform(val => val?.toLowerCase()),
+    role: z
+      .enum(["SUPER_ADMIN", "ADMIN", "USER"])
+      .optional()
+      .transform((val) => val?.toLowerCase()),
 
     phoneNumber: z.string().optional(), // keep as is
-    email: z.string().email({ message: "Invalid email address" }).optional().transform(val => val?.toLowerCase()),
+    email: z
+      .string()
+      .email({ message: "Invalid email address" })
+      .optional()
+      .transform((val) => val?.toLowerCase()),
     phone: z.string().optional(), // keep as is
-    password: z.string().min(8, "Password must be at least 8 characters").optional(), // keep as is
-    location: z.string().optional().transform(val => val?.toLowerCase()),
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .optional(), // keep as is
+
+    latitude: z
+      .number({
+        required_error: "Latitude is required",
+        invalid_type_error: "Latitude must be a number",
+      })
+      .min(-90)
+      .max(90)
+      .optional(),
+    longitude: z
+      .number({
+        required_error: "Longitude is required",
+        invalid_type_error: "Longitude must be a number",
+      })
+      .min(-180)
+      .max(180)
+      .optional(),
     profile: z.string().url().optional(), // keep as is
     documentVerified: z.array(z.string()).optional(), // keep as is
     photo: z.string().optional(), // keep as is
@@ -65,11 +89,20 @@ const updateUserZodSchema = z.object({
       })
       .optional(),
 
-    pages: z.array(z.string().transform(val => val.toLowerCase())).optional(),
+    pages: z.array(z.string().transform((val) => val.toLowerCase())).optional(),
 
-    datingIntentions: z.string().optional().transform(val => val?.toLowerCase()),
-    interestedIn: z.string().optional().transform(val => val?.toLowerCase()),
-    languages: z.string().optional().transform(val => val?.toLowerCase()),
+    datingIntentions: z
+      .string()
+      .optional()
+      .transform((val) => val?.toLowerCase()),
+    interestedIn: z
+      .string()
+      .optional()
+      .transform((val) => val?.toLowerCase()),
+    languages: z
+      .string()
+      .optional()
+      .transform((val) => val?.toLowerCase()),
 
     age: z.number().min(18).max(100).optional(),
 
@@ -82,41 +115,46 @@ const updateUserZodSchema = z.object({
     smoking: z.boolean().optional(),
     balance: z.number().optional(),
     availableTime: z.number().optional(),
-    gender: z.enum(["MAN", "WOMEN", "NON-BINARY", "TRANS MAN", "TRANS WOMAN"]).optional(),
+    gender: z
+      .enum(["MAN", "WOMEN", "NON-BINARY", "TRANS MAN", "TRANS WOMAN"])
+      .optional(),
     children: z.boolean().optional(),
-    politics: z.string().optional().transform(val => val?.toLowerCase()),
-    educationLevel: z.string().optional().transform(val => val?.toLowerCase()),
-     ethnicity: z.enum([
-    "Black / Africa Decent",
-    "East Asia",
-    "Hispanic/Latino",
-    "Middle Eastern",
-    "Native American",
-    "Pacific Islander",
-    "South Asian",
-    "Southeast Asian",
-    "White Caucasion",
-    "Other",
-    "Open to All",
-    "Pisces",
-  ]).optional(),
-    zodiacPreference: z.string().optional().transform(val => val?.toLowerCase()),
+    politics: z
+      .string()
+      .optional()
+      .transform((val) => val?.toLowerCase()),
+    educationLevel: z
+      .string()
+      .optional()
+      .transform((val) => val?.toLowerCase()),
+    ethnicity: z
+      .enum([
+        "Black / Africa Decent",
+        "East Asia",
+        "Hispanic/Latino",
+        "Middle Eastern",
+        "Native American",
+        "Pacific Islander",
+        "South Asian",
+        "Southeast Asian",
+        "White Caucasion",
+        "Other",
+        "Open to All",
+        "Pisces",
+      ])
+      .optional(),
+    zodiacPreference: z
+      .string()
+      .optional()
+      .transform((val) => val?.toLowerCase()),
   }),
 });
 
-export const UserValidation = { 
+export const UserValidation = {
   createAdminZodSchema,
   createUserZodSchema,
-  updateUserZodSchema
+  updateUserZodSchema,
 };
-
-
-
-
-
-
-
-
 
 // const updateUserZodSchema = z.object({
 //   body: z.object({
@@ -173,9 +211,8 @@ export const UserValidation = {
 //   }),
 // });
 
-
-// export const UserValidation = { 
+// export const UserValidation = {
 //     createAdminZodSchema,
 //     createUserZodSchema,
 //     updateUserZodSchema
-// };  
+// };

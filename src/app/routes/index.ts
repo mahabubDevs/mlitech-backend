@@ -15,11 +15,18 @@ import { RuleRoutes } from "../modules/rule/rule.route";
 import { DashboardRoutes } from "../modules/dashbordOverview/dashboard.routes";
 import { SubscriptionRoutes } from "../modules/subscription/subscription.routes";
 import { PackageRoutes } from "../modules/package/package.routes";
-import { PromoMercentRoutes } from "../modules/promotionMercent/promotionMercent.routes";
-import { TierRoutes } from "../modules/point&TierSystem/tier.route";
+
 import { SalesRepRoutes } from "../modules/salesRep/salesRep.route";
 import { GiftCardRoute } from "../modules/giftCard/giftCard.route";
 import { AdminRoutes } from "../modules/admin/admin.route";
+// import { SellManagementRoute } from "../modules/sellManagement/sellManagement.routes";
+import { DashboardMercentRoutes } from "../modules/dashboardOverviewMercent/dashbordMercent.route";
+import { MercentCustomerListRoutes } from "../modules/mercent/mercentCustomerList/mercentCustomerList.routes";
+import { contacUsRoutes } from "../modules/contactUs/contactUs.routes";
+import { PromoMercentRoutes } from "../modules/mercent/promotionMercent/promotionMercent.routes";
+import { TierRoutes } from "../modules/mercent/point&TierSystem/tier.route";
+import { DigitalCardRoutes } from "../modules/customer/digitalCard/digitalCard.routes";
+import { SellManagementRoute } from "../modules/mercent/mercentSellManagement/mercentSellManagement.route";
 // import { AuraBundleRoute } from '../modules/shopAuroBundle/auraBundle.routes';
 // import { BuyCall } from '../modules/buy/buy.routes';
 // import { CallBundleRoute } from '../modules/shopCallBundle/callBundle.routes';
@@ -44,12 +51,18 @@ const apiRoutes = [
   { path: "/subscription", route: SubscriptionRoutes },
   { path: "/rule", route: RuleRoutes },
   { path: "/promo", route: PromoRoutes },
-  { path: "/promomercent", route: PromoMercentRoutes },
+  { path: "/promo-merchant", route: PromoMercentRoutes },
   { path: "/tier", route: TierRoutes },
   { path: "/package", route: PackageRoutes },
   { path: "/sales-rep", route: SalesRepRoutes },
   { path: "/gift-card", route: GiftCardRoute },
   { path: "/admin", route: AdminRoutes },
+  { path: "/mercent", route: DashboardMercentRoutes },
+  { path: "/mercent-customer", route: MercentCustomerListRoutes },
+  // { path: "/sell", route: SellManagementRoute },
+  { path: "/contact", route: contacUsRoutes },
+  { path: "/add-promotion", route: DigitalCardRoutes },
+  { path: "/sell", route: SellManagementRoute },
   // {path: "/chat", route:ChatRoutes},
   // {path: "/game", route:GameRoutes},
   // {path: "/event", route:EventRoutes},

@@ -10,6 +10,7 @@ export interface IGiftCard extends Document {
   points: number;                    // optional, tier or custom discount %
   isActive: boolean;
   expiry?: Date | null;
+  status: "pending" | "active" | "approved" | "redeem";
   createdAt: Date;
   updatedAt: Date;
 }
@@ -25,6 +26,12 @@ const giftCardSchema = new Schema<IGiftCard>({
   // discount: { type: Number, default: null }, // new field for discount %
   isActive: { type: Boolean, default: true },
   expiry: { type: Date, default: null },
+  status: {
+  type: String,
+  enum: ["active", "pending", "approved", "redeem"],
+  default: "active",
+}
+
 }, { timestamps: true });
 
 export const GiftCard = model<IGiftCard>("GiftCard", giftCardSchema);

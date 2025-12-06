@@ -1,7 +1,7 @@
 import { StatusCodes } from "http-status-codes";
 import { IUser } from "../user/user.interface";
 import { User } from "../user/user.model";
-import { USER_STATUS } from "../../../enums/user";
+import { APPROVE_STATUS, USER_ROLES, USER_STATUS } from "../../../enums/user";
 import ApiError from "../../../errors/ApiErrors";
 import QueryBuilder from "../../../util/queryBuilder";
 
@@ -64,6 +64,156 @@ const getAllCustomers = async (query: Record<string, unknown>) => {
     pagination,
   };
 };
+const getAllMerchants = async (query: Record<string, unknown>) => {
+  const baseQuery = User.find({ role: USER_ROLES.MERCENT }).select(
+    "firstName lastName phone email status address approveStatus "
+  );
+
+  const allMerchantsQuery = new QueryBuilder(baseQuery, query)
+    .search(["firstName", "lastName", "email", "phone"])
+    .filter()
+    .paginate()
+    .sort();
+
+  const [allmerchants, pagination] = await Promise.all([
+    allMerchantsQuery.modelQuery.lean(),
+    allMerchantsQuery.getPaginationInfo(),
+  ]);
+  return {
+    allmerchants,
+    pagination,
+  };
+};
+
+// ====== customer crue operations ====== //
+//==== single customer details ====//
+
+const getSingleCustomer = async (id: string) => {
+  const user = await User.findOne({ _id: id, role: "USER" }).lean();
+
+  if (!user) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Customer not found");
+  }
+  return user;
+};
+
+//===== update customer ======//
+
+const updateCustomer = async (id: string, payload: Record<string, unknown>) => {
+  const customer = await User.findOneAndUpdate(
+    { _id: id, role: "USER" },
+    payload,
+    { new: true, runValidators: true }
+  ).lean();
+
+  if (!customer) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Customer not found");
+  }
+
+  return customer;
+};
+
+//===== delete customer ======//
+
+const deleteCustomer = async (id: string) => {
+  const user = await User.findOneAndDelete({ _id: id, role: "USER" }).lean();
+
+  if (!user) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Customer not found");
+  }
+
+  return user;
+};
+
+//===== customer status update ======//
+const updateCustomerStatus = async (
+  id: string,
+  status: "active" | "inactive"
+) => {
+  const user = await User.findOneAndUpdate(
+    { _id: id, role: "USER" },
+    { status },
+    { new: true }
+  ).lean();
+
+  if (!user) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Customer not found");
+  }
+
+  return user;
+};
+
+//================== mercent crue operations ===================//
+//=== singel merchant details ===//
+const getSingleMerchant = async (id: string) => {
+  const merchant = await User.findById(id).lean();
+
+  if (!merchant) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Merchant not found");
+  }
+
+  return merchant;
+};
+
+//==== update merchant ====//
+const updateMerchant = async (id: string, payload: Record<string, unknown>) => {
+  const merchant = await User.findByIdAndUpdate(id, payload, {
+    new: true,
+    runValidators: true,
+  }).lean();
+
+  if (!merchant) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Merchant not found");
+  }
+
+  return merchant;
+};
+
+//==== delete merchant ====//
+const deleteMerchant = async (id: string) => {
+  const merchant = await User.findByIdAndDelete(id).lean();
+
+  if (!merchant) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Merchant not found");
+  }
+
+  return merchant;
+};
+
+//==== merchant status update ====//
+
+const updateMerchantStatus = async (
+  id: string,
+  status: "active" | "inActive"
+) => {
+  const merchant = await User.findByIdAndUpdate(
+    id,
+    { status },
+    { new: true }
+  ).lean();
+
+  if (!merchant) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Merchant not found");
+  }
+
+  return merchant;
+};
+const updateMerchantApproveStatus = async (
+  id: string,
+  approveStatus: APPROVE_STATUS
+) => {
+  const merchant = await User.findByIdAndUpdate(
+    id,
+    { approveStatus },
+    { new: true }
+  ).lean();
+
+  if (!merchant) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Merchant not found");
+  }
+
+  return merchant;
+};
 
 export const AdminService = {
   createAdminToDB,
@@ -71,4 +221,16 @@ export const AdminService = {
   getAdminFromDB,
   updateUserStatus,
   getAllCustomers,
+  getAllMerchants,
+
+  getSingleCustomer,
+  updateCustomer,
+  deleteCustomer,
+  updateCustomerStatus,
+
+  getSingleMerchant,
+  updateMerchant,
+  deleteMerchant,
+  updateMerchantStatus,
+  updateMerchantApproveStatus,
 };

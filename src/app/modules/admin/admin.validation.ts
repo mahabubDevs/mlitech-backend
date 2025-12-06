@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { USER_STATUS } from "../../../enums/user";
+import { APPROVE_STATUS, USER_STATUS } from "../../../enums/user";
 
 const createAdminZodSchema = z.object({
   body: z.object({
@@ -16,8 +16,14 @@ const updateUserStausZodSchema = z.object({
     status: z.nativeEnum(USER_STATUS),
   }),
 });
+const updateMerchantApproveStatusZodSchema = z.object({
+  body: z.object({
+    approveStatus: z.nativeEnum(APPROVE_STATUS),
+  }),
+});
 
 export const AdminValidation = {
   createAdminZodSchema,
   updateUserStausZodSchema,
+  updateMerchantApproveStatusZodSchema,
 };

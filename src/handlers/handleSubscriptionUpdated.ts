@@ -4,7 +4,7 @@ import ApiError from "../errors/ApiErrors";
 import stripe from "../config/stripe";
 import { Subscription } from "../app/modules/subscription/subscription.model";
 import { User } from "../app/modules/user/user.model";
-import { Package } from "../app/modules/shopAuraSubscription/aurashop.module";
+// import { Package } from "../app/modules/shopAuraSubscription/aurashop.module";
 
 export const handleSubscriptionUpdated = async (data: Stripe.Subscription) => {
   try {

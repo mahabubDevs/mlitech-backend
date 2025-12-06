@@ -7,6 +7,7 @@ import { IPackage } from "../package/package.interface";
 
  const  createPackage = async (req: Request, res: Response) => {
     const payload: IPackage = req.body; // <-- type enforce
+    console.log("Payload received in controller:", payload);
     const newPackage = await AuraSubscriptionService.createPackage(payload);
     res.status(StatusCodes.CREATED).json({
       success: true,

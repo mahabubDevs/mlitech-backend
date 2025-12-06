@@ -1,0 +1,41 @@
+import { Request, Response } from "express";
+import catchAsync from "../../../shared/catchAsync";
+import sendResponse from "../../../shared/sendResponse";
+import { StatusCodes } from "http-status-codes";
+import { ContactService } from "./contactUs.service";
+
+
+const createContact = catchAsync(async (req: Request, res: Response) => {
+  const { name, email, phone, address, message } = req.body;
+
+  const result = await ContactService.createContact({
+    name,
+    email,
+    phone,
+    address,
+    message,
+  });
+
+  sendResponse(res, {
+    statusCode: StatusCodes.CREATED,
+    success: true,
+    message: "Contact message submitted successfully",
+    data: result,
+  });
+});
+
+const getAllContacts = catchAsync(async (req: Request, res: Response) => {
+  const result = await ContactService.getAllContacts();
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: "All contact messages fetched successfully",
+    data: result,
+  });
+});
+
+export const ContactController = {
+  createContact,
+  getAllContacts,
+};

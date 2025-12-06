@@ -25,8 +25,12 @@ router.get(
   GiftCardController.listAllDigitalCards
 );
 
-
-
+// GET /digital/:digitalCardId
+router.get(
+  "/digital/:digitalCardId",
+  auth(), 
+  GiftCardController.getDigitalCardWithGiftCards
+);
 
 
 

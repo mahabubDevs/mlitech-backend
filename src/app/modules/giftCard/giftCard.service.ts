@@ -51,29 +51,33 @@ const buyGiftCard = async (payload: { giftCardId: string, userId: string }) => {
   try {
     const { giftCardId, userId } = payload;
 
-    // giftCardId কে ObjectId তে convert করা
+    // GiftCard খুঁজে পাওয়া
     const giftCard = await GiftCard.findOne({ _id: new mongoose.Types.ObjectId(giftCardId) }).session(session);
     if (!giftCard) throw new Error("Gift card not found");
     if (!giftCard.isActive) throw new Error("Gift card is not active");
 
-    // merchantId DB থেকে already ObjectId
     const merchantId = giftCard.merchantId;
 
-    // buyer খুঁজে বের করা
+    // Buyer খুঁজে পাওয়া
     const buyer = await User.findById(new mongoose.Types.ObjectId(userId)).session(session);
     if (!buyer) throw new Error("Buyer not found");
 
+    // DigitalCard create বা fetch করা
     const digital = await createDigitalCardIfNotExists(userId, merchantId);
 
-    // giftCard কে user assign করা
+    // GiftCard কে user assign + digitalCard link
     giftCard.userId = new mongoose.Types.ObjectId(userId);
+    giftCard.digitalCardId = digital._id; // << important, link gift card to digital card
     await giftCard.save({ session });
 
     // DigitalCard update
     digital.totalPoints = (digital.totalPoints || 0) + giftCard.points;
-    if (digital.pointsHistory) {
-      digital.pointsHistory.push({ points: giftCard.points, type: "earn", createdAt: new Date() });
-    }
+    if (!digital.pointsHistory) digital.pointsHistory = [];
+    digital.pointsHistory.push({
+      points: giftCard.points,
+      type: "earn",
+      createdAt: new Date()
+    });
     await digital.save({ session });
 
     await session.commitTransaction();
@@ -86,6 +90,7 @@ const buyGiftCard = async (payload: { giftCardId: string, userId: string }) => {
     throw err;
   }
 };
+
 
 const findCustomerByUniqueCardId = async (uniqueId: string): Promise<IFindCustomerByCardResult> => {
   // Digital card fetch, only required fields
@@ -157,7 +162,47 @@ const listDigitalCardsByUser = async (userId: string) => {
 
 
 
+const getDigitalCardWithGiftCards = async (userId: string, digitalCardId: string) => {
+  const digitalCard = await DigitalCard.aggregate([
+    { 
+      $match: { 
+        _id: new mongoose.Types.ObjectId(digitalCardId),
+        userId: new mongoose.Types.ObjectId(userId)
+      } 
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "merchantId",
+        foreignField: "_id",
+        as: "merchant",
+      },
+    },
+    { $unwind: "$merchant" },
+    {
+      $lookup: {
+        from: "giftcards",
+        localField: "_id",
+        foreignField: "digitalCardId",
+        as: "giftCards",
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        uniqueId: 1,
+        totalPoints: 1,
+        merchantId: 1,
+        merchantBusinessName: "$merchant.businessName",
+        merchantLogo: "$merchant.photo",
+        giftCards: 1,
+      },
+    },
+  ]);
 
+  if (!digitalCard || digitalCard.length === 0) return null;
+  return digitalCard[0];
+};
 
 
 
@@ -204,6 +249,7 @@ export const GiftCardService = {
   getGiftCardsByDigitalCard,
   listDigitalCardsByUser,
   listUserGiftCards,
+  getDigitalCardWithGiftCards,
   createGiftCard,
   getAllGiftCardById,
   getGiftCardById,

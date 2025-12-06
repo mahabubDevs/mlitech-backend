@@ -1,5 +1,10 @@
 import { model, Schema } from "mongoose";
-import { USER_REPORT, USER_ROLES, USER_STATUS } from "../../../enums/user";
+import {
+  APPROVE_STATUS,
+  USER_REPORT,
+  USER_ROLES,
+  USER_STATUS,
+} from "../../../enums/user";
 import { IUser, UserModal } from "./user.interface";
 import bcrypt from "bcrypt";
 import ApiError from "../../../errors/ApiErrors";
@@ -91,6 +96,10 @@ const userSchema = new Schema<IUser, UserModal>(
       type: String,
       default: null,
     },
+    address: {
+      type: String,
+      required: false,
+    },
 
     verified: {
       type: Boolean,
@@ -100,6 +109,10 @@ const userSchema = new Schema<IUser, UserModal>(
       type: String,
       enum: Object.values(USER_STATUS),
       default: USER_STATUS.ACTIVE,
+    },
+    approveStatus: {
+      type: String,
+      enum: Object.values(APPROVE_STATUS),
     },
     lastStatusChanged: {
       type: Date,

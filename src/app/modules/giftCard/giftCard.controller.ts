@@ -102,7 +102,23 @@ const listAllDigitalCards = catchAsync(async (req: Request, res: Response) => {
 
 
 
+const getDigitalCardWithGiftCards = catchAsync(async (req: Request, res: Response) => {
+  const userId = (req.user as IUser)?._id?.toString();
+  if (!userId) throw new ApiError(StatusCodes.UNAUTHORIZED, "User ID not found");
 
+  const digitalCardId = req.params.digitalCardId;
+  console.log("GiftCardController.getDigitalCardWithGiftCards -> digitalCardId", digitalCardId);
+  if (!digitalCardId) throw new ApiError(StatusCodes.BAD_REQUEST, "Digital card ID is required");
+
+  const result = await GiftCardService.getDigitalCardWithGiftCards(userId, digitalCardId);
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: "Digital card with gift cards fetched successfully",
+    data: result,
+  });
+});
 
 
 
@@ -172,6 +188,7 @@ export const GiftCardController = {
   getGiftCardsByDigital,
   listAllDigitalCards,
   getAllUserGiftCards,
+  getDigitalCardWithGiftCards,
   createGiftCard,
   getAllGiftCard,
   getGiftCard,
