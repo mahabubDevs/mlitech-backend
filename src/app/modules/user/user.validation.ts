@@ -55,10 +55,23 @@ const updateUserZodSchema = z.object({
       .string()
       .min(8, "Password must be at least 8 characters")
       .optional(), // keep as is
-    location: z
-      .string()
-      .optional()
-      .transform((val) => val?.toLowerCase()),
+
+    latitude: z
+      .number({
+        required_error: "Latitude is required",
+        invalid_type_error: "Latitude must be a number",
+      })
+      .min(-90)
+      .max(90)
+      .optional(),
+    longitude: z
+      .number({
+        required_error: "Longitude is required",
+        invalid_type_error: "Longitude must be a number",
+      })
+      .min(-180)
+      .max(180)
+      .optional(),
     profile: z.string().url().optional(), // keep as is
     documentVerified: z.array(z.string()).optional(), // keep as is
     photo: z.string().optional(), // keep as is
