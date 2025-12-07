@@ -48,7 +48,7 @@ const createPromotion = catchAsync(async (req: Request, res: Response) => {
     availableDays,
     endDate: new Date(endDate),
     image: imageUrl,
-    merchantId,   // ✅ save merchantId in DB
+    merchantId, // ✅ save merchantId in DB
   };
 
   const result = await PromotionService.createPromotionToDB(payload);
@@ -60,8 +60,6 @@ const createPromotion = catchAsync(async (req: Request, res: Response) => {
     data: result,
   });
 });
-
-
 
 const getAllPromotions = catchAsync(async (req: Request, res: Response) => {
   const result = await PromotionService.getAllPromotionsFromDB();
@@ -94,7 +92,9 @@ const updatePromotion = catchAsync(async (req: Request, res: Response) => {
       discountPercentage: Number(bodyData.discountPercentage),
     }),
     ...(bodyData.promotionType && { promotionType: bodyData.promotionType }),
-    ...(bodyData.customerSegment && { customerSegment: bodyData.customerSegment }),
+    ...(bodyData.customerSegment && {
+      customerSegment: bodyData.customerSegment,
+    }),
     ...(bodyData.startDate && { startDate: new Date(bodyData.startDate) }),
     ...(bodyData.endDate && { endDate: new Date(bodyData.endDate) }),
     ...(bodyData.availableDays && {
@@ -108,7 +108,10 @@ const updatePromotion = catchAsync(async (req: Request, res: Response) => {
     payload.image = (req.files as any).image[0].path;
   }
 
-  const result = await PromotionService.updatePromotionToDB(req.params.id, payload);
+  const result = await PromotionService.updatePromotionToDB(
+    req.params.id,
+    payload
+  );
 
   if (!result) {
     throw new ApiError(StatusCodes.NOT_FOUND, "Promotion not found");
@@ -146,6 +149,16 @@ const togglePromotion = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getPopularMerchants = catchAsync(async (req: Request, res: Response) => {
+  const result = await PromotionService.getPopularMerchantsFromDB();
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: "Popular merchants fetched successfully",
+    data: result,
+  });
+});
 export const PromotionController = {
   createPromotion,
   getAllPromotions,
@@ -153,4 +166,5 @@ export const PromotionController = {
   updatePromotion,
   deletePromotion,
   togglePromotion,
+  getPopularMerchants,
 };
