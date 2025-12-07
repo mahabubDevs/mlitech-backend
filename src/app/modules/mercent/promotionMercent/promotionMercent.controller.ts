@@ -160,6 +160,16 @@ const getPopularMerchants = catchAsync(async (req: Request, res: Response) => {
     data: result,
   });
 });
+const getDetailsOfMerchant = catchAsync(async (req: Request, res: Response) => {
+  const result = await PromotionService.getDetailsOfMerchant(req.params.id);
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: "Merchants details fetched successfully",
+    data: result,
+  });
+});
 export const PromotionController = {
   createPromotion,
   getAllPromotions,
@@ -168,4 +178,5 @@ export const PromotionController = {
   deletePromotion,
   togglePromotion,
   getPopularMerchants,
+  getDetailsOfMerchant,
 };

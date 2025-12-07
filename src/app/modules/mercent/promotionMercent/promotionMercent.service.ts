@@ -1,5 +1,6 @@
 import QueryBuilder from "../../../../util/queryBuilder";
 import { Rating } from "../../customer/rating/rating.model";
+import { User } from "../../user/user.model";
 import { IPromotion } from "./promotionMercent.interface";
 import { Promotion } from "./promotionMercent.model";
 
@@ -129,6 +130,21 @@ const getPopularMerchantsFromDB = async () => {
   return result;
 };
 
+const getDetailsOfMerchant = async (merchantId: string) => {
+  const merchant = await User.findById(merchantId)
+    .select("firstName location profile photo about website")
+    .lean();
+
+  const promotions = await Promotion.find({ merchantId })
+    .select("cardId name discountPercentage startDate endDate image status")
+    .lean();
+
+  return {
+    merchant,
+    promotions,
+  };
+};
+
 export const PromotionService = {
   createPromotionToDB,
   updatePromotionToDB,
@@ -137,4 +153,5 @@ export const PromotionService = {
   deletePromotionFromDB,
   togglePromotionInDB,
   getPopularMerchantsFromDB,
+  getDetailsOfMerchant,
 };

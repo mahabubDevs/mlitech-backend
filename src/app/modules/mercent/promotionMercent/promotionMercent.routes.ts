@@ -9,6 +9,7 @@ import { USER_ROLES } from "../../../../enums/user";
 const router = Router();
 
 router.get("/popular-merchants", PromotionController.getPopularMerchants);
+router.get("/merchants/:id", PromotionController.getDetailsOfMerchant);
 
 router.post(
   "/",
