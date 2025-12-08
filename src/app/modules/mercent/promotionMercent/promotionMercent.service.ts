@@ -112,7 +112,7 @@ const getPopularMerchantsFromDB = async () => {
   if (result.length === 0) {
     return [
       {
-        _id: "demo-merchant-1",
+        _id: "690edfe0180ea2417f4b470d",
         avgRating: 4.5,
         totalRatings: 12,
         merchant: {
