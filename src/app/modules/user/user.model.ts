@@ -14,6 +14,12 @@ import { boolean, object } from "zod";
 
 const userSchema = new Schema<IUser, UserModal>(
   {
+    customUserId: {
+      type: String,
+      index: true,
+      unique: true,
+      required: true,
+    },
     firstName: {
       type: String,
       required: true,
