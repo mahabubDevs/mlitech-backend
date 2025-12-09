@@ -44,7 +44,14 @@ const updatePromotionToDB = async (
 const getAllPromotionsFromDB = async (
   query: any = {}
 ): Promise<{ promotions: IPromotion[]; pagination: any }> => {
-  const queryBuilder = new QueryBuilder(Promotion.find(), query);
+  const queryBuilder = new QueryBuilder(
+    Promotion.find()
+      .select(
+        "_id name customerSegment discountPercentage startDate endDate status merchantId image"
+      )
+      .populate("merchantId", "website"),
+    query
+  );
 
   queryBuilder.search(["name"]).filter().sort().paginate().fields();
 
@@ -220,7 +227,6 @@ const getUserTierOfMerchant = async (userId: string, merchantId: string) => {
   };
 };
 
-
 //catagory based promotion fetching
 const getPromotionsByUserCategory = async (categoryName: string) => {
   if (!categoryName) {
@@ -230,14 +236,14 @@ const getPromotionsByUserCategory = async (categoryName: string) => {
   // 1. find merchants whose service/category matches user input
   const merchants = await User.find(
     { service: categoryName },
-    { _id: 1 }  // get only IDs
+    { _id: 1 } // get only IDs
   );
 
   const merchantIds = merchants.map((m) => m._id);
 
   // 2. find promotions created by these merchants
   const promotions = await Promotion.find({
-    merchantId: { $in: merchantIds }
+    merchantId: { $in: merchantIds },
   });
 
   return promotions;
@@ -253,5 +259,5 @@ export const PromotionService = {
   getPopularMerchantsFromDB,
   getDetailsOfMerchant,
   getUserTierOfMerchant,
-  getPromotionsByUserCategory
+  getPromotionsByUserCategory,
 };
