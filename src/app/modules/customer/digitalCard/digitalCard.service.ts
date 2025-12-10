@@ -108,26 +108,82 @@ const addPromotionToDigitalCard = async (
   };
 };
 
-const getUserAddedPromotions = async (userId: string) => {
-  // Nested populate for promotionId inside promotions array
-  const digitalCards = await DigitalCard.find({ userId }).populate({
-    path: "promotions.promotionId",
-    model: "PromotionMercent",
-  });
+const getUserAddedPromotions = async (
+  userId: string,
+  query: Record<string, any>
+) => {
+  const { page = 1, limit = 10, searchTerm } = query;
 
-  // Flatten array with cardCode, status, usedAt, and populated promotion details
-  const allPromotions = digitalCards.flatMap((card) =>
-    card.promotions.map((promo) => ({
-      cardCode: card.cardCode,
-      status: promo.status,
-      usedAt: promo.usedAt || null,
-      promotion: promo.promotionId,
-    }))
-  );
+  const pageNum = Number(page) || 1;
+  const perPage = Number(limit) || 10;
+
+  const pipeline: any[] = [
+    {
+      $match: {
+        userId: new mongoose.Types.ObjectId(userId),
+      },
+    },
+
+    // Unwind promotions array
+    { $unwind: "$promotions" },
+
+    // Lookup promotion details
+    {
+      $lookup: {
+        from: "promotionmercents",
+        localField: "promotions.promotionId",
+        foreignField: "_id",
+        as: "promotion",
+      },
+    },
+
+    { $unwind: "$promotion" },
+
+    // SEARCH by promotion name
+    searchTerm
+      ? {
+          $match: {
+            "promotion.name": { $regex: searchTerm, $options: "i" },
+          },
+        }
+      : { $match: {} },
+
+    // facet for pagination + total count
+    {
+      $facet: {
+        metadata: [{ $count: "total" }],
+
+        data: [
+          { $skip: (pageNum - 1) * perPage },
+          { $limit: perPage },
+
+          {
+            $project: {
+              _id: 0,
+              cardCode: "$cardCode",
+              status: "$promotions.status",
+              usedAt: "$promotions.usedAt",
+              promotion: "$promotion",
+            },
+          },
+        ],
+      },
+    },
+  ];
+
+  const result = await DigitalCard.aggregate(pipeline);
+
+  const total = result[0].metadata[0]?.total || 0;
+  const promotions = result[0].data;
 
   return {
-    totalPromotions: allPromotions.length,
-    promotions: allPromotions,
+    data: { totalPromotions: total, promotions },
+    pagination: {
+      total,
+      page: pageNum,
+      limit: perPage,
+      totalPage: Math.ceil(total / perPage) || 1,
+    },
   };
 };
 

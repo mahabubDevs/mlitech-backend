@@ -42,13 +42,17 @@ const getUserAddedPromotions = catchAsync(async (req, res) => {
   }
   const user = req.user as IUser;
   const userId = (user._id as Types.ObjectId).toString();
-  const result = await DigitalCardService.getUserAddedPromotions(userId);
+  const result = await DigitalCardService.getUserAddedPromotions(
+    userId,
+    req.query
+  );
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
     message: "User promotions retrieved successfully",
-    data: result,
+    data: result.data,
+    pagination: result.pagination,
   });
 });
 
