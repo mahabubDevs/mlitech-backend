@@ -1,4 +1,3 @@
-
 import { StatusCodes } from "http-status-codes";
 import { DigitalCardService } from "./digitalCard.service";
 import catchAsync from "../../../../shared/catchAsync";
@@ -16,8 +15,8 @@ const addPromotion = catchAsync(async (req, res) => {
       message: "User not authenticated",
     });
   }
-const user = req.user as IUser;
- const userId = (user._id as Types.ObjectId).toString();
+  const user = req.user as IUser;
+  const userId = (user._id as Types.ObjectId).toString();
   const { promotionId } = req.body;
 
   const result = await DigitalCardService.addPromotionToDigitalCard(
@@ -32,11 +31,6 @@ const user = req.user as IUser;
     data: result,
   });
 });
-
-
-
-
-
 
 const getUserAddedPromotions = catchAsync(async (req, res) => {
   if (!req.user) {
@@ -58,8 +52,6 @@ const getUserAddedPromotions = catchAsync(async (req, res) => {
   });
 });
 
-
-
 const getUserDigitalCards = catchAsync(async (req, res) => {
   if (!req.user) {
     return sendResponse(res, {
@@ -74,21 +66,26 @@ const getUserDigitalCards = catchAsync(async (req, res) => {
   // Safely extract _id
   const userId = (user._id as Types.ObjectId).toString();
 
-  const result = await DigitalCardService.getUserDigitalCards(userId);
+  const result = await DigitalCardService.getUserDigitalCards(
+    userId,
+    req.query
+  );
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
     message: "User digital cards retrieved successfully",
-    data: result,
+    data: result.data,
+    pagination: result.pagination,
   });
 });
-
 
 const getDigitalCardPromotions = catchAsync(async (req, res) => {
   const { digitalCardId } = req.params;
 
-  const result = await DigitalCardService.getPromotionsOfDigitalCard(digitalCardId);
+  const result = await DigitalCardService.getPromotionsOfDigitalCard(
+    digitalCardId
+  );
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,
@@ -97,10 +94,6 @@ const getDigitalCardPromotions = catchAsync(async (req, res) => {
     data: result,
   });
 });
-
-
-
-
 
 const getMerchantDigitalCard = catchAsync(async (req, res) => {
   const { cardCode } = req.query;
@@ -136,10 +129,11 @@ const getMerchantDigitalCard = catchAsync(async (req, res) => {
     });
   }
 
-  const digitalCard = await DigitalCardService.getMerchantDigitalCardWithPromotions(
-    merchantId,
-    cardCode as string
-  );
+  const digitalCard =
+    await DigitalCardService.getMerchantDigitalCardWithPromotions(
+      merchantId,
+      cardCode as string
+    );
 
   if (!digitalCard) {
     return sendResponse(res, {
@@ -156,7 +150,6 @@ const getMerchantDigitalCard = catchAsync(async (req, res) => {
     data: digitalCard,
   });
 });
-
 
 // // Type-safe request body
 // interface ApprovePromotionBody {
@@ -207,13 +200,11 @@ const getMerchantDigitalCard = catchAsync(async (req, res) => {
 //   }
 // );
 
-
-
 export const DigitalCardController = {
   addPromotion,
   getUserAddedPromotions,
   getUserDigitalCards,
   getDigitalCardPromotions,
   getMerchantDigitalCard,
-//   approvePromotion
+  //   approvePromotion
 };

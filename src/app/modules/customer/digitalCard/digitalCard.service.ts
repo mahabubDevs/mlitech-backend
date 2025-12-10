@@ -2,6 +2,8 @@ import { Types } from "mongoose";
 import { Promotion } from "../../mercent/promotionMercent/promotionMercent.model";
 import { DigitalCard } from "./digitalCard.model";
 import { generateCardCode } from "./generateCardCode";
+import QueryBuilder from "../../../../util/queryBuilder";
+import { IDigitalCard } from "../../mercent/mercentCustomerList/mercentInterface";
 
 // const addPromotionToDigitalCard = async (
 //   userId: string,
@@ -43,12 +45,10 @@ import { generateCardCode } from "./generateCardCode";
 //   return digitalCard;
 // };
 
-
 const addPromotionToDigitalCard = async (
   userId: string,
   promotionId: string
 ) => {
-
   // Promotion check
   const promotion = await Promotion.findById(promotionId);
   if (!promotion) {
@@ -74,8 +74,8 @@ const addPromotionToDigitalCard = async (
   const promotionObjectId = new Types.ObjectId(promotionId);
 
   // Add promotion if not exists already
-  const alreadyAdded = digitalCard.promotions.some(p =>
-    p.promotionId && p.promotionId.equals(promotionObjectId)
+  const alreadyAdded = digitalCard.promotions.some(
+    (p) => p.promotionId && p.promotionId.equals(promotionObjectId)
   );
 
   if (!alreadyAdded) {
@@ -95,7 +95,7 @@ const addPromotionToDigitalCard = async (
   });
 
   // Format response
-  const allPromotions = digitalCard.promotions.map(promo => ({
+  const allPromotions = digitalCard.promotions.map((promo) => ({
     cardCode: digitalCard.cardCode,
     status: promo.status,
     usedAt: promo.usedAt,
@@ -116,8 +116,8 @@ const getUserAddedPromotions = async (userId: string) => {
   });
 
   // Flatten array with cardCode, status, usedAt, and populated promotion details
-  const allPromotions = digitalCards.flatMap(card =>
-    card.promotions.map(promo => ({
+  const allPromotions = digitalCards.flatMap((card) =>
+    card.promotions.map((promo) => ({
       cardCode: card.cardCode,
       status: promo.status,
       usedAt: promo.usedAt || null,
@@ -131,36 +131,49 @@ const getUserAddedPromotions = async (userId: string) => {
   };
 };
 
-const getUserDigitalCards = async (userId: string) => {
-  const digitalCards = await DigitalCard.find({ userId })
-    .populate({
-      path: "merchantId",
-      select: "firstName businessName profile"
-    });
+const getUserDigitalCards = async (
+  userId: string,
+  query: Record<string, any>
+) => {
+  const baseQuery = DigitalCard.find({ userId }).populate({
+    path: "merchantId",
+    select: "firstName businessName profile",
+  });
 
-  // Format promotions array to only include promotionId
-  const formattedCards = digitalCards.map(card => ({
+  const digitalCardQuery = new QueryBuilder(baseQuery, query)
+    .paginate()
+    .search(["cardCode"]);
+
+  const [digitalCards, pagination] = await Promise.all([
+    digitalCardQuery.modelQuery.lean(),
+    digitalCardQuery.getPaginationInfo(),
+  ]);
+
+  const formattedCards = digitalCards.map((card: any) => ({
     _id: card._id,
     userId: card.userId,
     merchantId: card.merchantId,
     cardCode: card.cardCode,
     availablePoints: card.availablePoints ?? 0,
-    promotions: card.promotions.map(p => p.promotionId?.toString()).filter(Boolean), // only IDs
+    promotions: Array.isArray(card.promotions)
+      ? card.promotions
+          .map((p: any) => p?.promotionId?.toString())
+          .filter(Boolean)
+      : [],
     createdAt: card.createdAt,
     updatedAt: card.updatedAt,
-    __v: card.__v
   }));
 
   return {
-    totalDigitalCards: formattedCards.length,
-    digitalCards: formattedCards
+    data: { totalDigitalCards: pagination.total, digitalCards: formattedCards },
+    pagination,
   };
 };
 
-
 const getPromotionsOfDigitalCard = async (digitalCardId: string) => {
-  const digitalCard = await DigitalCard.findById(digitalCardId)
-    .populate("promotions"); // সমস্ত promotion details নিয়ে আসে
+  const digitalCard = await DigitalCard.findById(digitalCardId).populate(
+    "promotions"
+  ); // সমস্ত promotion details নিয়ে আসে
 
   if (!digitalCard) {
     throw new Error("Digital Card not found");
@@ -172,15 +185,19 @@ const getPromotionsOfDigitalCard = async (digitalCardId: string) => {
   };
 };
 
-
-const getMerchantDigitalCardWithPromotions = async (merchantId: string, cardCode: string) => {
-
-  const digitalCard = await DigitalCard.findOne({ merchantId, cardCode })
-    .populate({
-      path: "promotions.promotionId",
-      model: "PromotionMercent",
-      select: "name discountPercentage promotionType image startDate endDate status code"
-    });
+const getMerchantDigitalCardWithPromotions = async (
+  merchantId: string,
+  cardCode: string
+) => {
+  const digitalCard = await DigitalCard.findOne({
+    merchantId,
+    cardCode,
+  }).populate({
+    path: "promotions.promotionId",
+    model: "PromotionMercent",
+    select:
+      "name discountPercentage promotionType image startDate endDate status code",
+  });
 
   if (!digitalCard) return null;
 
@@ -208,16 +225,10 @@ const getMerchantDigitalCardWithPromotions = async (merchantId: string, cardCode
   };
 };
 
-
-
-
-
-
-
 export const DigitalCardService = {
   addPromotionToDigitalCard,
   getUserAddedPromotions,
   getUserDigitalCards,
   getPromotionsOfDigitalCard,
-  getMerchantDigitalCardWithPromotions
+  getMerchantDigitalCardWithPromotions,
 };
