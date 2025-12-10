@@ -5,6 +5,7 @@ import { ApplyRequest } from "../sellManagement/sellManagement.model";
 
 import mongoose from "mongoose";
 import { Promotion } from "../promotionAdmin/promotionAdmin.model";
+import { Sell } from "../mercent/mercentSellManagement/mercentSellManagement.model";
 
 const getTotalRevenue = async (query: any) => {
   const startDate = new Date(query.start);
@@ -189,9 +190,6 @@ const getYearlyRevenue = async (query: any) => {
   return result;
 };
 
-
-
-
 const getReportForMerchantDashboard = async (
   merchantId: string,
   range: string = "7d"
@@ -239,12 +237,17 @@ const getReportForMerchantDashboard = async (
   const totalMembers = buyers.length;
 
   // Rewards Redeemed = giftcard status = redeem
-  const redeemedQuery: any = { merchantId: new mongoose.Types.ObjectId(merchantId), status: "redeem" };
+  const redeemedQuery: any = {
+    merchantId: new mongoose.Types.ObjectId(merchantId),
+    status: "redeem",
+  };
   if (dateFilter) redeemedQuery.createdAt = dateFilter;
   const rewardsRedeemed = await Promotion.countDocuments(redeemedQuery);
 
   // Total Points Issued = sum(pointsEarned)
-  const pointsMatch: any = { merchantId: new mongoose.Types.ObjectId(merchantId) };
+  const pointsMatch: any = {
+    merchantId: new mongoose.Types.ObjectId(merchantId),
+  };
   if (dateFilter) pointsMatch.createdAt = dateFilter;
 
   const pointsAgg = await ApplyRequest.aggregate([
@@ -259,7 +262,10 @@ const getReportForMerchantDashboard = async (
   const totalPointsIssued = pointsAgg[0]?.totalPoints || 0;
 
   // Total Sales = sum(billAmount)
-  const salesMatch: any = { merchantId: new mongoose.Types.ObjectId(merchantId), status: "merchant_confirmed" };
+  const salesMatch: any = {
+    merchantId: new mongoose.Types.ObjectId(merchantId),
+    status: "merchant_confirmed",
+  };
   if (dateFilter) salesMatch.createdAt = dateFilter;
 
   const salesAgg = await ApplyRequest.aggregate([
@@ -282,9 +288,6 @@ const getReportForMerchantDashboard = async (
   };
 };
 
-
-
-
 const getWeeklySellReport = async (merchantId: string) => {
   const today = new Date();
   const sevenDaysAgo = new Date();
@@ -306,7 +309,7 @@ const getWeeklySellReport = async (merchantId: string) => {
         totalOrders: { $sum: 1 },
       },
     },
-    { $sort: { "_id": 1 } },
+    { $sort: { _id: 1 } },
   ]);
 
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -319,7 +322,7 @@ const getWeeklySellReport = async (merchantId: string) => {
     const formatted = date.toISOString().split("T")[0];
     const dayName = dayNames[date.getDay()];
 
-    const found = data.find(d => d._id === formatted);
+    const found = data.find((d) => d._id === formatted);
     const dailySell = found?.totalSell || 0;
     totalSell += dailySell;
 
@@ -331,9 +334,12 @@ const getWeeklySellReport = async (merchantId: string) => {
   }
 
   // percentage
-  const finalResult = result.map(day => ({
+  const finalResult = result.map((day) => ({
     ...day,
-    percentage: totalSell > 0 ? Number(((day.totalSell / totalSell) * 100).toFixed(2)) : 0,
+    percentage:
+      totalSell > 0
+        ? Number(((day.totalSell / totalSell) * 100).toFixed(2))
+        : 0,
   }));
 
   return {
@@ -341,7 +347,6 @@ const getWeeklySellReport = async (merchantId: string) => {
     weeklyReport: finalResult,
   };
 };
-
 
 const getTodayNewMembers = async (merchantId: string) => {
   const todayStart = new Date();
@@ -358,7 +363,7 @@ const getTodayNewMembers = async (merchantId: string) => {
     .sort({ createdAt: -1 })
     .lean();
 
-  return promoshonCard.map(gc => ({
+  return promoshonCard.map((gc) => ({
     giftCardId: gc._id,
     title: gc.name,
     user: null,
@@ -367,12 +372,68 @@ const getTodayNewMembers = async (merchantId: string) => {
   }));
 };
 
+const getCustomerChart = async (merchantId: string, year?: number) => {
+  const currentYear = year || new Date().getFullYear();
 
+  const matchStage = {
+    merchantId: new mongoose.Types.ObjectId(merchantId),
+    $expr: {
+      $eq: [{ $year: "$createdAt" }, currentYear],
+    },
+  };
+
+  const pipeline = [
+    { $match: matchStage },
+
+    {
+      $group: {
+        _id: { month: { $month: "$createdAt" } },
+        totalRevenue: { $sum: "$discountedBill" },
+        totalDiscount: {
+          $sum: { $subtract: ["$totalBill", "$discountedBill"] },
+        },
+      },
+    },
+
+    { $sort: { "_id.month": 1 } as any },
+  ];
+
+  const data = await Sell.aggregate(pipeline);
+
+  const MONTH_NAMES = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+  // Ensure all 12 months exist
+  const formatted = Array.from({ length: 12 }, (_, idx) => {
+    const monthNum = idx + 1;
+    const monthData = data.find((d) => d._id.month === monthNum);
+
+    return {
+      month: MONTH_NAMES[idx],
+      totalRevenue: monthData?.totalRevenue || 0,
+      totalDiscount: monthData?.totalDiscount || 0,
+    };
+  });
+
+  return formatted;
+};
 export const DashboardMercentService = {
   getReportForMerchantDashboard,
   getWeeklySellReport,
   getTotalRevenue,
   getStatisticsForAdminDashboard,
   getYearlyRevenue,
-  getTodayNewMembers
+  getTodayNewMembers,
+  getCustomerChart,
 };
