@@ -118,10 +118,8 @@ const checkout = catchAsync(async (req: Request, res: Response) => {
 // });
 
 const requestApproval = catchAsync(async (req: Request, res: Response) => {
-  const { digitalCardCode, promotionId, totalBill,pointRedeemed } = req.body;
+  const { digitalCardCode, promotionId, totalBill = 0, pointRedeemed = 0 } = req.body;
   const merchant = req.user as IUser;
-
-  console.log("Merchant in requestApproval:", merchant);
 
   if (!merchant._id) {
     return sendResponse(res, {
@@ -131,12 +129,13 @@ const requestApproval = catchAsync(async (req: Request, res: Response) => {
     });
   }
 
-  const result = await SellService.requestApproval(
-    merchant._id.toString(),
+  const result = await SellService.requestApproval({
+    merchantId: merchant._id.toString(),
     digitalCardCode,
     promotionId,
-    totalBill
-  );
+    totalBill,
+    pointRedeemed,
+  });
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,

@@ -13,3 +13,12 @@ export interface ICompleteTransactionPayload {
   redeemPoints?: number;
   giftCardCode?: string;
 }
+
+
+export interface RequestApprovalOptions {
+  merchantId: string;
+  digitalCardCode: string;
+  promotionId: string;
+  totalBill?: number;
+  pointRedeemed?: number;
+}

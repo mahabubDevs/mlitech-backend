@@ -2,6 +2,7 @@ import { Types } from "mongoose";
 import { Promotion } from "../../mercent/promotionMercent/promotionMercent.model";
 import { DigitalCard } from "../../customer/digitalCard/digitalCard.model";
 import { Sell } from "./mercentSellManagement.model";
+import { RequestApprovalOptions } from "./mercentSellManagement.interface";
 
 
 // -----------------------------
@@ -155,13 +156,13 @@ const checkout = async (
 //   return { userId: digitalCard.userId };
 // };
 
-const requestApproval = async (
-  merchantId: string,
-  digitalCardCode: string,
-  promotionId: string,
-  pointRedeemed: number = 0,
-  totalBill: number = 0 // default value, user input দিলে সেটা নেবে
-) => {
+const requestApproval = async ({
+  merchantId,
+  digitalCardCode,
+  promotionId,
+  totalBill = 0,
+  pointRedeemed = 0,
+}: RequestApprovalOptions) => {
   const POINT_CONVERSION_RATE = 0.05; // 1 point = 0.05 currency
 
   // 1. Find Digital Card
