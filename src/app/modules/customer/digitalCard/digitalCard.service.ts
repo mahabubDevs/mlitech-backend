@@ -1,4 +1,4 @@
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { Promotion } from "../../mercent/promotionMercent/promotionMercent.model";
 import { DigitalCard } from "./digitalCard.model";
 import { generateCardCode } from "./generateCardCode";
@@ -135,24 +135,81 @@ const getUserDigitalCards = async (
   userId: string,
   query: Record<string, any>
 ) => {
-  const baseQuery = DigitalCard.find({ userId }).populate({
-    path: "merchantId",
-    select: "firstName businessName profile",
+  const { searchTerm, page = 1, limit = 10 } = query;
+  const pageNum = Math.max(1, Number(page));
+  const perPage = Math.max(1, Number(limit));
+
+  const baseMatch = { userId: new mongoose.Types.ObjectId(userId) };
+
+  // pipeline before facet: match -> lookup -> unwind -> optional search
+  const pipeline: any[] = [
+    { $match: baseMatch },
+    {
+      $lookup: {
+        from: "users",
+        localField: "merchantId",
+        foreignField: "_id",
+        as: "merchant",
+      },
+    },
+    // keep docs if merchant missing to avoid accidental drops
+    { $unwind: { path: "$merchant", preserveNullAndEmptyArrays: true } },
+  ];
+
+  if (searchTerm) {
+    pipeline.push({
+      $match: {
+        $or: [
+          { cardCode: { $regex: searchTerm, $options: "i" } },
+          { "merchant.businessName": { $regex: searchTerm, $options: "i" } },
+          { "merchant.firstName": { $regex: searchTerm, $options: "i" } },
+        ],
+      },
+    });
+  }
+
+  // facet to get total count AND paginated data in one query
+  pipeline.push({
+    $facet: {
+      metadata: [{ $count: "total" }],
+      data: [
+        { $skip: (pageNum - 1) * perPage },
+        { $limit: perPage },
+        {
+          $project: {
+            _id: 1,
+            userId: 1,
+            cardCode: 1,
+            availablePoints: 1,
+            promotions: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            merchant: {
+              _id: "$merchant._id",
+              firstName: "$merchant.firstName",
+              businessName: "$merchant.businessName",
+              profile: "$merchant.profile",
+            },
+          },
+        },
+      ],
+    },
   });
 
-  const digitalCardQuery = new QueryBuilder(baseQuery, query)
-    .paginate()
-    .search(["cardCode"]);
+  // run aggregation
+  const aggResult = await DigitalCard.aggregate(pipeline);
 
-  const [digitalCards, pagination] = await Promise.all([
-    digitalCardQuery.modelQuery.lean(),
-    digitalCardQuery.getPaginationInfo(),
-  ]);
+  // aggResult is an array with a single object { metadata: [...], data: [...] }
+  const metadata = aggResult[0]?.metadata ?? [];
+  const data = aggResult[0]?.data ?? [];
 
-  const formattedCards = digitalCards.map((card: any) => ({
+  const total = metadata[0]?.total ?? 0;
+  const totalPage = Math.ceil(total / perPage) || 1;
+
+  const formattedCards = data.map((card: any) => ({
     _id: card._id,
     userId: card.userId,
-    merchantId: card.merchantId,
+    merchantId: card.merchant,
     cardCode: card.cardCode,
     availablePoints: card.availablePoints ?? 0,
     promotions: Array.isArray(card.promotions)
@@ -165,8 +222,13 @@ const getUserDigitalCards = async (
   }));
 
   return {
-    data: { totalDigitalCards: pagination.total, digitalCards: formattedCards },
-    pagination,
+    data: { totalDigitalCards: total, digitalCards: formattedCards },
+    pagination: {
+      total,
+      page: pageNum,
+      limit: perPage,
+      totalPage,
+    },
   };
 };
 
