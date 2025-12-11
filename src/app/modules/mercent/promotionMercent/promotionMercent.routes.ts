@@ -35,6 +35,11 @@ router.post(
 
 router.get("/", auth(), PromotionController.getAllPromotions);
 
+//logit add for all user promotion fetching
+
+router.get("/user-promotions", auth(), PromotionController.getPromotionsForUser);
+
+
 router.get("/:id", auth(), PromotionController.getSinglePromotion);
 
 router.patch(

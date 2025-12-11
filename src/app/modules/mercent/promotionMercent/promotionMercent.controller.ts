@@ -7,6 +7,7 @@ import ApiError from "../../../../errors/ApiErrors";
 import sendResponse from "../../../../shared/sendResponse";
 import { IPromotion } from "./promotionMercent.interface";
 import { JwtPayload } from "jsonwebtoken";
+import { Promotion } from "./promotionMercent.model";
 
 const createPromotion = catchAsync(async (req: Request, res: Response) => {
   // body data parse
@@ -72,6 +73,28 @@ const getAllPromotions = catchAsync(async (req: Request, res: Response) => {
     pagination: result.pagination,
   });
 });
+
+const getPromotionsForUser = catchAsync(async (req: Request, res: Response) => {
+  const userId = (req.user as any)?._id;
+  if (!userId) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, "User ID not found");
+  }
+
+  const userSegment = await PromotionService.getUserSegment(userId);
+
+  const promotions = await Promotion.find({
+    customerSegment: { $in: [userSegment, "all_customer"] },
+    status: "active"
+  }).populate("merchantId", "website name");
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: "Promotions retrieved successfully for user",
+    data: promotions,
+  });
+});
+
 
 const getSinglePromotion = catchAsync(async (req: Request, res: Response) => {
   const result = await PromotionService.getSinglePromotionFromDB(req.params.id);
@@ -221,5 +244,6 @@ export const PromotionController = {
   getPopularMerchants,
   getDetailsOfMerchant,
   getUserTierOfMerchant,
-  getPromotionsByUserCategory
+  getPromotionsByUserCategory,
+  getPromotionsForUser
 };

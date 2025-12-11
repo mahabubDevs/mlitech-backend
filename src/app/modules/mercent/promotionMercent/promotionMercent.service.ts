@@ -57,6 +57,36 @@ const getAllPromotionsFromDB = async (
   return { pagination, promotions };
 };
 
+
+const getUserSegment = async (userId: string) => {
+  const purchases = await Sell.find({ userId, status: "completed" }).sort({ createdAt: -1 });
+
+  const totalPurchases = purchases.length;
+  const last6MonthsPurchases = purchases.filter(
+    p => new Date(p.createdAt) > new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000)
+  );
+
+  const totalSpend = purchases.reduce((sum, p) => sum + p.totalBill, 0);
+  const avgSpend = 1000;
+
+  let segment: string;
+  if (totalPurchases === 0 || (totalPurchases === 1 && purchases[0].createdAt > new Date(Date.now() - 30*24*60*60*1000))) {
+    segment = "new_customer";
+  } else if (totalPurchases >= 2 && last6MonthsPurchases.length < 5) {
+    segment = "returning_customer";
+  } else if (last6MonthsPurchases.length >= 5 || totalSpend >= 1.5 * avgSpend) {
+    segment = "loyal_customer";
+  } else if (last6MonthsPurchases.length >= 20 || totalSpend >= 3*avgSpend) {
+    segment = "vip_customer";
+  } else {
+    segment = "all_customer";
+  }
+
+  return segment; // ✅ শুধু string
+};
+
+
+
 const getSinglePromotionFromDB = async (
   id: string
 ): Promise<IPromotion | null> => {
@@ -262,4 +292,5 @@ export const PromotionService = {
   getDetailsOfMerchant,
   getUserTierOfMerchant,
   getPromotionsByUserCategory,
+  getUserSegment
 };

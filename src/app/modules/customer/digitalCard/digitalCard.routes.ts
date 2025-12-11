@@ -7,7 +7,9 @@ import { DigitalCardController } from "./digitalCard.controller";
 
 const router = Router();
 
+// router.post("/add", auth(), DigitalCardController.addPromotion);
 router.post("/add", auth(), DigitalCardController.addPromotion);
+
 router.get("/my-promotions", auth(), DigitalCardController.getUserAddedPromotions);
 router.get("/my-digital-cards", auth(), DigitalCardController.getUserDigitalCards);
 router.get(

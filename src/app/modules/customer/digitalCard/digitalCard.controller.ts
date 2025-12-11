@@ -7,6 +7,32 @@ import { IUser } from "../../user/user.interface";
 import { Types } from "mongoose";
 import { DigitalCard } from "./digitalCard.model";
 
+// const addPromotion = catchAsync(async (req, res) => {
+//   if (!req.user) {
+//     return sendResponse(res, {
+//       statusCode: StatusCodes.UNAUTHORIZED,
+//       success: false,
+//       message: "User not authenticated",
+//     });
+//   }
+//   const user = req.user as IUser;
+//   const userId = (user._id as Types.ObjectId).toString();
+//   const { promotionId } = req.body;
+
+//   const result = await DigitalCardService.addPromotionToDigitalCard(
+//     userId,
+//     promotionId
+//   );
+
+//   sendResponse(res, {
+//     statusCode: StatusCodes.OK,
+//     success: true,
+//     message: "Promotion added to digital card successfully",
+//     data: result,
+//   });
+// });
+
+
 const addPromotion = catchAsync(async (req, res) => {
   if (!req.user) {
     return sendResponse(res, {
@@ -15,6 +41,7 @@ const addPromotion = catchAsync(async (req, res) => {
       message: "User not authenticated",
     });
   }
+
   const user = req.user as IUser;
   const userId = (user._id as Types.ObjectId).toString();
   const { promotionId } = req.body;
@@ -31,6 +58,8 @@ const addPromotion = catchAsync(async (req, res) => {
     data: result,
   });
 });
+
+
 
 const getUserAddedPromotions = catchAsync(async (req, res) => {
   if (!req.user) {
