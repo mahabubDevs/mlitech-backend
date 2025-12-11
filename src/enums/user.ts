@@ -22,3 +22,7 @@ export enum APPROVE_STATUS {
   APPROVED = "approved",
   REJECTED = "rejected",
 }
+export enum SUBSCRIPTION_STATUS {
+  ACTIVE = "active",
+  INACTIVE = "inActive",
+}

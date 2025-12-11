@@ -1,6 +1,7 @@
 import { model, Schema } from "mongoose";
 import {
   APPROVE_STATUS,
+  SUBSCRIPTION_STATUS,
   USER_REPORT,
   USER_ROLES,
   USER_STATUS,
@@ -141,7 +142,8 @@ const userSchema = new Schema<IUser, UserModal>(
     },
     subscription: {
       type: String,
-      default: false,
+      default: SUBSCRIPTION_STATUS.INACTIVE,
+      enum: Object.values(SUBSCRIPTION_STATUS),
     },
     stripeAccountId: { type: String, default: null },
 
