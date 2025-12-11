@@ -68,5 +68,74 @@ const getCustomerAnalytics = async (
     records,
   };
 };
+const getMerchantAnalytics = async (
+  startDate?: string,
+  endDate?: string,
+  page: number = 1,
+  limit: number = 10
+) => {
+  const filter: any = { status: "completed" };
 
-export const AnalyticsService = { getCustomerAnalytics };
+  if (startDate && endDate) {
+    filter.createdAt = {
+      $gte: new Date(startDate),
+      $lte: new Date(endDate),
+    };
+  }
+
+  const skip = (page - 1) * limit;
+
+  const records = await Sell.aggregate([
+    { $match: filter },
+
+    // Join with merchant info
+    {
+      $lookup: {
+        from: "users",
+        localField: "merchantId",
+        foreignField: "_id",
+        as: "merchant",
+      },
+    },
+    { $unwind: "$merchant" },
+
+    // Group by merchant
+    {
+      $group: {
+        _id: "$merchantId",
+        merchantName: { $first: "$merchant.firstName" },
+        location: { $first: "$merchant.address" },
+        subscriptionStatus: { $first: "$merchant.subscription" },
+        totalRevenue: { $sum: "$discountedBill" },
+        pointsRedeemed: { $sum: "$pointRedeemed" },
+        users: { $addToSet: "$userId" },
+        joiningDate: { $first: "$merchant.createdAt" },
+      },
+    },
+
+    // Add usersCount and remove users array
+    {
+      $addFields: {
+        usersCount: { $size: "$users" },
+      },
+    },
+    { $project: { users: 0 } }, // remove users array
+
+    { $sort: { joiningDate: -1 } },
+    { $skip: skip },
+    { $limit: limit },
+  ]);
+
+  const total = await Sell.distinct("merchantId", filter);
+
+  return {
+    pagination: {
+      page,
+      limit,
+      total: total.length,
+      totalPage: Math.ceil(total.length / limit),
+    },
+    records,
+  };
+};
+export const AnalyticsService = { getCustomerAnalytics, getMerchantAnalytics };
