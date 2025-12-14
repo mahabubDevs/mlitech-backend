@@ -24,9 +24,11 @@ import { RecentViewedPromotionRoutes } from "../modules/recentViewedPromotion/re
 import { AnalyticsRoutes } from "../modules/analytics/analytics.route";
 import { UserManagementRoutes } from "../modules/userManagement/usermanagement.routes";
 import { AuditRoutes } from "../modules/auditLog/audit.routes";
+
 import { AdminPromoMercentRoutes } from "../modules/adminSellandTier/promotionMercent/promotionMercent.routes";
 import { AdminTierRoutes } from "../modules/adminSellandTier/point&TierSystem/tier.route";
 
+import { NotificationRoutes } from "../modules/notification/notification.routes";
 
 const router = express.Router();
 
@@ -54,12 +56,10 @@ const apiRoutes = [
   { path: "/recent-viewed-promotions", route: RecentViewedPromotionRoutes },
   { path: "/report-analytics", route: AnalyticsRoutes },
   { path: "/audit", route: AuditRoutes },
-
-
-
   { path: "/admin-promo", route: AdminPromoMercentRoutes },
   { path: "/admin-tier", route: AdminTierRoutes },
 
+  { path: "/notifications", route: NotificationRoutes },
 ];
 
 apiRoutes.forEach((route) => router.use(route.path, route.route));
