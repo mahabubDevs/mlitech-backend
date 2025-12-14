@@ -5,6 +5,53 @@ import sendResponse from "../../../../shared/sendResponse";
 import { SellService } from "./mercentSellManagement.service";
 import { IUser } from "../../user/user.interface";
 import { DigitalCard } from "../../customer/digitalCard/digitalCard.model";
+import { Sell } from "./mercentSellManagement.model";
+import { Types } from "mongoose";
+import { IDigitalCard, ISell } from "./mercentSellManagement.interface";
+
+
+// 🔹 Demo data fallback
+const demoSales = [
+  {
+    SL: 1,
+    CustomerName: "Alice Johnson",
+    CardID: "CARD001",
+    TotalAmount: 120,
+    PointRedeem: 20,
+    PointEarned: 12,
+    FinalAmount: 100,
+    TransactionStatus: "Completed",
+    Promotion: "Holiday Sale",
+    Actions: ""
+  },
+  {
+    SL: 2,
+    CustomerName: "John Doe",
+    CardID: "CARD002",
+    TotalAmount: 80,
+    PointRedeem: 10,
+    PointEarned: 8,
+    FinalAmount: 70,
+    TransactionStatus: "Pending",
+    Promotion: "New Year Offer",
+    Actions: ""
+  },
+  {
+    SL: 3,
+    CustomerName: "Michael Brown",
+    CardID: "CARD003",
+    TotalAmount: 200,
+    PointRedeem: 50,
+    PointEarned: 20,
+    FinalAmount: 150,
+    TransactionStatus: "Completed",
+    Promotion: null,
+    Actions: ""
+  }
+];
+
+
+
 
 
 const checkout = catchAsync(async (req: Request, res: Response) => {
@@ -279,6 +326,112 @@ const getPointsHistory = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+// const getMerchantSales = async (req: Request, res: Response) => {
+//   try {
+//     const merchantId = req.params.merchantId;
+
+//     if (!Types.ObjectId.isValid(merchantId)) {
+//       return res.status(400).json({ success: false, message: "Invalid merchant ID" });
+//     }
+
+//     const sales = await Sell.find({ merchantId })
+//       .populate("userId", "firstName lastName email")
+//       .populate("digitalCardId", "cardNumber type")
+//       .populate("promotionId", "name discountPercentage")
+//       .sort({ createdAt: -1 })
+//       .lean<Array<{
+//         _id: string;
+//         merchantId: string;
+//         userId?: { firstName: string; lastName?: string; email?: string };
+//         digitalCardId?: { cardNumber: string; type?: string };
+//         promotionId?: { name: string; discountPercentage: number };
+//         totalBill: number;
+//         discountedBill: number;
+//         pointsEarned: number;
+//         pointRedeemed?: number;
+//         status: "completed" | "pending";
+//         createdAt: Date;
+//         updatedAt: Date;
+//       }>>();
+
+//     const result = sales.map((tx, index: number) => ({
+//       SL: index + 1,
+//       CustomerName: tx.userId?.firstName + (tx.userId?.lastName ? " " + tx.userId?.lastName : ""),
+//       CardID: tx.digitalCardId?.cardNumber || "",
+//       TotalAmount: tx.totalBill,
+//       PointRedeem: tx.pointRedeemed || 0,
+//       PointEarned: tx.pointsEarned,
+//       FinalAmount: tx.discountedBill,
+//       TransactionStatus: tx.status.charAt(0).toUpperCase() + tx.status.slice(1),
+//       Promotion: tx.promotionId?.name || null,
+//       Actions: ""
+//     }));
+
+//     return res.status(200).json({ success: true, data: result });
+//   } catch (error) {
+//     console.error(error);
+//     return res.status(500).json({ success: false, message: "Server Error", error });
+//   }
+// };
+
+
+
+const getMerchantSales = async (req: Request, res: Response) => {
+  try {
+    const merchantId = req.params.merchantId;
+
+    if (!Types.ObjectId.isValid(merchantId)) {
+      return res.status(400).json({ success: false, message: "Invalid merchant ID" });
+    }
+
+    // Fetch all sales for the merchant
+    const sales = await Sell.find({ merchantId })
+      .populate("userId", "firstName lastName email")
+      .populate("digitalCardId", "cardNumber type")
+      .populate("promotionId", "name discountPercentage")
+      .sort({ createdAt: -1 })
+      .lean<Array<{
+        _id: string;
+        merchantId: string;
+        userId?: { firstName: string; lastName?: string; email?: string };
+        digitalCardId?: { cardNumber: string; type?: string };
+        promotionId?: { name: string; discountPercentage: number };
+        totalBill: number;
+        discountedBill: number;
+        pointsEarned: number;
+        pointRedeemed?: number;
+        status: "completed" | "pending";
+        createdAt: Date;
+        updatedAt: Date;
+      }>>();
+
+    let result;
+
+    if (sales.length > 0) {
+      // Map real data to frontend format
+      result = sales.map((tx, index: number) => ({
+        SL: index + 1,
+        CustomerName: tx.userId?.firstName + (tx.userId?.lastName ? " " + tx.userId?.lastName : ""),
+        CardID: tx.digitalCardId?.cardNumber || "",
+        TotalAmount: tx.totalBill,
+        PointRedeem: tx.pointRedeemed || 0,
+        PointEarned: tx.pointsEarned,
+        FinalAmount: tx.discountedBill,
+        TransactionStatus: tx.status.charAt(0).toUpperCase() + tx.status.slice(1),
+        Promotion: tx.promotionId?.name || null,
+        Actions: ""
+      }));
+    } else {
+      // Return demo data if no real data
+      result = demoSales;
+    }
+
+    return res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ success: false, message: "Server Error", error });
+  }
+};
 
 
 export default { 
@@ -287,6 +440,7 @@ export default {
   getPendingRequests,
   approvePromotion,
   approvePromotionreject,
-  getPointsHistory
+  getPointsHistory,
+  getMerchantSales
   // finalizeCheckout
 };

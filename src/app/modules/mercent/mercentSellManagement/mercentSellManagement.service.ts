@@ -166,7 +166,7 @@ const requestApproval = async ({
   totalBill = 0,
   pointRedeemed = 0,
 }: RequestApprovalOptions) => {
-  const POINT_CONVERSION_RATE = 0.05; // 1 point = 0.05 currency
+  const POINT_CONVERSION_RATE = 0.01; // 1 point = 0.05 currency
 
   // 1. Find Digital Card
   const digitalCard = await DigitalCard.findOne({

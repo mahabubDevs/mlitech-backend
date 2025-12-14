@@ -39,6 +39,8 @@ router.get(
 );
 
 
+router.get("/merchant/:merchantId", auth(), mercentSellManagementController.getMerchantSales);
+
 // router.post(
 //   "/finalize-checkout",
 //   auth(USER_ROLES.MERCENT),

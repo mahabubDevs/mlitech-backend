@@ -1,6 +1,41 @@
 // merchantSellManagement.interface.ts
 import { Types } from "mongoose";
 
+export interface IUser {
+  _id: Types.ObjectId;
+  firstName: string;
+  lastName?: string;
+  email?: string;
+}
+
+export interface IDigitalCard {
+  _id: Types.ObjectId;
+  cardNumber: string;
+  type?: string;
+}
+
+export interface IPromotion {
+  _id: Types.ObjectId;
+  name: string;
+  discountPercentage: number;
+}
+
+export interface ISell {
+  _id: Types.ObjectId;
+  merchantId: Types.ObjectId;
+  userId: IUser | Types.ObjectId;
+  digitalCardId: IDigitalCard | Types.ObjectId;
+  promotionId?: IPromotion | Types.ObjectId;
+  totalBill: number;
+  discountedBill: number;
+  pointsEarned: number;
+  pointRedeemed?: number;
+  status: "completed" | "pending";
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Existing interfaces kept intact
 export interface IFindCustomerResult {
   customer: any | null;
   giftCards: any[];
@@ -13,7 +48,6 @@ export interface ICompleteTransactionPayload {
   redeemPoints?: number;
   giftCardCode?: string;
 }
-
 
 export interface RequestApprovalOptions {
   merchantId: string;
