@@ -210,7 +210,8 @@ const requestApproval = async ({
   const formattedData = {
     merchantId,
     userId: digitalCard.userId,
-    digitalCardId: digitalCard._id,
+    digitalCard: digitalCard._id,
+    digitalCardCode: digitalCard.cardCode,
     promotionId,
     totalBill,
     discountedBill,
@@ -259,12 +260,12 @@ const getPendingRequests = async (userId: string) => {
 // 3. User → Approve Promotion
 // -----------------------------
 const approvePromotion = async (
-  digitalCardId: string,
+  digitalCardCode: string,
   promotionId: string,
   userId: string
 ) => {
   const digitalCard = await DigitalCard.findOne({
-    _id: new Types.ObjectId(digitalCardId),
+    cardCode: digitalCardCode,
     userId: new Types.ObjectId(userId),
   });
 
@@ -293,12 +294,12 @@ const approvePromotion = async (
 };
 
 const approvePromotionReject = async (
-  digitalCardId: string,
+  digitalCardCode: string,
   promotionId: string,
   userId: string
 ) => {
   const digitalCard = await DigitalCard.findOne({
-    _id: new Types.ObjectId(digitalCardId),
+    cardCode: digitalCardCode,
     userId: new Types.ObjectId(userId),
   });
 
@@ -343,7 +344,6 @@ const getPointsHistory = async (
 
   const history = await Sell.find(query).sort({ createdAt: -1 });
 
-
   // map করে front-end friendly format বানাচ্ছি
   return history.map((tx) => ({
     transactionId: tx._id,
@@ -378,16 +378,15 @@ const getPointsHistory = async (
   //   }
   // });
 
-
- if (history.length > 0) {
+  if (history.length > 0) {
     // আসল database data mapping
-    history.forEach(tx => {
+    history.forEach((tx) => {
       if (tx.pointsEarned > 0 && (type === "all" || type === "earn")) {
         result.push({
           id: tx._id,
           earn: tx.pointsEarned,
           date: tx.createdAt,
-          merchant: tx.merchantId
+          merchant: tx.merchantId,
         });
       }
       if (tx.pointsEarned < 0 && (type === "all" || type === "use")) {
@@ -395,7 +394,7 @@ const getPointsHistory = async (
           id: tx._id,
           use: Math.abs(tx.pointsEarned),
           date: tx.createdAt,
-          merchant: tx.merchantId
+          merchant: tx.merchantId,
         });
       }
     });
@@ -406,7 +405,7 @@ const getPointsHistory = async (
         id: "dummy1",
         earn: 100,
         date: new Date(),
-        merchant: "Test Merchant A"
+        merchant: "Test Merchant A",
       });
     }
     if (type === "all" || type === "use") {
@@ -414,16 +413,13 @@ const getPointsHistory = async (
         id: "dummy2",
         use: 50,
         date: new Date(),
-        merchant: "Test Merchant B"
+        merchant: "Test Merchant B",
       });
     }
   }
 
-
   return result;
-
 };
-
 
 // -----------------------------
 // EXPORT SERVICE

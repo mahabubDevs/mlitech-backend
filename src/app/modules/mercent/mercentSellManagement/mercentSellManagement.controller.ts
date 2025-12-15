@@ -9,7 +9,6 @@ import { Sell } from "./mercentSellManagement.model";
 import { Types } from "mongoose";
 import { IDigitalCard, ISell } from "./mercentSellManagement.interface";
 
-
 // 🔹 Demo data fallback
 const demoSales = [
   {
@@ -22,7 +21,7 @@ const demoSales = [
     FinalAmount: 100,
     TransactionStatus: "Completed",
     Promotion: "Holiday Sale",
-    Actions: ""
+    Actions: "",
   },
   {
     SL: 2,
@@ -34,7 +33,7 @@ const demoSales = [
     FinalAmount: 70,
     TransactionStatus: "Pending",
     Promotion: "New Year Offer",
-    Actions: ""
+    Actions: "",
   },
   {
     SL: 3,
@@ -46,13 +45,9 @@ const demoSales = [
     FinalAmount: 150,
     TransactionStatus: "Completed",
     Promotion: null,
-    Actions: ""
-  }
+    Actions: "",
+  },
 ];
-
-
-
-
 
 const checkout = catchAsync(async (req: Request, res: Response) => {
   const { digitalCardCode, totalBill, promotionId } = req.body;
@@ -105,7 +100,6 @@ const checkout = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
-
 // const finalizeCheckout = catchAsync(async (req: Request, res: Response) => {
 //   const { digitalCardId, promotionId, totalBill } = req.body;
 //   const user = req.user as IUser; // merchant
@@ -137,7 +131,6 @@ const checkout = catchAsync(async (req: Request, res: Response) => {
 //   });
 // });
 
-
 // const requestApproval = catchAsync(async (req: Request, res: Response) => {
 //   const { digitalCardCode, promotionId } = req.body;
 //   const merchant = req.user as IUser;
@@ -165,7 +158,12 @@ const checkout = catchAsync(async (req: Request, res: Response) => {
 // });
 
 const requestApproval = catchAsync(async (req: Request, res: Response) => {
-  const { digitalCardCode, promotionId, totalBill = 0, pointRedeemed = 0 } = req.body;
+  const {
+    digitalCardCode,
+    promotionId,
+    totalBill = 0,
+    pointRedeemed = 0,
+  } = req.body;
   const merchant = req.user as IUser;
 
   if (!merchant._id) {
@@ -192,9 +190,6 @@ const requestApproval = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
-
-
-
 // User → Get Pending Requests
 const getPendingRequests = catchAsync(async (req: Request, res: Response) => {
   const user = req.user as IUser;
@@ -213,13 +208,12 @@ const getPendingRequests = catchAsync(async (req: Request, res: Response) => {
     statusCode: StatusCodes.OK,
     success: true,
     message: "Pending promotions fetched",
-    data: requests
+    data: requests,
   });
 });
 
-
 const approvePromotion = catchAsync(async (req: Request, res: Response) => {
-  const { digitalCardId, promotionId } = req.body;
+  const { digitalCardCode, promotionId } = req.body;
   const user = req.user as IUser;
 
   if (!user._id) {
@@ -231,7 +225,7 @@ const approvePromotion = catchAsync(async (req: Request, res: Response) => {
   }
 
   const result = await SellService.approvePromotion(
-    digitalCardId,
+    digitalCardCode,
     promotionId,
     user._id.toString()
   );
@@ -244,34 +238,33 @@ const approvePromotion = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const approvePromotionreject = catchAsync(
+  async (req: Request, res: Response) => {
+    const { digitalCardCode, promotionId } = req.body;
+    const user = req.user as IUser;
 
-const approvePromotionreject = catchAsync(async (req: Request, res: Response) => {
-  const { digitalCardId, promotionId } = req.body;
-  const user = req.user as IUser;
+    if (!user._id) {
+      return sendResponse(res, {
+        statusCode: StatusCodes.BAD_REQUEST,
+        success: false,
+        message: "User ID not found",
+      });
+    }
 
-  if (!user._id) {
-    return sendResponse(res, {
-      statusCode: StatusCodes.BAD_REQUEST,
-      success: false,
-      message: "User ID not found",
+    const result = await SellService.approvePromotionReject(
+      digitalCardCode,
+      promotionId,
+      user._id.toString()
+    );
+
+    sendResponse(res, {
+      statusCode: StatusCodes.OK,
+      success: true,
+      message: "Promotion approved successfully",
+      data: result,
     });
   }
-
-  const result = await SellService.approvePromotionReject(
-    digitalCardId,
-    promotionId,
-    user._id.toString()
-  );
-
-  sendResponse(res, {
-    statusCode: StatusCodes.OK,
-    success: true,
-    message: "Promotion approved successfully",
-    data: result,
-  });
-});
-
-
+);
 
 // const getPointsHistory = catchAsync(async (req: Request, res: Response) => {
 //   const user = req.user as IUser;
@@ -374,14 +367,14 @@ const getPointsHistory = catchAsync(async (req: Request, res: Response) => {
 //   }
 // };
 
-
-
 const getMerchantSales = async (req: Request, res: Response) => {
   try {
     const merchantId = req.params.merchantId;
 
     if (!Types.ObjectId.isValid(merchantId)) {
-      return res.status(400).json({ success: false, message: "Invalid merchant ID" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid merchant ID" });
     }
 
     // Fetch all sales for the merchant
@@ -390,20 +383,22 @@ const getMerchantSales = async (req: Request, res: Response) => {
       .populate("digitalCardId", "cardNumber type")
       .populate("promotionId", "name discountPercentage")
       .sort({ createdAt: -1 })
-      .lean<Array<{
-        _id: string;
-        merchantId: string;
-        userId?: { firstName: string; lastName?: string; email?: string };
-        digitalCardId?: { cardNumber: string; type?: string };
-        promotionId?: { name: string; discountPercentage: number };
-        totalBill: number;
-        discountedBill: number;
-        pointsEarned: number;
-        pointRedeemed?: number;
-        status: "completed" | "pending";
-        createdAt: Date;
-        updatedAt: Date;
-      }>>();
+      .lean<
+        Array<{
+          _id: string;
+          merchantId: string;
+          userId?: { firstName: string; lastName?: string; email?: string };
+          digitalCardId?: { cardNumber: string; type?: string };
+          promotionId?: { name: string; discountPercentage: number };
+          totalBill: number;
+          discountedBill: number;
+          pointsEarned: number;
+          pointRedeemed?: number;
+          status: "completed" | "pending";
+          createdAt: Date;
+          updatedAt: Date;
+        }>
+      >();
 
     let result;
 
@@ -411,15 +406,18 @@ const getMerchantSales = async (req: Request, res: Response) => {
       // Map real data to frontend format
       result = sales.map((tx, index: number) => ({
         SL: index + 1,
-        CustomerName: tx.userId?.firstName + (tx.userId?.lastName ? " " + tx.userId?.lastName : ""),
+        CustomerName:
+          tx.userId?.firstName +
+          (tx.userId?.lastName ? " " + tx.userId?.lastName : ""),
         CardID: tx.digitalCardId?.cardNumber || "",
         TotalAmount: tx.totalBill,
         PointRedeem: tx.pointRedeemed || 0,
         PointEarned: tx.pointsEarned,
         FinalAmount: tx.discountedBill,
-        TransactionStatus: tx.status.charAt(0).toUpperCase() + tx.status.slice(1),
+        TransactionStatus:
+          tx.status.charAt(0).toUpperCase() + tx.status.slice(1),
         Promotion: tx.promotionId?.name || null,
-        Actions: ""
+        Actions: "",
       }));
     } else {
       // Return demo data if no real data
@@ -429,18 +427,19 @@ const getMerchantSales = async (req: Request, res: Response) => {
     return res.status(200).json({ success: true, data: result });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ success: false, message: "Server Error", error });
+    return res
+      .status(500)
+      .json({ success: false, message: "Server Error", error });
   }
 };
 
-
-export default { 
-  checkout ,
+export default {
+  checkout,
   requestApproval,
   getPendingRequests,
   approvePromotion,
   approvePromotionreject,
   getPointsHistory,
-  getMerchantSales
+  getMerchantSales,
   // finalizeCheckout
 };
