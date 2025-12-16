@@ -84,6 +84,7 @@ const generateToken = async (userId: string) => {
       "No sales rep record found for this user"
     );
   }
+  return { token };
 };
 const validateToken = async (userId: string, token: string) => {
   const result = await SalesRep.findOne({ customerId: userId, token });

@@ -1,58 +1,147 @@
+import { Request, Response } from "express";
+import { StatusCodes } from "http-status-codes";
 import catchAsync from "../../../shared/catchAsync";
 import sendResponse from "../../../shared/sendResponse";
-import { StatusCodes } from "http-status-codes";
 import { UserService } from "./usermanagement.service";
+import { AuditService } from "../auditLog/audit.service";
+import { User } from "../user/user.model";
+import ApiError from "../../../errors/ApiErrors";
 
-// ✅ Get All Users
-const getAllUsers = catchAsync(async (req, res) => {
-  const result = await UserService.getAllUsers();
+
+// create user
+const createUser = catchAsync(async (req: any, res: any) => {
+  const result = await UserService.createUserToDB(req.body);
+
+  // Audit log (any use করা হয়েছে)
+  await AuditService.createLog(
+    req.user?.email || "Unknown", // যিনি user create করেছে
+    "CREATE_USER",
+    `Created user: ${result.email} with role: ${result.role}`
+  );
+
   sendResponse(res, {
-    statusCode: StatusCodes.OK,
     success: true,
-    message: "Users fetched successfully",
+    statusCode: StatusCodes.CREATED,
+    message: "User created successfully",
     data: result,
   });
 });
 
-// ✅ Get Single User
-const getSingleUser = catchAsync(async (req, res) => {
-  const { id } = req.params;
-  const result = await UserService.getSingleUser(id);
+
+const createMerchant = catchAsync(async (req: any, res: any) => {
+  const result = await UserService.createMerchantToDB(req.body);
+
+  // Audit log
+  await AuditService.createLog(
+    req.user?.email || "Unknown",
+    "CREATE_MERCHANT",
+    `Created merchant: ${result.email}, business: ${result.businessName}`
+  );
+
   sendResponse(res, {
-    statusCode: StatusCodes.OK,
     success: true,
-    message: "User fetched successfully",
+    statusCode: StatusCodes.CREATED,
+    message: "Merchant created successfully",
     data: result,
   });
 });
 
-// ✅ View Report
-const viewReport = catchAsync(async (req, res) => {
-  const { id } = req.params;
-  const result = await UserService.viewReport(id);
+
+
+// get all users
+const getAllUsers = catchAsync(async (req: Request, res: Response) => {
+  const requestingUserRole = (req.user as any)?.role || "ADMIN";
+  const result = await UserService.getAllUsersFromDB(requestingUserRole);
+
   sendResponse(res, {
-    statusCode: StatusCodes.OK,
     success: true,
-    message: "Report fetched successfully",
+    statusCode: StatusCodes.OK,
+    message: "Users retrieved successfully",
     data: result,
   });
 });
 
-// ✅ Active / Inactive User
-const activeInactiveUser = catchAsync(async (req, res) => {
-  const { id } = req.params;
-  const result = await UserService.activeInactiveUser(id);
+// get single user
+const getSingleUser = catchAsync(async (req: Request, res: Response) => {
+  const result = await UserService.getSingleUserFromDB(req.params.id);
+
   sendResponse(res, {
-    statusCode: StatusCodes.OK,
     success: true,
+    statusCode: StatusCodes.OK,
+    message: "User retrieved successfully",
+    data: result,
+  });
+});
+
+// update user
+const updateUser = catchAsync(async (req: any, res: Response) => {
+  const result = await UserService.updateUserToDB(req.params.id, req.body);
+
+  if (!result) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
+  }
+  // Audit log
+  await AuditService.createLog(
+    req.user?.email || "Unknown", // যিনি update করেছে
+    "UPDATE_USER",
+    `Updated user: ${result.email}`
+  );
+
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: "User updated successfully",
+    data: result,
+  });
+});
+
+
+// delete user
+const deleteUser = catchAsync(async (req: any, res: any) => {
+  const result = await UserService.deleteUserFromDB(req.params.id);
+
+  // Audit log
+  await AuditService.createLog(
+    req.user?.email || "Unknown",
+    "DELETE_USER",
+    `Deleted user: ${req.params.id}`
+  );
+
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: "User deleted successfully",
+    data: result,
+  });
+});
+
+
+// toggle user status
+const toggleUserStatus = catchAsync(async (req: any, res: any) => {
+  const result = await UserService.toggleUserStatusFromDB(req.params.id);
+
+  // Audit log
+  await AuditService.createLog(
+    req.user?.email || "Unknown", // action নেয়া user
+    "TOGGLE_USER_STATUS",
+    `Toggled status for user: ${result.email}, new status: ${result.status}`
+  );
+
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
     message: "User status updated successfully",
     data: result,
   });
 });
 
+
 export const UserController = {
+  createUser,
+  createMerchant,
   getAllUsers,
   getSingleUser,
-  viewReport,
-  activeInactiveUser,
+  updateUser,
+  deleteUser,
+  toggleUserStatus,
 };

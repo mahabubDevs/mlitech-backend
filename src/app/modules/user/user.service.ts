@@ -16,6 +16,7 @@ import { IPackage } from "../shopAuraSubscription/aurashop.interface";
 
 import { createUniqueReferralId } from "../../../util/generateRefferalId";
 import { sendOtp } from "../../../config/veevoTechOtp";
+import { generateCustomUserId } from "./user.utils";
 
 interface IPackageWithId extends IPackage {
   _id: string;
@@ -58,9 +59,12 @@ const createUserToDB = async (payload: Partial<IUser>): Promise<IUser> => {
 
   // 2️⃣ Create user data
   const referenceId = await createUniqueReferralId();
+  const customUserId = await generateCustomUserId(payload.role as string);
+
   const userData = {
     ...payload,
     referenceId,
+    customUserId,
     status:
       payload.role === USER_ROLES.MERCENT
         ? USER_STATUS.INACTIVE

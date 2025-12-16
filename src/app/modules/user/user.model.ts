@@ -1,6 +1,7 @@
 import { model, Schema } from "mongoose";
 import {
   APPROVE_STATUS,
+  SUBSCRIPTION_STATUS,
   USER_REPORT,
   USER_ROLES,
   USER_STATUS,
@@ -14,6 +15,12 @@ import { boolean, object } from "zod";
 
 const userSchema = new Schema<IUser, UserModal>(
   {
+    customUserId: {
+      type: String,
+      index: true,
+      unique: true,
+      required: false,
+    },
     firstName: {
       type: String,
       required: true,
@@ -38,7 +45,7 @@ const userSchema = new Schema<IUser, UserModal>(
     referenceId: {
       type: String,
       unique: true,
-      required: true,
+      required: false,
     },
     role: {
       type: String,
@@ -135,7 +142,8 @@ const userSchema = new Schema<IUser, UserModal>(
     },
     subscription: {
       type: String,
-      default: false,
+      default: SUBSCRIPTION_STATUS.INACTIVE,
+      enum: Object.values(SUBSCRIPTION_STATUS),
     },
     stripeAccountId: { type: String, default: null },
 

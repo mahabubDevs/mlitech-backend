@@ -19,7 +19,9 @@ const getTotalRevenue = catchAsync(async (req: Request, res: Response) => {
 const getStatisticsForAdminDashboard = catchAsync(
   async (req: Request, res: Response) => {
     const range = (req.query.range as string) || "7d";
-    const result = await DashboardMercentService.getStatisticsForAdminDashboard(range);
+    const result = await DashboardMercentService.getStatisticsForAdminDashboard(
+      range
+    );
     sendResponse(res, {
       statusCode: StatusCodes.OK,
       success: true,
@@ -38,8 +40,6 @@ const getYearlyRevenue = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
-
-
 const getMerchantReport = catchAsync(async (req, res) => {
   const merchantId = (req.user as any)?._id;
   const range = (req.query.range as string) || "7d"; // today, 7d, 1m, 3m
@@ -56,7 +56,6 @@ const getMerchantReport = catchAsync(async (req, res) => {
     data: result,
   });
 });
-
 
 const getWeeklySellReport = catchAsync(async (req, res) => {
   const merchantId = (req.user as any)?._id;
@@ -83,6 +82,40 @@ const getTodayNewMembers = catchAsync(async (req, res) => {
     data: result,
   });
 });
+const getCustomerChart = catchAsync(async (req, res) => {
+  const merchantId = (req.user as any)._id;
+  const year = Number(req.query.year) || undefined;
+
+  const result = await DashboardMercentService.getCustomerChart(
+    merchantId,
+    year
+  );
+
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "Customer chart fetched successfully",
+    data: result,
+  });
+});
+const getCustomerChartWeek = catchAsync(async (req, res) => {
+  const merchantId = (req.user as any)._id;
+
+  const { startDate, endDate } = req.query;
+
+  const result = await DashboardMercentService.getCustomerChartWeek(
+    merchantId,
+    startDate as string,
+    endDate as string
+  );
+
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "Customer chart data fetched successfully",
+    data: result,
+  });
+});
 
 export const DashboardMercentController = {
   getTotalRevenue,
@@ -90,5 +123,7 @@ export const DashboardMercentController = {
   getYearlyRevenue,
   getMerchantReport,
   getWeeklySellReport,
-  getTodayNewMembers
+  getTodayNewMembers,
+  getCustomerChartWeek,
+  getCustomerChart,
 };

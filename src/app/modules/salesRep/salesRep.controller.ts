@@ -39,12 +39,13 @@ const updateUserAcknowledgeStatus = catchAsync(
   }
 );
 const generateToken = catchAsync(async (req: Request, res: Response) => {
-  await SalesRepService.generateToken(req.params.id);
+  const result = await SalesRepService.generateToken(req.params.id);
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
     message: "Token generated successfully",
+    data: result,
   });
 });
 

@@ -4,10 +4,10 @@ import config from "./config";
 import { errorLogger, logger } from "./shared/logger";
 import colors from "colors";
 // import { setupWebSocket } from "./helpers/socketHelper";
-import  { setupWebSocketServer }  from "./realTimeComminucation/ws.server";
+import { setupWebSocketServer } from "./realTimeComminucation/ws.server";
 import { Server } from "socket.io";
 import seedSuperAdmin from "./DB";
-
+import { socketHelper } from "./helpers/socketHelper";
 
 // uncaught exception
 process.on("uncaughtException", (error) => {
@@ -28,23 +28,30 @@ async function main() {
     const port =
       typeof config.port === "number" ? config.port : Number(config.port);
 
-    server = app.listen(port, config.ip_address as string, () => {
-      logger.info(
-        colors.yellow(
-          `♻️  Worker ${process.pid} listening on port:${config.port}`
-        )
-      );
-    });
+    // server = app.listen(port, config.ip_address as string, () => {
+    //   logger.info(
+    //     colors.yellow(
+    //       `♻️  Worker ${process.pid} listening on port:${config.port}`
+    //     )
+    //   );
+    // });
 
-    // socket.io
+    //socket
+    
+    
+    server = app.listen(port, '0.0.0.0', () => {
+  logger.info(`Worker ${process.pid} listening on port:${config.port}`);
+});
+
+    
     const io = new Server(server, {
       pingTimeout: 60000,
-      cors: { origin: "*" },
+      cors: {
+        origin: "*",
+      },
     });
 
-    // const WS_PORT = 5003;
-    setupWebSocketServer(server)
-// WebSocketServerserver);
+    socketHelper.socket(io);
     //@ts-ignore
     global.io = io;
   } catch (error) {
@@ -66,8 +73,6 @@ async function main() {
 }
 
 // clustering logic
-
-
 
 main();
 

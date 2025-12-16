@@ -1,41 +1,52 @@
 import express from "express";
-import { UserController } from "./usermanagement.controller";
-import auth from "../../middlewares/auth";
 import { USER_ROLES } from "../../../enums/user";
-import { authWithPageAccess } from "../../middlewares/authWithPageAccess";
+import auth from "../../middlewares/auth";
+import { UserController } from "./usermanagement.controller";
+
 
 const router = express.Router();
 
-// User CRUD Admin Only
 router
   .route("/")
+  .post(
+    auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+    UserController.createUser
+  )
   .get(
     auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
     UserController.getAllUsers
   );
 
-// Get Single User
+
+router
+  .route("/merchant")
+  .post(
+    auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+    UserController.createMerchant
+  );
+
+
+
 router
   .route("/:id")
   .get(
-    authWithPageAccess("userManagement"),
+    auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
     UserController.getSingleUser
-  );
-
-// View Report
-router
-  .route("/:id/report")
-  .get(
-    authWithPageAccess("userManagement"),
-    UserController.viewReport
-  );
-
-// Active / Inactive User
-router
-  .route("/toggle-status/:id")
+  )
   .patch(
     auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
-    UserController.activeInactiveUser
+    UserController.updateUser
+  )
+  .delete(
+    auth(USER_ROLES.SUPER_ADMIN,),
+    UserController.deleteUser
   );
+
+// toggle active/inactive
+router.patch(
+  "/toggle/:id",
+  auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  UserController.toggleUserStatus
+);
 
 export const UserManagementRoutes = router;

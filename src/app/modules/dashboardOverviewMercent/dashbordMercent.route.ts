@@ -9,12 +9,9 @@ import { DashboardMercentController } from "./dashboardMercent.controller";
 
 const router = Router();
 
-
-
-
 router.get(
   "/merchant-dashboard-report",
-  auth(USER_ROLES.MERCENT,USER_ROLES.SUPER_ADMIN,USER_ROLES.ADMIN),
+  auth(USER_ROLES.MERCENT, USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),
   DashboardMercentController.getMerchantReport
 );
 
@@ -29,6 +26,15 @@ router.get(
   auth(USER_ROLES.MERCENT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
   DashboardMercentController.getTodayNewMembers
 );
-
+router.get(
+  "/customer-chart",
+  auth(USER_ROLES.MERCENT),
+  DashboardMercentController.getCustomerChart
+);
+router.get(
+  "/customer-chart-week",
+  auth(USER_ROLES.MERCENT),
+  DashboardMercentController.getCustomerChartWeek
+);
 
 export const DashboardMercentRoutes = router;

@@ -1,66 +1,188 @@
 import { StatusCodes } from "http-status-codes";
 import ApiError from "../../../errors/ApiErrors";
+
+import {
+  SUBSCRIPTION_STATUS,
+  USER_ROLES,
+  USER_STATUS,
+} from "../../../enums/user";
+import { v4 as uuidv4 } from "uuid";
+import { IUser } from "../user/user.interface";
 import { User } from "../user/user.model";
-import { USER_STATUS } from "../../../enums/user";
+
+// create user
+const createUserToDB = async (payload: IUser) => {
+
+  // inline required field check
+  if (!payload.email) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Email is required");
+  }
+
+  if (!payload.phone) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Phone number is required");
+  }
+
+  if (!payload.password) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Password is required");
+  }
+
+  // email uniqueness check
+  const isEmailExist = await User.isExistUserByEmail(payload.email);
+  if (isEmailExist) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Email already exists");
+  }
+
+  // phone uniqueness check
+  const isPhoneExist = await User.isExistUserByPhone(payload.phone);
+  if (isPhoneExist) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Phone already exists");
+  }
+
+  const userData = {
+    ...payload,
+     customUserId: uuidv4(), // auto generate
+     referenceId: uuidv4(),  // auto generate
+    verified: true, // auto verified
+  };
+
+  const result = await User.create(userData);
+  return result;
+};
 
 
-// ✅ Get All Users
-const getAllUsers = async () => {
-  const users = await User.find();
+
+const createMerchantToDB = async (payload: any) => {
+  // required check
+  if (!payload.email) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Email is required");
+  }
+
+  if (!payload.phone) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Phone is required");
+  }
+
+  if (!payload.password) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Password is required");
+  }
+
+  // uniqueness check
+  if (await User.isExistUserByEmail(payload.email)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Email already exists");
+  }
+
+  if (await User.isExistUserByPhone(payload.phone)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Phone already exists");
+  }
+
+  // 🔥 merchant data (any use, model change না করে)
+  const merchantData: any = {
+    ...payload,
+
+    // system fields
+    role: USER_ROLES.MERCENT,
+    status: USER_STATUS.ACTIVE,
+    verified: true,
+
+    customUserId: uuidv4(),
+    referenceId: uuidv4(),
+
+    // merchant specific (extra field — TS safe)
+    businessName: payload.businessName,
+    subscription: payload.subscriptionType,
+    lastPaymentDate: payload.lastPaymentDate,
+    expiryDate: payload.expiryDate,
+    tier: payload.tier,
+    salesRep: payload.salesRep,
+  };
+
+  const result = await User.create(merchantData);
+  return result;
+};
+
+// get all users
+const getAllUsersFromDB = async (requestingUserRole: string) => {
+  // শুধু admin type users দেখবে
+  const adminRoles = ["ADMIN", "ADMIN_SEL", "ADMIN_REP"];
+
+  if (!adminRoles.includes(requestingUserRole)) {
+    // যদি non-admin কেউ API call করে → forbidden
+    throw new ApiError(StatusCodes.FORBIDDEN, "Access denied");
+  }
+
+  // সব admin type users দেখাবে
+  const users = await User.find({ role: { $in: adminRoles } }).select("-password");
   return users;
 };
 
-// ✅ Get Single User
-const getSingleUser = async (id: string) => {
+
+// get single user
+const getSingleUserFromDB = async (id: string) => {
+  const result = await User.findById(id).select("-password");
+  if (!result) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
+  }
+  return result;
+};
+
+// update user
+const updateUserToDB = async (id: string, payload: Partial<IUser>) => {
+  const isExist = await User.findById(id);
+  if (!isExist) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
+  }
+
+  // password কখনো update হবে না
+  if (payload.password) {
+    delete payload.password;
+  }
+
+  const result = await User.findByIdAndUpdate(id, payload, {
+    new: true,
+    runValidators: true,
+  }).select("-password");
+
+  return result;
+};
+
+
+// delete user
+const deleteUserFromDB = async (id: string) => {
+  const isExist = await User.findById(id);
+  if (!isExist) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
+  }
+
+  await User.findByIdAndDelete(id);
+  return { deleted: true };
+};
+
+// toggle active/inactive
+const toggleUserStatusFromDB = async (id: string) => {
   const user = await User.findById(id);
   if (!user) {
     throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
   }
-  return user;
-};
 
-// ✅ View Report (demo)
-const viewReport = async (id: string) => {
-  const user = await User.findById(id).select("firstName lastName email role status");
-  if (!user) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
+   // Ensure subscription enum is valid
+  if (!user.subscription || !Object.values(SUBSCRIPTION_STATUS).includes(user.subscription as SUBSCRIPTION_STATUS)) {
+    user.subscription = SUBSCRIPTION_STATUS.INACTIVE;
   }
 
-  // এখানে তুমি তোমার আসল রিপোর্ট লজিক বসাবে
-  return {
-    user,
-    report: {
-      lastLogin: new Date(),
-      totalCalls: 25,
-      successfulCalls: 20,
-      failedCalls: 5,
-    },
-  };
-};
-
-// ✅ Active / Inactive User
-const activeInactiveUser = async (id: string) => {
-  const user = await User.findById(id);
-  if (!user) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
-  }
-
-  // status toggle logic
-  if (user.status === USER_STATUS.ACTIVE) {
-    user.status = USER_STATUS.BLOCK;
-  } else if (user.status === USER_STATUS.BLOCK) {
-    user.status = USER_STATUS.ACTIVE;
-  } else if (user.status === USER_STATUS.ARCHIVE) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, "Archived users cannot be reactivated");
-  }
+  user.status =
+    user.status === USER_STATUS.ACTIVE
+      ? USER_STATUS.INACTIVE
+      : USER_STATUS.ACTIVE;
 
   await user.save();
   return user;
 };
 
 export const UserService = {
-  getAllUsers,
-  getSingleUser,
-  viewReport,
-  activeInactiveUser,
+  createUserToDB,
+  createMerchantToDB,
+  getAllUsersFromDB,
+  getSingleUserFromDB,
+  updateUserToDB,
+  deleteUserFromDB,
+  toggleUserStatusFromDB,
 };

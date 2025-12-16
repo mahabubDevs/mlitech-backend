@@ -20,6 +20,7 @@ const promotionSchema = new Schema(
         "new_customer",
         "returning_customer",
         "loyal_customer",
+        "vip_customer",
         "all_customer",
       ],
     },

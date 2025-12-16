@@ -1,17 +1,19 @@
+import mongoose from "mongoose";
 import { INotification } from "../app/modules/notification/notification.interface";
 import { Notification } from "../app/modules/notification/notification.model";
 
+export const sendNotifications = async (
+  data: INotification,
+  session?: mongoose.ClientSession
+): Promise<INotification> => {
+  const result = await Notification.create([data], { session });
+  const createdNotification = result[0];
 
-export const sendNotifications = async (data:any):Promise<INotification> =>{
+  const socketIo = global.io;
 
-    const result = await Notification.create(data);
+  if (socketIo) {
+    socketIo.emit(`get-notification::${data?.receiver}`, createdNotification);
+  }
 
-    //@ts-ignore
-    const socketIo = global.io;
-
-    if (socketIo) {
-        socketIo.emit(`get-notification::${data?.receiver}`, result);
-    }
-
-    return result;
-}
+  return createdNotification;
+};

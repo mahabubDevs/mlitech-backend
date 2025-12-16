@@ -23,7 +23,14 @@ const createUserZodSchema = z.object({
     email: z
       .string({ required_error: "Email is required" })
       .email({ message: "Invalid email address" }),
-    password: z.string({ required_error: "Password is required" }),
+    password: z
+  .string({ required_error: "Password is required" })
+  .min(6, "Password must be at least 6 characters")
+  .regex(
+    /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])/,
+    "Password must contain at least one letter, one number, and one special character"
+  ),
+
     role: z.enum(["MERCENT", "USER"]),
 
     // gender: z.enum(["MAN", "WOMEN", "NON-BINARY", "TRANS MAN", "TRANS WOMAN"]).optional()
@@ -52,29 +59,34 @@ const updateUserZodSchema = z.object({
       .transform((val) => val?.toLowerCase()),
     phone: z.string().optional(), // keep as is
     password: z
-      .string()
-      .min(8, "Password must be at least 8 characters")
-      .optional(), // keep as is
-
+  .string()
+  .min(6, "Password must be at least 6 characters")
+  .regex(
+    /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])/,
+    "Password must contain at least one letter, one number, and one special character"
+  )
+  .optional(),
+// keep as is
     latitude: z
-      .number({
+      .string({
         required_error: "Latitude is required",
-        invalid_type_error: "Latitude must be a number",
+        invalid_type_error: "Latitude must be a string",
       })
-      .min(-90)
-      .max(90)
       .optional(),
+
     longitude: z
-      .number({
+      .string({
         required_error: "Longitude is required",
-        invalid_type_error: "Longitude must be a number",
+        invalid_type_error: "Longitude must be a string",
       })
-      .min(-180)
-      .max(180)
       .optional(),
     profile: z.string().url().optional(), // keep as is
     documentVerified: z.array(z.string()).optional(), // keep as is
     photo: z.string().optional(), // keep as is
+    about: z.string({
+    required_error: "About Us is required",
+  })
+  .max(200, "About Us must not exceed 200 characters").optional(),
 
     emailVerified: z.boolean().optional(),
     phoneVerified: z.boolean().optional(),
@@ -109,6 +121,7 @@ const updateUserZodSchema = z.object({
     height: z.number().min(30).max(250).optional(),
     minHeight: z.number().min(30).max(250).optional(),
     maxHeight: z.number().min(30).max(250).optional(),
+    address: z.string().optional(),
 
     drinking: z.boolean().optional(),
     marijuana: z.boolean().optional(),

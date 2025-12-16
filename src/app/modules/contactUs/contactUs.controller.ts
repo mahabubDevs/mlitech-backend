@@ -6,13 +6,12 @@ import { ContactService } from "./contactUs.service";
 
 
 const createContact = catchAsync(async (req: Request, res: Response) => {
-  const { name, email, phone, address, message } = req.body;
+  const { name, email, subject, message } = req.body;
 
   const result = await ContactService.createContact({
     name,
     email,
-    phone,
-    address,
+    subject,
     message,
   });
 

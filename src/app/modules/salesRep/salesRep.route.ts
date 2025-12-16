@@ -16,18 +16,18 @@ router.post(
 );
 router.get(
   "/",
-  auth(USER_ROLES.SUPER_ADMIN),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),
   SalesRepController.getSalesRepData
 );
 router.patch(
   "/acknowledge/users/:id",
-  auth(USER_ROLES.SUPER_ADMIN),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),
   SalesRepController.updateUserAcknowledgeStatus
 );
 
 router.post(
   "/token/users/:id",
-  auth(USER_ROLES.SUPER_ADMIN),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),
   SalesRepController.generateToken
 );
 

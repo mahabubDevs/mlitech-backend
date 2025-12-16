@@ -3,6 +3,8 @@ export enum USER_ROLES {
   SUPER_ADMIN = "SUPER_ADMIN",
   USER = "USER",
   MERCENT = "MERCENT",
+  ADMIN_REP = "ADMIN_REP",
+  ADMIN_SELL = "ADMIN_SELL",
 }
 
 export enum USER_STATUS {
@@ -21,4 +23,8 @@ export enum APPROVE_STATUS {
   PENDING = "pending",
   APPROVED = "approved",
   REJECTED = "rejected",
+}
+export enum SUBSCRIPTION_STATUS {
+  ACTIVE = "active",
+  INACTIVE = "inActive",
 }
