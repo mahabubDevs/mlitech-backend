@@ -3,6 +3,8 @@ import { Promotion } from "../../mercent/promotionMercent/promotionMercent.model
 import { DigitalCard } from "../../customer/digitalCard/digitalCard.model";
 import { Sell } from "./mercentSellManagement.model";
 import { RequestApprovalOptions } from "./mercentSellManagement.interface";
+import { NotificationType } from "../../notification/notification.model";
+import { sendNotification } from "../../../../helpers/notificationsHelper";
 
 // -----------------------------
 // 1. Merchant → Checkout
@@ -118,6 +120,22 @@ const checkout = async (
     status: "completed", // or "pending" if you want to keep original
   });
 
+  if (sell && sell?.pointRedeemed) {
+    await sendNotification({
+      userIds: [merchantId],
+      title: "Point Redeemed",
+      body: `${sell.pointRedeemed} point has been redeemed successfully`,
+      type: NotificationType.POINTS,
+    })
+  }
+  if (sell && sell.pointsEarned) {
+    await sendNotification({
+      userIds: [digitalCard.userId],
+      title: "Point Earned",
+      body: `${sell.pointsEarned} point has been earned successfully`,
+      type: NotificationType.POINTS,
+    })
+  }
   console.log("💠 Transaction Saved:", sell._id.toString());
 
   return sell;
