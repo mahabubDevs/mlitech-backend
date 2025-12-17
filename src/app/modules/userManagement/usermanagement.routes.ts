@@ -17,6 +17,12 @@ router
     UserController.getAllUsers
   );
 
+  router
+  .route("/merchantrole")
+  .post(
+    auth(USER_ROLES.MERCENT),
+    UserController.createUser
+  )
 
 router
   .route("/merchant")

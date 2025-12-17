@@ -99,11 +99,24 @@ const deletePackage = catchAsync(async(req: Request, res: Response) => {
     });
 });
 
+
+const togglePackageStatus = catchAsync(async(req: Request, res: Response) => {
+    const result = await PackageService.togglePackageStatusInDB(req.params.id);
+    sendResponse(res, {
+        statusCode: StatusCodes.OK,
+        success: true,
+        message: "Package status toggled Successfully",
+        data: result
+    });
+});
+
+
 export const PackageController = {
     createPackage,
     updatePackage,
     getPackage,
     getSinglePackage,
     packageDetails,
-    deletePackage
+    deletePackage,
+    togglePackageStatus
 };

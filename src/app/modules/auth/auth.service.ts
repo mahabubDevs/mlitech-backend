@@ -85,7 +85,7 @@ const loginUserFromDB = async (payload: ILoginData) => {
       throw new ApiError(StatusCodes.FORBIDDEN, "You are blocked. Contact admin.");
 
     default:
-      throw new ApiError(StatusCodes.BAD_REQUEST, "Unknown user status");
+      throw new ApiError(StatusCodes.BAD_REQUEST, "Please verify your account for admin approval");
   }
 };
 

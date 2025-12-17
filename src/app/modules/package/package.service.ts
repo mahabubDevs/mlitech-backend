@@ -99,11 +99,22 @@ const deletePackageToDB = async(id: string): Promise<IPackage | null> => {
     return result;
 };
 
+const togglePackageStatusInDB = async(id: string): Promise<IPackage | null> => {
+    if(!mongoose.Types.ObjectId.isValid(id)) throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid ID");
+    const existingPackage = await Package.findById(id);
+    if(!existingPackage) throw new ApiError(StatusCodes.BAD_REQUEST, "Package not found");
+    const newStatus = existingPackage.status === "Active" ? "Inactive" : "Active";
+    return Package.findByIdAndUpdate(id, { status: newStatus }, { new: true });
+};
+
+
+
 export const PackageService = {
     createPackageToDB,
     updatePackageToDB,
     getPackageFromDB,
     getPackageDetailsFromDB,
     deletePackageToDB,
-    getSinglePackageFromDB
+    getSinglePackageFromDB,
+    togglePackageStatusInDB
 };

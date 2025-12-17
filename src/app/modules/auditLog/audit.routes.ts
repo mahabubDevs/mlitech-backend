@@ -11,4 +11,11 @@ router.get(
   AuditController.getAuditLogs
 );
 
+
+router.get(
+  "/audit-logs/user/:userId",
+  AuditController.getAuditLogsByUser
+);
+
+
 export const AuditRoutes = router;

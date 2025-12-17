@@ -1,8 +1,6 @@
 import { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
 
-
-
 import { TierService } from "./tier.service";
 import { createTierSchema, updateTierSchema } from "./tier.validation";
 import { ITier } from "./tier.interface";
@@ -12,6 +10,11 @@ import catchAsync from "../../../../shared/catchAsync";
 import sendResponse from "../../../../shared/sendResponse";
 import ApiError from "../../../../errors/ApiErrors";
 import QueryBuilder from "../../../../util/queryBuilder";
+import { AuditService } from "../../auditLog/audit.service";
+
+
+
+
 
 const createTier = catchAsync(async (req: Request, res: Response) => {
   const validatedBody = await createTierSchema.parseAsync({
@@ -28,6 +31,14 @@ const createTier = catchAsync(async (req: Request, res: Response) => {
   };
 
   const result = await TierService.createTierToDB(payload);
+
+    // ✅ Audit Log creation
+  await AuditService.createLog(
+    (req.user as any)?._id,           // userId
+    "CREATE_TIER",                    // actionType
+    `Tier "${result.name}" created`    // details
+  );
+
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,
@@ -53,6 +64,13 @@ const updateTier = catchAsync(async (req: Request, res: Response) => {
 
   const result = await TierService.updateTierToDB(req.params.id, payload);
   if (!result) throw new ApiError(StatusCodes.NOT_FOUND, "Tier not found");
+
+    // ✅ Audit Log creation
+  await AuditService.createLog(
+    (req.user as any)?._id,           // userId
+    "UPDATE_TIER",                    // actionType
+    `Tier "${result.name}" updated`    // details
+  );
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,
@@ -111,6 +129,13 @@ const getSingleTier = catchAsync(async (req: Request, res: Response) => {
 const deleteTier = catchAsync(async (req: Request, res: Response) => {
   const result = await TierService.deleteTierToDB(req.params.id);
   if (!result) throw new ApiError(StatusCodes.NOT_FOUND, "Tier not found");
+
+    // ✅ Audit Log creation
+  await AuditService.createLog(
+    (req.user as any)?._id,           // userId
+    "DELETE_TIER",                    // actionType
+    `Tier "${result.name}" deleted`    // details
+  );
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,

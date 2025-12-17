@@ -21,5 +21,10 @@ router.route("/:id")
     .get(auth(), PackageController.getSinglePackage)
     .patch(auth(), PackageController.updatePackage)
     .delete(auth(), PackageController.deletePackage);
+router.patch(
+    "/toggle/:id",
+    auth(),
+    PackageController.togglePackageStatus
+);
 
 export const PackageRoutes = router;
