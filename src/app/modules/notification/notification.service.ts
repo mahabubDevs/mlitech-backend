@@ -11,7 +11,7 @@ const getUserNotificationFromDB = async (
   query: FilterQuery<any>
 ) => {
   const notificationQuery = new QueryBuilder(
-    Notification.find({ receiver: user._id }).sort("-createdAt"),
+    Notification.find({ userId: user._id }).sort("-createdAt"),
     query
   ).paginate();
 
