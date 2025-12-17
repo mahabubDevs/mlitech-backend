@@ -345,99 +345,77 @@ const approvePromotionReject = async (
   return { status: "reject" };
 };
 
+// Service
 const getPointsHistory = async (
   digitalCardId: string,
   type: "all" | "earn" | "use" = "all"
 ) => {
-  // Validate ObjectId
-  if (!Types.ObjectId.isValid(digitalCardId)) {
-    throw new Error("Invalid digitalCardId");
-  }
+  try {
+    if (!Types.ObjectId.isValid(digitalCardId)) {
+      throw new Error("Invalid digitalCardId");
+    }
 
-  const query: any = { digitalCardId: new Types.ObjectId(digitalCardId) };
+    // sanitize type
+    const typeSanitized = type?.trim().toLowerCase() as "all" | "earn" | "use";
 
-  // type অনুযায়ী filter
-  if (type === "earn") query.pointsEarned = { $gt: 0 };
-  if (type === "use") query.pointsEarned = { $lt: 0 };
+    const query: any = { digitalCardId: new Types.ObjectId(digitalCardId) };
 
-  const history = await Sell.find(query).sort({ createdAt: -1 });
+    // DB query filter
+    if (typeSanitized === "earn") query.pointsEarned = { $gt: 0 };
+    if (typeSanitized === "use") query.pointRedeemed = { $gt: 0 };
 
-  // map করে front-end friendly format বানাচ্ছি
-  return history.map((tx) => ({
-    transactionId: tx._id,
-    totalBill: tx.totalBill,
-    discountedBill: tx.discountedBill,
-    points: tx.pointsEarned,
-    promotionId: tx.promotionId,
-    status: tx.status,
-    date: tx.createdAt,
-  }));
+    // fetch and populate merchant name
+    const history = await Sell.find(query)
+      .sort({ createdAt: -1 })
+      .populate("merchantId", "name")
+      .lean();
 
-  const result: any[] = [];
+    console.log("Raw DB History:", history);
 
-  // history.forEach(tx => {
-  //   // যদি earn points থাকে
-  //   if (tx.pointsEarned > 0) {
-  //     result.push({
-  //       id: tx._id,
-  //       earn: tx.pointsEarned,
-  //       date: tx.createdAt,
-  //       merchant: tx.merchantId
-  //     });
-  //   }
-  //   // যদি redeem/use points থাকে
-  //   if (tx.pointsEarned < 0) {
-  //     result.push({
-  //       id: tx._id,
-  //       use: Math.abs(tx.pointsEarned),
-  //       date: tx.createdAt,
-  //       merchant: tx.merchantId
-  //     });
-  //   }
-  // });
+    const result: any[] = [];
 
-  if (history.length > 0) {
-    // আসল database data mapping
     history.forEach((tx) => {
-      if (tx.pointsEarned > 0 && (type === "all" || type === "earn")) {
+      const merchant = tx.merchantId as { _id?: string; name?: string } | undefined;
+
+      // Earn points
+      if ((typeSanitized === "all" || typeSanitized === "earn") && (tx.pointsEarned ?? 0) > 0) {
         result.push({
           id: tx._id,
-          earn: tx.pointsEarned,
+          type: "earn",
+          points: tx.pointsEarned ?? 0,
+          totalBill: tx.totalBill,
+          discountedBill: tx.discountedBill,
           date: tx.createdAt,
-          merchant: tx.merchantId,
+          promotionId: tx.promotionId,
+          merchant: merchant?.name || merchant?._id,
         });
       }
-      if (tx.pointsEarned < 0 && (type === "all" || type === "use")) {
+
+      // Redeemed/used points
+      if ((typeSanitized === "all" || typeSanitized === "use") && (tx.pointRedeemed ?? 0) > 0) {
         result.push({
           id: tx._id,
-          use: Math.abs(tx.pointsEarned),
+          type: "use",
+          points: tx.pointRedeemed ?? 0,
+          totalBill: tx.totalBill,
+          discountedBill: tx.discountedBill,
           date: tx.createdAt,
-          merchant: tx.merchantId,
+          promotionId: tx.promotionId,
+          merchant: merchant?.name || merchant?._id,
         });
       }
     });
-  } else {
-    // যদি কোনো data না থাকে → dummy/testing data
-    if (type === "all" || type === "earn") {
-      result.push({
-        id: "dummy1",
-        earn: 100,
-        date: new Date(),
-        merchant: "Test Merchant A",
-      });
-    }
-    if (type === "all" || type === "use") {
-      result.push({
-        id: "dummy2",
-        use: 50,
-        date: new Date(),
-        merchant: "Test Merchant B",
-      });
-    }
-  }
 
-  return result;
+    console.log("Mapped Result Array:", result);
+
+    return result;
+  } catch (error) {
+    console.error("Error in getPointsHistory:", error);
+    throw error;
+  }
 };
+
+
 
 // -----------------------------
 // EXPORT SERVICE

@@ -57,6 +57,10 @@ const createUserToDB = async (payload: Partial<IUser>): Promise<IUser> => {
     throw new ApiError(StatusCodes.BAD_REQUEST, "User Already Exist");
   }
 
+
+
+
+  
   // 2️⃣ Create user data
   const referenceId = await createUniqueReferralId();
   const customUserId = await generateCustomUserId(payload.role as string);
@@ -109,6 +113,9 @@ const createUserToDB = async (payload: Partial<IUser>): Promise<IUser> => {
 
   return createUser;
 };
+
+
+
 const getUserProfileFromDB = async (
   user: JwtPayload
 ): Promise<Partial<IUser> & { totalPigeons: number; subscriptions: any[] }> => {

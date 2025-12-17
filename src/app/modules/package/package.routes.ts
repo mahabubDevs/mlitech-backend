@@ -17,6 +17,8 @@ router.route("/")
     )
     .get(PackageController.getPackage);
 
+router.get("/active-packages", PackageController.getActivePackages);
+
 router.route("/:id")
     .get(auth(), PackageController.getSinglePackage)
     .patch(auth(), PackageController.updatePackage)
