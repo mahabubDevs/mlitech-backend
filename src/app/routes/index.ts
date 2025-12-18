@@ -29,6 +29,7 @@ import { AdminPromoMercentRoutes } from "../modules/adminSellandTier/promotionMe
 import { AdminTierRoutes } from "../modules/adminSellandTier/point&TierSystem/tier.route";
 
 import { NotificationRoutes } from "../modules/notification/notification.routes";
+import { PushRoutes } from "../modules/pushNotification/push.routes";
 
 const router = express.Router();
 
@@ -58,6 +59,7 @@ const apiRoutes = [
   { path: "/audit", route: AuditRoutes },
   { path: "/admin-promo", route: AdminPromoMercentRoutes },
   { path: "/admin-tier", route: AdminTierRoutes },
+  { path: "/push-notification", route: PushRoutes },
 
   { path: "/notifications", route: NotificationRoutes },
 ];

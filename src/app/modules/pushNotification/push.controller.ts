@@ -5,22 +5,22 @@ import { PushService } from "./push.service";
 import { ICreatePush } from "./push.interface";
 import { StatusCodes } from "http-status-codes";
 
-const sendNotificationToAll = catchAsync(async (req: Request, res: Response) => {
-    const { title, description } = req.body;
 
-    if (!title || !description) {
-        return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Title and description required" });
-    }
 
-    const result = await PushService.sendNotificationToAllUsers(title, description);
+const sendNotificationToAll = catchAsync(async (req, res) => {
+  const result = await PushService.sendNotificationToAllUsers(
+    req.body,
+    (req.user as any)?._id
+  );
 
-   
-    sendResponse(res, {
+  sendResponse(res, {
     success: true,
-    statusCode: 200,
-    message: "Notification sent to all users",
+    statusCode: StatusCodes.OK,
+    message: "Notification sent successfully",
+    data: result,
   });
 });
+
 
 // const getAllPushes = catchAsync(async (req: Request, res: Response) => {
 //   const result = await PushService.getAllPushesFromDB(req.query);

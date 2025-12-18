@@ -110,6 +110,15 @@ const togglePackageStatus = catchAsync(async(req: Request, res: Response) => {
     });
 });
 
+const getActivePackages = catchAsync(async (req: Request, res: Response) => {
+    const result = await PackageService.getActivePackagesFromDB();
+    sendResponse(res, {
+        statusCode: StatusCodes.OK,
+        success: true,
+        message: "Active packages retrieved Successfully",
+        data: result
+    });
+});
 
 export const PackageController = {
     createPackage,
@@ -118,5 +127,6 @@ export const PackageController = {
     getSinglePackage,
     packageDetails,
     deletePackage,
-    togglePackageStatus
+    togglePackageStatus,
+    getActivePackages
 };

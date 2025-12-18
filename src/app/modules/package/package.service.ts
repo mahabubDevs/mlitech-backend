@@ -76,7 +76,7 @@ const updatePackageToDB = async (id: string, payload: Partial<IPackage>): Promis
 };
 
 const getPackageFromDB = async(paymentType?: string): Promise<IPackage[]> => {
-    const query: any = { status: "Active" };
+    const query: any = { };
     if(paymentType) query.paymentType = paymentType;
     return Package.find(query);
 };
@@ -107,7 +107,9 @@ const togglePackageStatusInDB = async(id: string): Promise<IPackage | null> => {
     return Package.findByIdAndUpdate(id, { status: newStatus }, { new: true });
 };
 
-
+const getActivePackagesFromDB = async (): Promise<IPackage[]> => {
+    return Package.find({ status: "Active" });
+};
 
 export const PackageService = {
     createPackageToDB,
@@ -116,5 +118,6 @@ export const PackageService = {
     getPackageDetailsFromDB,
     deletePackageToDB,
     getSinglePackageFromDB,
-    togglePackageStatusInDB
+    togglePackageStatusInDB,
+    getActivePackagesFromDB
 };

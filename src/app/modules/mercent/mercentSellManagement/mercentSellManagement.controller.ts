@@ -8,6 +8,7 @@ import { DigitalCard } from "../../customer/digitalCard/digitalCard.model";
 import { Sell } from "./mercentSellManagement.model";
 import { Types } from "mongoose";
 import { IDigitalCard, ISell } from "./mercentSellManagement.interface";
+import QueryBuilder from "../../../../util/queryBuilder";
 
 // 🔹 Demo data fallback
 const demoSales = [
@@ -286,6 +287,7 @@ const approvePromotionreject = catchAsync(
 //     });
 //   }
 
+// Controller
 const getPointsHistory = catchAsync(async (req: Request, res: Response) => {
   const user = req.user as IUser;
   const { digitalCardId, type } = req.query;
@@ -318,6 +320,7 @@ const getPointsHistory = catchAsync(async (req: Request, res: Response) => {
     data: history,
   });
 });
+
 
 // const getMerchantSales = async (req: Request, res: Response) => {
 //   try {
@@ -377,61 +380,103 @@ const getMerchantSales = async (req: Request, res: Response) => {
         .json({ success: false, message: "Invalid merchant ID" });
     }
 
-    // Fetch all sales for the merchant
-    const sales = await Sell.find({ merchantId })
-      .populate("userId", "firstName lastName email")
-      .populate("digitalCardId", "cardNumber type")
-      .populate("promotionId", "name discountPercentage")
-      .sort({ createdAt: -1 })
-      .lean<
-        Array<{
-          _id: string;
-          merchantId: string;
-          userId?: { firstName: string; lastName?: string; email?: string };
-          digitalCardId?: { cardNumber: string; type?: string };
-          promotionId?: { name: string; discountPercentage: number };
-          totalBill: number;
-          discountedBill: number;
-          pointsEarned: number;
-          pointRedeemed?: number;
-          status: "completed" | "pending";
-          createdAt: Date;
-          updatedAt: Date;
-        }>
-      >();
+    // 1️⃣ Base query for this merchant
+    let query = Sell.find({ merchantId });
 
-    let result;
+    // 2️⃣ Apply search, filter, sort, pagination using QueryBuilder
+    const qb = new QueryBuilder(query, req.query)
+      .filter() // filters from query params
+      .search(["userId.firstName", "userId.lastName"]) // search term
+      .sort()
+      .paginate()
+      .populate(["userId", "digitalCardId"], {
+        userId: "firstName lastName email phone profile",
+        digitalCardId: "cardCode",
+      });
 
-    if (sales.length > 0) {
-      // Map real data to frontend format
-      result = sales.map((tx, index: number) => ({
-        SL: index + 1,
-        CustomerName:
-          tx.userId?.firstName +
-          (tx.userId?.lastName ? " " + tx.userId?.lastName : ""),
-        CardID: tx.digitalCardId?.cardNumber || "",
-        TotalAmount: tx.totalBill,
-        PointRedeem: tx.pointRedeemed || 0,
-        PointEarned: tx.pointsEarned,
-        FinalAmount: tx.discountedBill,
-        TransactionStatus:
-          tx.status.charAt(0).toUpperCase() + tx.status.slice(1),
-        Promotion: tx.promotionId?.name || null,
-        Actions: "",
-      }));
-    } else {
-      // Return demo data if no real data
-      result = demoSales;
+    // Execute query
+    const sales = await qb.modelQuery.lean();
+    const paginationInfo = await qb.getPaginationInfo();
+
+    if (!sales || sales.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: [],
+        pagination: paginationInfo,
+        message: "No sales yet",
+      });
     }
 
-    return res.status(200).json({ success: true, data: result });
+    // 3️⃣ Aggregate user data
+    interface IUserSummary {
+      _id: string;
+      name: string;
+      email?: string;
+      phone?: string;
+      profile?: string;
+      totalTransactions: number;
+      totalPointsEarned: number;
+      totalPointsRedeemed: number;
+      totalBilled?: number;
+      finalBilled?: number;
+      cardIds?: string; // single card code as string
+      status?: string;
+    }
+
+    const userMap: Record<string, IUserSummary> = {};
+
+    sales.forEach((tx: any) => {
+      const user = tx.userId;
+      if (!user || !user._id) return;
+      const userId = user._id.toString();
+
+      if (!userMap[userId]) {
+        userMap[userId] = {
+          _id: userId,
+          name: user.firstName + (user.lastName ? ` ${user.lastName}` : ""),
+          email: user.email,
+          phone: user.phone,
+          profile: user.profile,
+          totalTransactions: 0,
+          totalPointsEarned: 0,
+          totalPointsRedeemed: 0,
+          totalBilled: 0,
+          finalBilled: 0,
+          cardIds: "",
+        };
+      }
+
+      userMap[userId].totalTransactions += 1;
+      userMap[userId].totalPointsEarned += tx.pointsEarned || 0;
+      userMap[userId].totalPointsRedeemed += tx.pointRedeemed || 0;
+      userMap[userId].totalBilled! += tx.totalBill || 0;
+      userMap[userId].finalBilled! += tx.discountedBill || 0;
+      // ✅ set status from Sell document
+      userMap[userId].status = tx.status || "";
+
+      // Set cardIds from digitalCardId
+      if (tx.digitalCardId && tx.digitalCardId.cardCode) {
+        userMap[userId].cardIds = tx.digitalCardId.cardCode;
+      }
+    });
+
+    const result = Object.values(userMap);
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+      pagination: paginationInfo,
+    });
   } catch (error) {
-    console.error(error);
-    return res
-      .status(500)
-      .json({ success: false, message: "Server Error", error });
+    console.error("Error in getMerchantSales:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server Error",
+      error,
+    });
   }
 };
+
 
 export default {
   checkout,

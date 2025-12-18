@@ -1,35 +1,72 @@
 import { Push } from "./push.model";
-import { ICreatePush, IPushResponse } from "./push.interface";
+import { IPushPayload} from "./push.interface";
 
 import QueryBuilder from "../../../util/queryBuilder";
 import { firebaseHelper } from "../../../helpers/firebaseHelper";
 import { User } from "../user/user.model";
 import admin from "../../../config/firebase";
 
+
 // Send push (existing)
-const sendNotificationToAllUsers = async (title: string, body: string) => {
-    const users = await User.find({ fcmToken: { $exists: true, $ne: null } }).select("fcmToken");
 
-    const tokens = users
-        .map(u => u.fcmToken)
-        .filter((token): token is string => !!token); // remove undefined
 
-    if (tokens.length === 0) {
-        return { sent: 0, message: "No users with FCM tokens" };
-    }
+const sendNotificationToAllUsers = async (
+  payload: IPushPayload,
+  adminId: string
+) => {
+  const {
+    sendType,
+    title,
+    body,
+    location,
+    tier,
+    subscriptionType,
+    status,
+  } = payload;
 
-    const message = {
-        notification: { title, body },
-        tokens
-    };
+  // 1️⃣ Base filter
+  const userFilter: any = {
+    fcmToken: { $exists: true, $ne: null },
+  };
 
-    const response = await admin.messaging().sendMulticast(message);
+  // 2️⃣ Apply filters only if SPECIFIC
+  if (sendType === "SPECIFIC") {
+    if (location) userFilter.city = location;
+    if (tier) userFilter.tier = tier;
+    if (subscriptionType)
+      userFilter.subscription = subscriptionType;
+    if (status) userFilter.status = status;
+  }
 
+  // 3️⃣ Fetch users
+  const users = await User.find(userFilter).select("fcmToken");
+
+  const tokens = users
+    .map((u) => u.fcmToken)
+    .filter((t): t is string => !!t);
+
+  if (tokens.length === 0) {
     return {
-        successCount: response.successCount,
-        failureCount: response.failureCount
+      sentCount: 0,
+      failedCount: 0,
+      message: "No users matched the criteria",
     };
+  }
+
+  // 4️⃣ Send notification
+  const message = {
+    notification: { title, body },
+    tokens,
+  };
+
+  const response = await admin.messaging().sendMulticast(message);
+
+  return {
+    sentCount: response.successCount,
+    failedCount: response.failureCount,
+  };
 };
+
 
 // Get all push notifications (Admin)
 // const getAllPushesFromDB = async (query: any) => {

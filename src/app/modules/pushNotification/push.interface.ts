@@ -10,3 +10,16 @@ export interface IPushResponse {
   sentCount: number;
   failedCount: number;
 }
+
+
+
+export interface IPushPayload {
+  sendType: "ALL" | "SPECIFIC";
+  title: string;
+  body: string;
+
+  location?: string;
+  tier?: string;
+  subscriptionType?: string;
+  status?: string;
+}
