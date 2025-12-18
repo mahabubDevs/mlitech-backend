@@ -86,6 +86,7 @@ const getBusinessCustomerAnalytics = async (
     {
       $project: {
         _id: 0,
+        customerId: "$customer.customUserId",
         customerName: "$customer.firstName",
         subscriptionStatus: "$customer.subscription",
         location: "$customer.address",
