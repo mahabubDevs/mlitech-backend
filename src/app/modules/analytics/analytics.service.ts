@@ -203,27 +203,56 @@ const getBusinessCustomerAnalytics = async (
   };
 };
 
+interface AnalyticsFilters {
+  subscriptionStatus?: string;
+  merchantName?: string;
+  location?: string;
+}
+
 const getMerchantAnalytics = async (
   startDate?: string,
   endDate?: string,
   page: number = 1,
-  limit: number = 10
+  limit: number = 10,
+  filters?: AnalyticsFilters
 ) => {
-  const filter: any = { status: "completed" };
+  /* ---------------- Base Match ---------------- */
+  const matchSell: Record<string, any> = { status: "completed" };
 
   if (startDate && endDate) {
-    filter.createdAt = {
+    matchSell.createdAt = {
       $gte: new Date(startDate),
       $lte: new Date(endDate),
     };
   }
 
+  /* ---------------- Merchant Filters ---------------- */
+  const matchMerchant: Record<string, any> = {};
+  if (filters?.subscriptionStatus) {
+    matchMerchant["merchant.subscription"] = filters.subscriptionStatus;
+  }
+  if (filters?.merchantName) {
+    matchMerchant["merchant.firstName"] = {
+      $regex: filters.merchantName,
+      $options: "i",
+    };
+  }
+  if (filters?.location) {
+    matchMerchant["merchant.address"] = {
+      $regex: filters.location,
+      $options: "i",
+    };
+  }
+
+  const merchantMatchStage: PipelineStage[] = Object.keys(matchMerchant).length
+    ? [{ $match: matchMerchant }]
+    : [];
+
   const skip = (page - 1) * limit;
 
-  const records = await Sell.aggregate([
-    { $match: filter },
-
-    // Join with merchant info
+  /* ---------------- Records Pipeline ---------------- */
+  const recordsPipeline: PipelineStage[] = [
+    { $match: matchSell },
     {
       $lookup: {
         from: "users",
@@ -233,8 +262,7 @@ const getMerchantAnalytics = async (
       },
     },
     { $unwind: "$merchant" },
-
-    // Group by merchant
+    ...merchantMatchStage,
     {
       $group: {
         _id: "$merchantId",
@@ -247,30 +275,105 @@ const getMerchantAnalytics = async (
         joiningDate: { $first: "$merchant.createdAt" },
       },
     },
-
-    // Add usersCount and remove users array
-    {
-      $addFields: {
-        usersCount: { $size: "$users" },
-      },
-    },
-    { $project: { users: 0 } }, // remove users array
-
+    { $addFields: { usersCount: { $size: "$users" } } },
+    { $project: { users: 0 } },
     { $sort: { joiningDate: -1 } },
     { $skip: skip },
     { $limit: limit },
+  ];
+
+  const records = await Sell.aggregate(recordsPipeline);
+
+  /* ---------------- Pagination Count ---------------- */
+  const totalAgg = await Sell.aggregate([
+    { $match: matchSell },
+    {
+      $lookup: {
+        from: "users",
+        localField: "merchantId",
+        foreignField: "_id",
+        as: "merchant",
+      },
+    },
+    { $unwind: "$merchant" },
+    ...merchantMatchStage,
+    { $group: { _id: "$merchantId" } },
+    { $count: "total" },
   ]);
 
-  const total = await Sell.distinct("merchantId", filter);
+  const total = totalAgg[0]?.total ?? 0;
 
+  /* ---------------- Monthly Aggregation ---------------- */
+  const rawMonthly = await Sell.aggregate([
+    { $match: matchSell },
+    {
+      $lookup: {
+        from: "users",
+        localField: "merchantId",
+        foreignField: "_id",
+        as: "merchant",
+      },
+    },
+    { $unwind: "$merchant" },
+    ...merchantMatchStage,
+    {
+      $group: {
+        _id: { year: { $year: "$createdAt" }, month: { $month: "$createdAt" } },
+        totalRevenue: { $sum: "$discountedBill" },
+        pointsRedeemed: { $sum: "$pointRedeemed" },
+        usersSet: { $addToSet: "$userId" },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        year: "$_id.year",
+        month: "$_id.month",
+        monthName: {
+          $arrayElemAt: [monthNames, { $subtract: ["$_id.month", 1] }],
+        },
+        totalRevenue: 1,
+        pointsRedeemed: 1,
+        usersCount: { $size: "$usersSet" },
+      },
+    },
+    { $sort: { year: 1, month: 1 } },
+  ]);
+
+  /* ---------------- Fill Missing Months ---------------- */
+  const monthMap = new Map(rawMonthly.map((m) => [`${m.year}-${m.month}`, m]));
+  const filledMonthlyData: any[] = [];
+  const cursor = new Date(startDate as string);
+  const end = new Date(endDate as string);
+  cursor.setDate(1);
+
+  while (cursor <= end) {
+    const year = cursor.getFullYear();
+    const month = cursor.getMonth() + 1;
+    const data = monthMap.get(`${year}-${month}`);
+
+    filledMonthlyData.push({
+      year,
+      month,
+      monthName: monthNames[month - 1],
+      totalRevenue: data?.totalRevenue || 0,
+      pointsRedeemed: data?.pointsRedeemed || 0,
+      usersCount: data?.usersCount || 0,
+    });
+
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
   return {
     pagination: {
       page,
       limit,
-      total: total.length,
-      totalPage: Math.ceil(total.length / limit),
+      total,
+      totalPage: Math.ceil(total / limit),
     },
-    records,
+    data: {
+      records,
+      monthlyData: filledMonthlyData,
+    },
   };
 };
 
