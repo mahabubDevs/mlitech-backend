@@ -1,10 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { JwtPayload } from "jsonwebtoken";
-import { Notification } from "./notification.model";
+import { Notification, NotificationType } from "./notification.model";
 import { FilterQuery } from "mongoose";
 
 import { timeAgo } from "../../../util/timeAgo";
 import QueryBuilder from "../../../util/queryBuilder";
+import { sendNotification } from "../../../helpers/notificationsHelper";
 
 const getUserNotificationFromDB = async (
   user: JwtPayload,
@@ -49,8 +50,17 @@ const readUserNotificationToDB = async (user: JwtPayload): Promise<boolean> => {
 
   return true;
 };
+const sendTestNotification = async (user: JwtPayload) => {
+  await sendNotification({
+    userIds: [user._id],
+    title: "Test Notification",
+    body: "This is a test notification.",
+    type: NotificationType.SYSTEM,
+  });
+};
 
 export const NotificationService = {
   getUserNotificationFromDB,
   readUserNotificationToDB,
+  sendTestNotification,
 };
