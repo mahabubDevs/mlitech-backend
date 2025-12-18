@@ -23,7 +23,7 @@ const getBusinessCustomerAnalytics = catchAsync(
       success: true,
       statusCode: StatusCodes.OK,
       message: "Customer analytics fetched successfully",
-      data: result.records,
+      data: result.data,
       pagination: result.pagination,
     });
   }
