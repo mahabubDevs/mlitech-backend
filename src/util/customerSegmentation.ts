@@ -2,6 +2,7 @@ import { Types } from "mongoose";
 import { Sell } from "../app/modules/mercent/mercentSellManagement/mercentSellManagement.model";
 import { User } from "../app/modules/user/user.model";
 import { CUSTOMER_SEGMENT } from "../enums/user";
+import { MerchantCustomer } from "../app/modules/mercent/merchantCustomer/merchantCustomer.model";
 
 
 export const resolveCustomerIdsBySegment = async ({
@@ -83,7 +84,10 @@ export const resolveCustomerIdsBySegment = async ({
     }
 
     if (segment === CUSTOMER_SEGMENT.VIP) {
-        match.isVip = true;
+        return await MerchantCustomer.find({
+            merchantId,
+            isVip: true,
+        }).select("customerId");
     }
 
     return User.find(match).select("_id");
