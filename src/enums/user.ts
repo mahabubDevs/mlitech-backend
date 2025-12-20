@@ -36,4 +36,5 @@ export enum CUSTOMER_SEGMENT {
   RETURNING = "returning",
   LOYAL = "loyal",
   VIP = "vip",
+  ALL = "all",
 }

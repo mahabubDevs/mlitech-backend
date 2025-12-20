@@ -1,5 +1,5 @@
 import { APPROVE_STATUS, USER_ROLES, USER_STATUS } from "../../../enums/user";
-import { IUser } from "./user.interface";
+import { CreateUserPayload, IUser } from "./user.interface";
 import { JwtPayload } from "jsonwebtoken";
 import { User } from "./user.model";
 import { StatusCodes } from "http-status-codes";
@@ -48,7 +48,7 @@ const createAdminToDB = async (payload: any): Promise<IUser> => {
   return createAdmin;
 };
 
-const createUserToDB = async (payload: Partial<IUser>): Promise<IUser> => {
+const createUserToDB = async (payload: CreateUserPayload): Promise<IUser> => {
   // 1️⃣ Check if user exists
   const isExitByEmail = await User.isExistUserByEmail(payload.email as string);
   const isExitByPhone = await User.isExistUserByPhone(payload.phone as string);
@@ -60,15 +60,28 @@ const createUserToDB = async (payload: Partial<IUser>): Promise<IUser> => {
 
 
 
-  
+
   // 2️⃣ Create user data
   const referenceId = await createUniqueReferralId();
   const customUserId = await generateCustomUserId(payload.role as string);
+
+  let referredInfo;
+  if (payload?.referredId) {
+    const referredUser = await User.findOne({ referenceId: payload.referredId });
+    if (!referredUser) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, "Referred Id Invalied!");
+    }
+    referredInfo = {
+      referredId: payload.referredId,
+      referredBy: `${referredUser.firstName} + " " + ${referredUser?.lastName ? referredUser?.lastName : ""}`,
+    };
+  }
 
   const userData = {
     ...payload,
     referenceId,
     customUserId,
+    referredInfo,
     status:
       payload.role === USER_ROLES.MERCENT
         ? USER_STATUS.INACTIVE

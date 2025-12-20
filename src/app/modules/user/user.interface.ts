@@ -100,6 +100,10 @@ export interface IUser {
   appId?: string;
   fcmToken?: string;
   referenceId: string;
+  referredInfo?: {
+    referredId: string;
+    referredBy: string;
+  };
   role?: string;
   phone?: string;
   email?: string;
@@ -130,6 +134,7 @@ export interface IUser {
   gender?: string;
   lastActive: Date;
   socketIds: string[];
+  points: number;
 }
 
 export type UserModal = {
@@ -139,3 +144,9 @@ export type UserModal = {
   isAccountCreated(id: string): any;
   isMatchPassword(password: string, hashPassword: string): boolean;
 } & Model<IUser>;
+
+
+export interface CreateUserPayload
+  extends IUser {
+  referredId?: string; // input-only field
+}
