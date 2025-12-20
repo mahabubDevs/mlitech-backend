@@ -30,3 +30,10 @@ export enum SUBSCRIPTION_STATUS {
   ACTIVE = "active",
   INACTIVE = "inActive",
 }
+
+export enum CUSTOMER_SEGMENT {
+  NEW = "new",
+  RETURNING = "returning",
+  LOYAL = "loyal",
+  VIP = "vip",
+}

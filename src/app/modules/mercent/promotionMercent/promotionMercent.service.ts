@@ -10,6 +10,9 @@ import { Promotion } from "./promotionMercent.model";
 import { Sell } from "../mercentSellManagement/mercentSellManagement.model";
 import { Types } from "mongoose";
 import { sendNotification } from "../../../../helpers/notificationsHelper";
+import { resolveCustomerIdsBySegment } from "../../../../util/customerSegmentation";
+import { NotificationType } from "../../notification/notification.model";
+import { CUSTOMER_SEGMENT } from "../../../../enums/user";
 
 const generatePromotionCode = (length = 6) => {
   const chars = "0123456789";
@@ -320,7 +323,51 @@ const getPromotionsByUserCategory = async (categoryName: string) => {
 };
 
 
-const sendNotificationToCustomer = async (payload: any) => { }
+const sendNotificationToCustomer = async (
+  payload: {
+    message: string;
+    attachment?: string;
+    segment: CUSTOMER_SEGMENT;
+    minPoints: number;
+    radiusKm: number;
+
+  },
+  merchantId: Types.ObjectId
+) => {
+
+  const merchant = await User.findById(merchantId).select("location");
+  if (!merchant) {
+    throw new Error("Merchant not found");
+  }
+  if (!merchant?.location?.coordinates) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Please update your location");
+  }
+  const lng = merchant?.location?.coordinates[0]
+  const lat = merchant?.location?.coordinates[1]
+  const merchantLocation = { lat, lng }
+
+  const customers = await resolveCustomerIdsBySegment({
+    merchantId,
+    segment: payload.segment,
+    minPoints: payload.minPoints,
+    radiusKm: payload.radiusKm,
+    merchantLocation,
+  });
+
+  if (!customers.length) return { sent: 0 };
+
+  await sendNotification({
+    userIds: customers.map(c => c._id),
+    title: "Promotion Alert",
+    body: payload.message,
+    type: NotificationType.MANUAL,
+    attachments: payload.attachment ? [payload.attachment] : [],
+    channel: { socket: true, push: false },
+  });
+
+  return { sent: customers.length };
+};
+
 export const PromotionService = {
   createPromotionToDB,
   updatePromotionToDB,

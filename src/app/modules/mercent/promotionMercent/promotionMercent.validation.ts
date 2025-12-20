@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CUSTOMER_SEGMENT } from "../../../../enums/user";
 
 // Allowed days
 const allowedDays = [
@@ -41,9 +42,9 @@ const getUserTierOfMerchantZodSchema = z.object({
 
 const sendNotificationToCustomerZodSchema = z.object({
   body: z.object({
-    customerSegment: z.string().min(1, { message: "Customer segment is required" }),
-    leastPoint: z.number().min(1, { message: "Least point is required" }),
-    locationRadius: z.number().min(1, { message: "Location radius is required" }),
+    segment: z.nativeEnum(CUSTOMER_SEGMENT),
+    minPoints: z.number().min(1, { message: "Least point is required" }),
+    radiusKm: z.number().min(1, { message: "Location radius is required" }),
     message: z.string().min(1, { message: "Message is required" }),
 
   }),

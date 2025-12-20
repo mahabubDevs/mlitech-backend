@@ -268,13 +268,13 @@ const sendNotificationToCustomer = catchAsync(async (req: Request, res: Response
     ...req.body,
     attachment,
   };
-
-  const result = await PromotionService.sendNotificationToCustomer(data);
+  const merchant = req.user as JwtPayload;
+  const result = await PromotionService.sendNotificationToCustomer(data, merchant._id);
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
-    message: "Notification sent successfully",
+    message: "Promotion Notification sent successfully",
     data: result,
   });
 });
