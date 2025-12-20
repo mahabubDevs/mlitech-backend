@@ -319,6 +319,8 @@ const getPromotionsByUserCategory = async (categoryName: string) => {
   return promotions;
 };
 
+
+const sendNotificationToCustomer = async (payload: any) => { }
 export const PromotionService = {
   createPromotionToDB,
   updatePromotionToDB,
@@ -333,6 +335,7 @@ export const PromotionService = {
 
   getUserSegment,
   getAllPromotionsOfAMerchant,
+  sendNotificationToCustomer,
 };
 
 

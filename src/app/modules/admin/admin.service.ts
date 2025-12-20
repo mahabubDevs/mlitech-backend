@@ -202,15 +202,30 @@ const updateMerchantApproveStatus = async (
   id: string,
   approveStatus: APPROVE_STATUS
 ) => {
-  const merchant = await User.findByIdAndUpdate(
-    id,
-    { approveStatus },
-    { new: true }
-  ).lean();
-
+  const merchant = await User.findById(id).lean();
   if (!merchant) {
     throw new ApiError(StatusCodes.NOT_FOUND, "Merchant not found");
   }
+
+  if (merchant.approveStatus === approveStatus) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Merchant already has this status");
+  }
+  let data: Record<string, unknown> = {
+    approveStatus,
+
+  }
+  if (approveStatus === APPROVE_STATUS.APPROVED) {
+    data.status = USER_STATUS.ACTIVE
+  }
+
+
+  await User.findByIdAndUpdate(
+    id,
+    data,
+    { new: true }
+  ).lean();
+
+
 
   if (approveStatus === APPROVE_STATUS.APPROVED) {
     await sendNotification({

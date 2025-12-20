@@ -258,6 +258,27 @@ const getPromotionsByUserCategory = catchAsync(
   }
 );
 
+const sendNotificationToCustomer = catchAsync(async (req: Request, res: Response) => {
+  let attachment;
+  if (req.files && "image" in req.files && req.files.image[0]) {
+    attachment = `/images/${req.files.image[0].filename}`;
+  }
+
+  const data = {
+    ...req.body,
+    attachment,
+  };
+
+  const result = await PromotionService.sendNotificationToCustomer(data);
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: "Notification sent successfully",
+    data: result,
+  });
+});
+
 export const PromotionController = {
   createPromotion,
   getAllPromotions,
@@ -273,5 +294,6 @@ export const PromotionController = {
   getPromotionsForUser,
 
   getAllPromotionsOfAMerchant,
+  sendNotificationToCustomer
 
 };

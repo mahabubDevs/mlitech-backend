@@ -38,6 +38,18 @@ const getUserTierOfMerchantZodSchema = z.object({
   }),
 });
 
+
+const sendNotificationToCustomerZodSchema = z.object({
+  body: z.object({
+    customerSegment: z.string().min(1, { message: "Customer segment is required" }),
+    leastPoint: z.number().min(1, { message: "Least point is required" }),
+    locationRadius: z.number().min(1, { message: "Location radius is required" }),
+    message: z.string().min(1, { message: "Message is required" }),
+
+  }),
+});
 export const PromotionValidations = {
   getUserTierOfMerchantZodSchema,
+  sendNotificationToCustomerZodSchema,
+
 };

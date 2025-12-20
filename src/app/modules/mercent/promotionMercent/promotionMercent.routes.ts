@@ -44,8 +44,11 @@ router.get("/", auth(), PromotionController.getAllPromotions);
 
 //logit add for all user promotion fetching
 
-router.get("/user-promotions", auth(), PromotionController.getPromotionsForUser);
-
+router.get(
+  "/user-promotions",
+  auth(),
+  PromotionController.getPromotionsForUser
+);
 
 router.get("/:id", auth(), PromotionController.getSinglePromotion);
 
@@ -67,5 +70,6 @@ router.patch(
   auth(USER_ROLES.MERCENT),
   PromotionController.togglePromotion
 );
+router.post("/send-notification", auth(USER_ROLES.MERCENT), fileUploadHandler(), validateRequest(PromotionValidations.sendNotificationToCustomerZodSchema), PromotionController.sendNotificationToCustomer);
 
 export const PromoMercentRoutes = router;
