@@ -133,8 +133,8 @@ const getSingleMemberTier = async (merchantId: string, userId: string) => {
   if (!tiers.length) {
     return {
       availablePoints,
-      totalSpend,
-      tierName: null,
+
+      tierName: "No tier Found",
 
     };
   }
