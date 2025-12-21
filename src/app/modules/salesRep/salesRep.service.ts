@@ -77,7 +77,7 @@ const generateToken = async (userId: string, adminId: string) => {
     {
       token,
       tokenGenerateDate: new Date(),
-      adminName: adminName?.firstName + " " + adminName?.lastName ? adminName?.lastName : "",
+      adminName: `${adminName?.firstName} ${adminName?.lastName ?? ""}`.trim(),
     },
     { new: true, runValidators: true }
   );

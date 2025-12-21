@@ -221,11 +221,11 @@ const updateMerchantApproveStatus = async (
       throw new ApiError(StatusCodes.NOT_FOUND, "Admin not found");
     }
     data.status = USER_STATUS.ACTIVE
-    data.salesRep = adminName.firstName + " " + adminName.lastName ? adminName.lastName : ""
+    data.salesRep = `${adminName.firstName} ${adminName.lastName ?? ""}`.trim();
   }
 
 
-  await User.findByIdAndUpdate(
+  const result = await User.findByIdAndUpdate(
     id,
     data,
     { new: true }
@@ -245,7 +245,7 @@ const updateMerchantApproveStatus = async (
     })
   }
 
-  return merchant;
+  return result;
 };
 
 export const AdminService = {
