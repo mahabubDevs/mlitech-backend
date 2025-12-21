@@ -42,7 +42,7 @@ const getSingleMember = catchAsync(async (req, res) => {
 
 const getSingleMemberTier = catchAsync(async (req, res) => {
   const merchantId = (req.user as any)?._id;
-  const userId = req.params.userId;
+  const userId = req.params.id;
 
   const member = await MemberService.getSingleMemberTier(merchantId, userId);
 
