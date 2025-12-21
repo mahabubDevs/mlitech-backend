@@ -104,6 +104,7 @@ export interface IUser {
     referredId: string;
     referredBy: string;
   };
+  salesRep?: string;
   role?: string;
   phone?: string;
   email?: string;

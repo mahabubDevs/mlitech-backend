@@ -200,7 +200,8 @@ const updateMerchantStatus = async (
 };
 const updateMerchantApproveStatus = async (
   id: string,
-  approveStatus: APPROVE_STATUS
+  approveStatus: APPROVE_STATUS,
+  adminId: string
 ) => {
   const merchant = await User.findById(id).lean();
   if (!merchant) {
@@ -215,7 +216,12 @@ const updateMerchantApproveStatus = async (
 
   }
   if (approveStatus === APPROVE_STATUS.APPROVED) {
+    const adminName = await User.findById(adminId).select("firstName lastName").lean()
+    if (!adminName) {
+      throw new ApiError(StatusCodes.NOT_FOUND, "Admin not found");
+    }
     data.status = USER_STATUS.ACTIVE
+    data.salesRep = adminName.firstName + " " + adminName.lastName ? adminName.lastName : ""
   }
 
 
@@ -228,6 +234,9 @@ const updateMerchantApproveStatus = async (
 
 
   if (approveStatus === APPROVE_STATUS.APPROVED) {
+
+
+
     await sendNotification({
       userIds: [merchant._id],
       title: "Congratulations! Your account Approved",

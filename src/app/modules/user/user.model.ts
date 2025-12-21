@@ -61,6 +61,10 @@ const userSchema = new Schema<IUser, UserModal>(
       }
 
     },
+    salesRep: {
+      type: String,
+      required: false,
+    },
     role: {
       type: String,
       enum: Object.values(USER_ROLES),

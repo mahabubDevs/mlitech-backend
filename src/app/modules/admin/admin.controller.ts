@@ -3,6 +3,7 @@ import { StatusCodes } from "http-status-codes";
 import catchAsync from "../../../shared/catchAsync";
 import sendResponse from "../../../shared/sendResponse";
 import { AdminService } from "./admin.service";
+import { JwtPayload } from "jsonwebtoken";
 
 const createAdmin = catchAsync(async (req: Request, res: Response) => {
   const payload = req.body;
@@ -220,9 +221,11 @@ const updateMerchantStatus = catchAsync(async (req, res) => {
   });
 });
 const updateMerchantApproveStatus = catchAsync(async (req, res) => {
+  const user = req.user as JwtPayload
   const result = await AdminService.updateMerchantApproveStatus(
     req.params.id,
-    req.body.approveStatus
+    req.body.approveStatus,
+    user._id
   );
 
   sendResponse(res, {
