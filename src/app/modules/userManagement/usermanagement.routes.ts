@@ -24,6 +24,43 @@ router
     UserController.createUser
   )
 
+router.get(
+  "/merchants",
+  auth(),
+  UserController.getAllMerchants
+);
+
+router.get(
+  "/merchants/:id",
+  auth(),
+  UserController.getSingleMerchant
+);
+
+router.patch(
+  "/merchants/:id",
+  auth(),
+  UserController.updateMerchant
+);
+
+router.delete(
+  "/merchants/:id",
+  auth(),
+  UserController.deleteMerchant
+);
+
+router.patch(
+  "/merchants/:id/toggle-status",
+  auth(),
+  UserController.toggleMerchantStatus
+);
+
+
+
+
+
+
+
+
 router
   .route("/merchant")
   .post(

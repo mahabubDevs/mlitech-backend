@@ -50,7 +50,23 @@ const getMerchantRatings = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getMerchantAverageRating = catchAsync(
+  async (req: Request, res: Response) => {
+    const { merchantId } = req.params;
+
+    const result = await RatingService.getMerchantAverageRating(merchantId);
+
+    sendResponse(res, {
+      statusCode: StatusCodes.OK,
+      success: true,
+      message: "Merchant average rating retrieved successfully",
+      data: result,
+    });
+  }
+);
+
 export const RatingController = {
   addRating,
   getMerchantRatings,
+  getMerchantAverageRating
 };

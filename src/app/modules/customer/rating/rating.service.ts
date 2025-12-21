@@ -52,7 +52,28 @@ const getMerchantRatings = async (merchantId: string) => {
   }).sort({ createdAt: -1 });
 };
 
+
+const getMerchantAverageRating = async (merchantId: string) => {
+  if (!Types.ObjectId.isValid(merchantId)) {
+    throw new Error("Invalid merchant ID");
+  }
+
+  const result = await Rating.aggregate([
+    { $match: { merchantId: new Types.ObjectId(merchantId) } },
+    {
+      $group: {
+        _id: "$merchantId",
+        averageRating: { $avg: "$rating" },
+        totalRatings: { $sum: 1 },
+      },
+    },
+  ]);
+
+  return result[0] || { averageRating: 0, totalRatings: 0 };
+};
+
 export const RatingService = {
   createRating,
   getMerchantRatings,
+  getMerchantAverageRating
 };

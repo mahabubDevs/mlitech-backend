@@ -6,6 +6,7 @@ import { RequestApprovalOptions } from "./mercentSellManagement.interface";
 import { NotificationType } from "../../notification/notification.model";
 import { sendNotification } from "../../../../helpers/notificationsHelper";
 import { Tier } from "../point&TierSystem/tier.model";
+import { Rating } from "../../customer/rating/rating.model";
 
 // -----------------------------
 // 1. Merchant → Checkout
@@ -471,58 +472,93 @@ const getPointsHistory = async (
       throw new Error("Invalid digitalCardId");
     }
 
-    // sanitize type
-    const typeSanitized = type?.trim().toLowerCase() as "all" | "earn" | "use";
+    const typeSanitized = type?.trim().toLowerCase() as
+      | "all"
+      | "earn"
+      | "use";
 
-    const query: any = { digitalCardId: new Types.ObjectId(digitalCardId) };
+    const query: any = {
+      digitalCardId: new Types.ObjectId(digitalCardId),
+    };
 
-    // DB query filter
     if (typeSanitized === "earn") query.pointsEarned = { $gt: 0 };
     if (typeSanitized === "use") query.pointRedeemed = { $gt: 0 };
 
-    // fetch and populate merchant name
     const history = await Sell.find(query)
       .sort({ createdAt: -1 })
-      .populate("merchantId", "name")
+      .populate("merchantId", "businessName shopName firstName")
       .lean();
-
-    console.log("Raw DB History:", history);
 
     const result: any[] = [];
 
-    history.forEach((tx) => {
-      const merchant = tx.merchantId as { _id?: string; name?: string } | undefined;
+    for (const tx of history) {
+      const merchant = tx.merchantId as
+        | { _id?: Types.ObjectId; businessName?: string; shopName?: string; firstName?: string }
+        | undefined;
 
-      // Earn points
-      if ((typeSanitized === "all" || typeSanitized === "earn") && (tx.pointsEarned ?? 0) > 0) {
+      const merchantName =
+        merchant?.businessName ||
+        merchant?.shopName ||
+        merchant?.firstName ||
+        "";
+
+      // 🔎 find rating for this transaction
+      const ratingDoc = await Rating.findOne({
+        merchantId: merchant?._id,
+        promotionId: tx.promotionId,
+        digitalCardId: tx.digitalCardId,
+        userId: tx.userId,
+      })
+        .select("rating comment")
+        .lean();
+
+      const ratingInfo = ratingDoc
+        ? {
+            rating: ratingDoc.rating,
+            comment: ratingDoc.comment,
+          }
+        : null;
+
+      // 🎯 Earn points
+      if (
+        (typeSanitized === "all" || typeSanitized === "earn") &&
+        (tx.pointsEarned ?? 0) > 0
+      ) {
         result.push({
           id: tx._id,
+          digitalCardId: tx.digitalCardId,
           type: "earn",
           points: tx.pointsEarned ?? 0,
           totalBill: tx.totalBill,
           discountedBill: tx.discountedBill,
           date: tx.createdAt,
           promotionId: tx.promotionId,
-          merchant: merchant?.name || merchant?._id,
+          merchant: merchantName,
+          merchantId: merchant?._id,
+          // rating: ratingInfo, // ✅ added
         });
       }
 
-      // Redeemed/used points
-      if ((typeSanitized === "all" || typeSanitized === "use") && (tx.pointRedeemed ?? 0) > 0) {
+      // 🎯 Used points
+      if (
+        (typeSanitized === "all" || typeSanitized === "use") &&
+        (tx.pointRedeemed ?? 0) > 0
+      ) {
         result.push({
           id: tx._id,
+          digitalCardId: tx.digitalCardId,
           type: "use",
           points: tx.pointRedeemed ?? 0,
           totalBill: tx.totalBill,
           discountedBill: tx.discountedBill,
           date: tx.createdAt,
           promotionId: tx.promotionId,
-          merchant: merchant?.name || merchant?._id,
+          merchant: merchantName,
+          merchantId: merchant?._id,
+          // rating: ratingInfo, // ✅ added
         });
       }
-    });
-
-    console.log("Mapped Result Array:", result);
+    }
 
     return result;
   } catch (error) {
@@ -530,6 +566,7 @@ const getPointsHistory = async (
     throw error;
   }
 };
+
 
 interface ITransactionPagination {
   total: number;

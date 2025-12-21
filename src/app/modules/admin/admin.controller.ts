@@ -61,6 +61,28 @@ const getAllCustomers = catchAsync(async (req: Request, res: Response) => {
     pagination: result.pagination,
   });
 });
+
+
+// near merchants controller
+const getNearbyMerchantsController = catchAsync(
+  async (req: Request, res: Response) => {
+    const result = await AdminService.getNearbyMerchants(req.query);
+    sendResponse(res, {
+  statusCode: StatusCodes.OK,
+  success: true,
+  message: "Nearby merchants retrieved successfully",
+  data: result.merchants,
+  pagination: {
+    ...result.pagination,
+    totalPage: result.pagination.totalPages, // rename to singular
+  },
+});
+
+  }
+);
+
+
+
 const getAllMerchants = catchAsync(async (req: Request, res: Response) => {
   const result = await AdminService.getAllMerchants(req.query);
   sendResponse(res, {
@@ -236,6 +258,15 @@ const updateMerchantApproveStatus = catchAsync(async (req, res) => {
   });
 });
 
+
+
+
+
+
+
+
+
+
 export const AdminController = {
   deleteAdmin,
   createAdmin,
@@ -254,4 +285,7 @@ export const AdminController = {
   deleteMerchant,
   updateMerchantStatus,
   updateMerchantApproveStatus,
+
+
+  getNearbyMerchantsController
 };

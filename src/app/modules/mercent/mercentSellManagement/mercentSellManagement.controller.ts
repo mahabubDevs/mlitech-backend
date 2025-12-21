@@ -372,7 +372,7 @@ const getMerchantCustomersList = async (
       .paginate()
       .populate(["userId", "digitalCardId", "merchantId"], {
         userId: "firstName lastName email phone profile customUserId country",
-        digitalCardId: "cardCode availablePoints",
+        digitalCardId: "cardCode availablePoints tier createdAt",
         merchantId: "businessName shopName firstName",
       });
 
@@ -435,6 +435,8 @@ const getMerchantCustomersList = async (
       salesRep?: string;
       rating?: number;
       ratingComment?: string;
+      tier?: string;
+      createdAt?: Date;
     }
 
     const userMap: Record<string, IUserSummary> = {};
@@ -462,6 +464,8 @@ const getMerchantCustomersList = async (
           finalBilled: 0,
           cardIds: "",
           availablePoints: tx.digitalCardId?.availablePoints || 0,
+          tier: tx.digitalCardId?.tier || "",
+          createdAt: tx.digitalCardId?.createdAt || null,
           salesRep:
             tx.merchantId?.businessName ||
             tx.merchantId?.shopName ||

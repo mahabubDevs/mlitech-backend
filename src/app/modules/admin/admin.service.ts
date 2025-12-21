@@ -7,6 +7,16 @@ import QueryBuilder from "../../../util/queryBuilder";
 import { sendNotification } from "../../../helpers/notificationsHelper";
 import { NotificationType } from "../notification/notification.model";
 
+
+
+interface IQuery {
+  lat?: number;
+  lng?: number;
+  radius?: number; // in km
+  [key: string]: any;
+}
+
+
 const createAdminToDB = async (payload: IUser): Promise<IUser> => {
   const createAdmin: any = await User.create(payload);
   if (!createAdmin) {
@@ -82,6 +92,96 @@ const getAllMerchants = async (query: Record<string, unknown>) => {
   return {
     allmerchants,
     pagination,
+  };
+};
+
+
+
+// near merchants service
+
+const getNearbyMerchants = async (query: IQuery) => {
+  const lat = query.lat ? Number(query.lat) : null;
+  const lng = query.lng ? Number(query.lng) : null;
+  const radius = query.radius ? Number(query.radius) : 10; // default 10 km
+  const page = query.page ? Number(query.page) : 1;
+  const limit = query.limit ? Number(query.limit) : 10;
+  const searchTerm = query.searchTerm ? String(query.searchTerm) : null;
+
+  if (!lat || !lng) {
+    throw new Error("Latitude and Longitude are required");
+  }
+
+  const radiusInMeters = radius * 1000;
+
+  const pipeline: any[] = [
+    {
+      $geoNear: {
+        near: { type: "Point", coordinates: [lng, lat] },
+        distanceField: "distance",
+        spherical: true,
+        maxDistance: radiusInMeters,
+      },
+    },
+    {
+      $project: {
+        firstName: 1,
+        profile: 1,
+        location: 1,
+        distance: 1,
+      },
+    },
+  ];
+
+  if (searchTerm) {
+    pipeline.push({
+      $match: {
+        $or: [{ firstName: { $regex: searchTerm, $options: "i" } }],
+      },
+    });
+  }
+
+  // Lookup ratings
+  pipeline.push({
+    $lookup: {
+      from: "ratings", // collection name in MongoDB
+      localField: "_id",
+      foreignField: "merchantId",
+      as: "ratings",
+    },
+  });
+
+  // Add avgRating and totalRatings
+  pipeline.push({
+    $addFields: {
+      totalRatings: { $size: "$ratings" },
+      avgRating: { $avg: "$ratings.rating" },
+    },
+  });
+
+  // Sort nearest first
+  pipeline.push({ $sort: { distance: 1 } });
+
+  // Count total before skip/limit
+  const totalCountPipeline = [...pipeline, { $count: "total" }];
+  const totalCountResult = await User.aggregate(totalCountPipeline);
+  const total = totalCountResult[0]?.total || 0;
+
+  // Apply pagination
+  const skip = (page - 1) * limit;
+  pipeline.push({ $skip: skip }, { $limit: limit });
+
+  const merchants = await User.aggregate(pipeline);
+
+  const totalPages = Math.ceil(total / limit);
+
+  return {
+    merchants,
+    pagination: {
+      total,
+      page,
+      limit,
+      totalPages,
+    },
   };
 };
 
@@ -266,4 +366,7 @@ export const AdminService = {
   deleteMerchant,
   updateMerchantStatus,
   updateMerchantApproveStatus,
+
+
+  getNearbyMerchants
 };

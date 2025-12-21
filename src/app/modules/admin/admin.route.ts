@@ -47,6 +47,8 @@ router.get(
   AdminController.getAllMerchants
 );
 
+router.get("/merchants/nearby", auth(), AdminController.getNearbyMerchantsController);
+
 //===singel merchant details ===//
 router.get(
   "/merchants/:id",

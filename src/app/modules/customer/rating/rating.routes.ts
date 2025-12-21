@@ -23,4 +23,6 @@ router.get(
   RatingController.getMerchantRatings
 );
 
+router.get("/merchant/average-rating/:merchantId", auth(), RatingController.getMerchantAverageRating);
+
 export const RatingRoutes = router;

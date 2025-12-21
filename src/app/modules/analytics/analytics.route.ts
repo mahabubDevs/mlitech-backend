@@ -17,6 +17,13 @@ router.get(
   AnalyticsController.getMerchantAnalytics
 );
 
+
+router.get(
+  "/merchants/export",
+  // auth(USER_ROLES.MERCENT), // Only admins
+  AnalyticsController.exportMerchantAnalytics
+);
+
 router.get(
   "/customer",
   auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),

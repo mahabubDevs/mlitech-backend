@@ -4,6 +4,7 @@ import sendResponse from "../../../shared/sendResponse";
 import { StatusCodes } from "http-status-codes";
 import { AnalyticsService } from "./analytics.service";
 import { get } from "mongoose";
+import { generateExcelBuffer } from "../../../helpers/excelExport";
 
 // User creates report
 const getBusinessCustomerAnalytics = catchAsync(
@@ -106,8 +107,79 @@ const getCustomerAnalytics = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+
+
+
+// controller
+// controller.ts
+const exportMerchantAnalytics = catchAsync(
+  async (req: Request, res: Response) => {
+    const { startDate, endDate, subscriptionStatus, merchantName, location } =
+      req.query;
+
+    console.log("🚀 Export request received with filters:", {
+      startDate,
+      endDate,
+      subscriptionStatus,
+      merchantName,
+      location,
+    });
+
+    // Export all filtered data
+    const result = await AnalyticsService.getMerchantAnalyticsExport(
+      startDate as string,
+      endDate as string,
+      1, // page ignored
+      0, // 0 = export all
+      {
+        subscriptionStatus: subscriptionStatus as string,
+        merchantName: merchantName as string,
+        location: location as string,
+      }
+    );
+
+    console.log("🔹 Aggregated records count:", result.records.length);
+
+    const records = result.records;
+
+    // Show first 5 records for debug
+    console.log("🔸 Sample records:", records.slice(0, 5));
+
+    const columns = [
+      { header: "Merchant Name", key: "merchantName" },
+      { header: "Location", key: "location" },
+      { header: "Subscription Status", key: "subscriptionStatus" },
+      { header: "Total Revenue", key: "totalRevenue" },
+      { header: "Points Redeemed", key: "pointsRedeemed" },
+      { header: "Users Count", key: "usersCount" },
+      { header: "Joining Date", key: "joiningDate" },
+    ];
+
+    const buffer = await generateExcelBuffer({
+      sheetName: "Merchant Analytics",
+      columns,
+      rows: records,
+    });
+
+    console.log("✅ Excel buffer generated, size:", buffer.length, "bytes");
+
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=merchant-analytics.xlsx`
+    );
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+
+    res.send(buffer);
+  }
+);
+
+
 export const AnalyticsController = {
   getBusinessCustomerAnalytics,
   getMerchantAnalytics,
   getCustomerAnalytics,
+  exportMerchantAnalytics
 };

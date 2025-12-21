@@ -136,6 +136,63 @@ const toggleUserStatus = catchAsync(async (req: any, res: any) => {
 });
 
 
+const getAllMerchants = catchAsync(async (req, res) => {
+  const result = await UserService.getAllMerchants(req.query);
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: "All merchants retrieved successfully",
+    data: result.allmerchants,
+    pagination: result.pagination,
+  });
+});
+
+const getSingleMerchant = catchAsync(async (req, res) => {
+  const result = await UserService.getSingleMerchant(req.params.id);
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: "Merchant retrieved successfully",
+    data: result,
+  });
+});
+
+const updateMerchant = catchAsync(async (req, res) => {
+  const result = await UserService.updateMerchant(
+    req.params.id,
+    req.body
+  );
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: "Merchant updated successfully",
+    data: result,
+  });
+});
+
+const deleteMerchant = catchAsync(async (req, res) => {
+  await UserService.deleteMerchant(req.params.id);
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: "Merchant deleted successfully",
+  });
+});
+
+const toggleMerchantStatus = catchAsync(async (req, res) => {
+  const result = await UserService.toggleMerchantStatus(req.params.id);
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: "Merchant status updated successfully",
+    data: result,
+  });
+});
+
+
+
+
+
 export const UserController = {
   createUser,
   createMerchant,
@@ -144,4 +201,9 @@ export const UserController = {
   updateUser,
   deleteUser,
   toggleUserStatus,
+   getAllMerchants,
+  getSingleMerchant,
+  updateMerchant,
+  deleteMerchant,
+  toggleMerchantStatus,
 };

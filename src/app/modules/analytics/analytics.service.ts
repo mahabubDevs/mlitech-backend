@@ -540,8 +540,89 @@ const getCustomerAnalytics = async (
   };
 };
 
+
+// service.ts
+const getMerchantAnalyticsExport = async (
+  startDate?: string,
+  endDate?: string,
+  page: number = 1,
+  limit: number = 10,
+  filters?: AnalyticsFilters
+) => {
+  // ---------------- Base Match ----------------
+  const matchSell: Record<string, any> = { status: "completed" };
+  if (startDate && endDate) {
+    matchSell.createdAt = {
+      $gte: new Date(startDate),
+      $lte: new Date(endDate),
+    };
+  }
+
+  // ---------------- Merchant Filters ----------------
+  const matchMerchant: Record<string, any> = {};
+  if (filters?.subscriptionStatus) {
+    matchMerchant["merchant.subscription"] = filters.subscriptionStatus;
+  }
+  if (filters?.merchantName) {
+    matchMerchant["merchant.firstName"] = {
+      $regex: filters.merchantName,
+      $options: "i",
+    };
+  }
+  if (filters?.location) {
+    matchMerchant["merchant.address"] = {
+      $regex: filters.location,
+      $options: "i",
+    };
+  }
+
+  const merchantMatchStage: PipelineStage[] =
+    Object.keys(matchMerchant).length > 0 ? [{ $match: matchMerchant }] : [];
+
+  // ---------------- Records Pipeline ----------------
+  const recordsPipeline: PipelineStage[] = [
+    { $match: matchSell },
+    {
+      $lookup: {
+        from: "users",
+        localField: "merchantId",
+        foreignField: "_id",
+        as: "merchant",
+      },
+    },
+    { $unwind: "$merchant" },
+    ...merchantMatchStage,
+    {
+      $group: {
+        _id: "$merchantId",
+        merchantName: { $first: "$merchant.firstName" },
+        location: { $first: "$merchant.address" },
+        subscriptionStatus: { $first: "$merchant.subscription" },
+        totalRevenue: { $sum: "$discountedBill" },
+        pointsRedeemed: { $sum: "$pointRedeemed" },
+        users: { $addToSet: "$userId" },
+        joiningDate: { $first: "$merchant.createdAt" },
+      },
+    },
+    { $addFields: { usersCount: { $size: "$users" } } },
+    { $project: { users: 0 } },
+    { $sort: { joiningDate: -1 } },
+  ];
+
+  // Apply skip/limit only if limit > 0
+  if (limit > 0) {
+    recordsPipeline.push({ $skip: (page - 1) * limit }, { $limit: limit });
+  }
+
+  const records = await Sell.aggregate(recordsPipeline);
+
+  return { records };
+};
+
+
 export const AnalyticsService = {
   getBusinessCustomerAnalytics,
   getMerchantAnalytics,
   getCustomerAnalytics,
+  getMerchantAnalyticsExport
 };
