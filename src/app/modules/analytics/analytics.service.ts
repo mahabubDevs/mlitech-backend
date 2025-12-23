@@ -1,5 +1,7 @@
 import mongoose, { PipelineStage } from "mongoose";
 import { Sell } from "../mercent/mercentSellManagement/mercentSellManagement.model";
+import { generateExcelBuffer } from "../../../helpers/excelExport";
+import ExcelJS from "exceljs";
 
 const monthNames = [
   "Jan",
@@ -541,6 +543,161 @@ const getCustomerAnalytics = async (
 };
 
 
+
+const exportCustomerAnalytics = async (
+  startDate?: string,
+  endDate?: string,
+  filters?: AnalyticsFilters
+): Promise<Buffer> => {
+  /* ---------------- Base Match ---------------- */
+  const matchSell: Record<string, any> = { status: "completed" };
+
+  if (startDate && endDate) {
+    matchSell.createdAt = {
+      $gte: new Date(startDate),
+      $lte: new Date(endDate),
+    };
+  }
+
+  /* ---------------- Customer Filters ---------------- */
+  const matchCustomer: Record<string, any> = {};
+
+  if (filters?.subscriptionStatus) {
+    matchCustomer["customer.subscription"] = filters.subscriptionStatus;
+  }
+
+  if (filters?.customerName) {
+    matchCustomer["customer.firstName"] = {
+      $regex: filters.customerName,
+      $options: "i",
+    };
+  }
+
+  if (filters?.location) {
+    matchCustomer["customer.address"] = {
+      $regex: filters.location,
+      $options: "i",
+    };
+  }
+
+  const customerMatchStage: PipelineStage[] = Object.keys(matchCustomer).length
+    ? [{ $match: matchCustomer }]
+    : [];
+
+  /* ---------------- Records ---------------- */
+  const records = await Sell.aggregate([
+    { $match: matchSell },
+    {
+      $lookup: {
+        from: "users",
+        localField: "userId",
+        foreignField: "_id",
+        as: "customer",
+      },
+    },
+    { $unwind: "$customer" },
+    ...customerMatchStage,
+    {
+      $project: {
+        _id: 0,
+        userId: "$customer._id",
+        customerName: "$customer.firstName",
+        location: "$customer.address",
+        subscriptionStatus: "$customer.subscription",
+        date: "$createdAt",
+        pointsAccumulated: "$pointsEarned",
+        pointsRedeemed: "$pointRedeemed",
+      },
+    },
+    { $sort: { date: -1 } },
+  ]);
+
+  /* ---------------- Monthly Data ---------------- */
+  const monthlyData = await Sell.aggregate([
+    { $match: matchSell },
+    {
+      $lookup: {
+        from: "users",
+        localField: "userId",
+        foreignField: "_id",
+        as: "customer",
+      },
+    },
+    { $unwind: "$customer" },
+    ...customerMatchStage,
+    {
+      $group: {
+        _id: {
+          year: { $year: "$createdAt" },
+          month: { $month: "$createdAt" },
+        },
+        pointsAccumulated: { $sum: "$pointsEarned" },
+        pointsRedeemed: { $sum: "$pointRedeemed" },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        year: "$_id.year",
+        month: "$_id.month",
+        pointsAccumulated: 1,
+        pointsRedeemed: 1,
+      },
+    },
+    { $sort: { year: 1, month: 1 } },
+  ]);
+
+  /* ---------------- Excel ---------------- */
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "The Pigeon Hub";
+  workbook.created = new Date();
+
+  /* ===== Sheet 1: Customer Records ===== */
+  const recordSheet = workbook.addWorksheet("Customer Records");
+
+  recordSheet.columns = [
+    { header: "User ID", key: "userId", width: 28 },
+    { header: "Customer Name", key: "customerName", width: 25 },
+    { header: "Location", key: "location", width: 35 },
+    { header: "Subscription", key: "subscriptionStatus", width: 15 },
+    { header: "Date", key: "date", width: 20 },
+    { header: "Points Earned", key: "pointsAccumulated", width: 18 },
+    { header: "Points Redeemed", key: "pointsRedeemed", width: 18 },
+  ];
+
+  records.forEach((r) => {
+    recordSheet.addRow({
+      ...r,
+      date: new Date(r.date).toLocaleString(),
+    });
+  });
+
+  recordSheet.getRow(1).font = { bold: true };
+  recordSheet.autoFilter = "A1:G1";
+
+  /* ===== Sheet 2: Monthly Analytics ===== */
+  const monthlySheet = workbook.addWorksheet("Monthly Analytics");
+
+  monthlySheet.columns = [
+    { header: "Year", key: "year", width: 10 },
+    { header: "Month", key: "month", width: 10 },
+    { header: "Points Earned", key: "pointsAccumulated", width: 20 },
+    { header: "Points Redeemed", key: "pointsRedeemed", width: 20 },
+  ];
+
+  monthlyData.forEach((m) => {
+    monthlySheet.addRow(m);
+  });
+
+  monthlySheet.getRow(1).font = { bold: true };
+  monthlySheet.autoFilter = "A1:D1";
+
+  /* ---------------- Buffer ---------------- */
+  const buffer = await workbook.xlsx.writeBuffer();
+  return Buffer.from(buffer as ArrayBuffer);
+};
+
+
 // service.ts
 const getMerchantAnalyticsExport = async (
   startDate?: string,
@@ -624,5 +781,6 @@ export const AnalyticsService = {
   getBusinessCustomerAnalytics,
   getMerchantAnalytics,
   getCustomerAnalytics,
-  getMerchantAnalyticsExport
+  getMerchantAnalyticsExport,
+  exportCustomerAnalytics
 };

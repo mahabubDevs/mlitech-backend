@@ -214,14 +214,8 @@ const getUserTierOfMerchant = async (userId: string, merchantId: string) => {
     merchantId,
   }).select("availablePoints");
 
-  if (!digitalCard) {
-    throw new ApiError(
-      StatusCodes.NOT_FOUND,
-      "User has no digital card with this merchant"
-    );
-  }
-
-  const availablePoints = digitalCard.availablePoints ?? 0;
+  // Error throw বাদ দিয়ে default 0 points
+  const availablePoints = digitalCard?.availablePoints ?? 0;
 
   // 2. Calculate total spent for this merchant
   const spendAgg = await Sell.aggregate([
@@ -252,8 +246,8 @@ const getUserTierOfMerchant = async (userId: string, merchantId: string) => {
     return {
       availablePoints,
       totalSpend,
-      tierName: null,
-      rewardText: null,
+      tierName: "No tiers defined",
+      rewardText: "N/A",
     };
   }
 
@@ -270,12 +264,13 @@ const getUserTierOfMerchant = async (userId: string, merchantId: string) => {
   }
 
   return {
-    availablePoints,
-
-    tierName: userTier?.name ?? null,
-    rewardText: userTier?.reward ?? null,
-  };
+  availablePoints,
+  totalSpend,
+  tierName: userTier?.name ?? "No tier yet",
+  rewardText: userTier?.reward ?? "No reward",
 };
+};
+
 
 //catagory based promotion fetching
 const getPromotionsByUserCategory = async (categoryName: string) => {

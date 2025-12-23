@@ -20,7 +20,7 @@ router.get(
 
 router.get(
   "/merchants/export",
-  // auth(USER_ROLES.MERCENT), // Only admins
+  auth(USER_ROLES.MERCENT,USER_ROLES.ADMIN,USER_ROLES.SUPER_ADMIN), // Only admins
   AnalyticsController.exportMerchantAnalytics
 );
 
@@ -29,5 +29,12 @@ router.get(
   auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),
   AnalyticsController.getCustomerAnalytics
 );
+
+router.get(
+  "/customer/export",
+  // auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),
+  AnalyticsController.exportCustomerAnalytics
+);
+
 
 export const AnalyticsRoutes = router;

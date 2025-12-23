@@ -8,6 +8,7 @@ import { StatusCodes } from "http-status-codes";
 
 
 const sendNotificationToAll = catchAsync(async (req, res) => {
+  console.log("Request Body:", req.body);
   const result = await PushService.sendNotificationToAllUsers(
     req.body,
     (req.user as any)?._id

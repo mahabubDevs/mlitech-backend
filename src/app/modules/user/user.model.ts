@@ -12,6 +12,7 @@ import ApiError from "../../../errors/ApiErrors";
 import { StatusCodes } from "http-status-codes";
 import config from "../../../config";
 import { boolean, object } from "zod";
+import mongoose from "mongoose";
 
 const userSchema = new Schema<IUser, UserModal>(
   {
@@ -21,6 +22,12 @@ const userSchema = new Schema<IUser, UserModal>(
       unique: true,
       required: false,
     },
+    merchantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null, // 🔥 required false এর চেয়ে better
+    },
+
     firstName: {
       type: String,
       required: true,

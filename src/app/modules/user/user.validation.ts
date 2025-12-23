@@ -1,3 +1,4 @@
+import { fcm } from "googleapis/build/src/apis/fcm";
 import { z } from "zod";
 
 const createAdminZodSchema = z.object({
@@ -8,6 +9,7 @@ const createAdminZodSchema = z.object({
       .email({ message: "Invalid email address" }),
     password: z.string({ required_error: "Password is required" }),
     role: z.string({ required_error: "Role is required" }),
+    fcmToken: z.string().optional(),
   }),
 });
 
@@ -45,6 +47,7 @@ const updateUserZodSchema = z.object({
     firstName: z.string().optional(), // keep as is
     lastName: z.string().optional(), // keep as is
     appId: z.string().optional(), // keep as is
+    fcmToken: z.string().optional(), // keep as is
 
     role: z
       .enum(["SUPER_ADMIN", "ADMIN", "USER"])
