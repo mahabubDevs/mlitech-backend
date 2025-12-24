@@ -77,8 +77,18 @@ const activateSubscriptionInDB = async (
                 note: "Referral points",
             })
 
-            await User.findByIdAndUpdate(result.referrer, { points: { $inc: 10 } }, { new: true });
-            await User.findByIdAndUpdate(userId, { points: { $inc: 10 } }, { new: true });
+            await User.findByIdAndUpdate(
+                result.referrer,
+                { $inc: { points: 10 } },
+                { new: true }
+            );
+
+            await User.findByIdAndUpdate(
+                userId,
+                { $inc: { points: 10 } },
+                { new: true }
+            );
+
             sendNotification({ userIds: [result.referrer.toString(), userId.toString()], title: "Referral points", body: "You have earned 10 points for using referral code", type: NotificationType.REFERRAL });
         }
         return existingSub;
@@ -105,32 +115,42 @@ const activateSubscriptionInDB = async (
 
     // Update user profile
     await User.findByIdAndUpdate(userId, { subscription: "active" }, { new: true });
-  const result = await Referral.findOne({
-            referredUser: userId
-        })
-     if (result) {
+    const result = await Referral.findOne({
+        referredUser: userId
+    })
+    if (result) {
         console.log("🚀 Processing referral for user: new", userId);
-            await PointTransaction.create({
-                user: userId,
-                type: "EARN",
-                source: "REFERRAL",
-                referral: result._id,
-                points: 10,
-                note: "Referral points",
-            })
-            await PointTransaction.create({
-                user: result.referrer,
-                type: "EARN",
-                source: "REFERRAL",
-                referral: result._id,
-                points: 10,
-                note: "Referral points",
-            })
+        await PointTransaction.create({
+            user: userId,
+            type: "EARN",
+            source: "REFERRAL",
+            referral: result._id,
+            points: 10,
+            note: "Referral points",
+        })
+        await PointTransaction.create({
+            user: result.referrer,
+            type: "EARN",
+            source: "REFERRAL",
+            referral: result._id,
+            points: 10,
+            note: "Referral points",
+        })
 
-            await User.findByIdAndUpdate(result.referrer, { points: { $inc: 10 } }, { new: true });
-            await User.findByIdAndUpdate(userId, { points: { $inc: 10 } }, { new: true });
-            sendNotification({ userIds: [result.referrer.toString(), userId.toString()], title: "Referral points", body: "You have earned 10 points for using referral code", type: NotificationType.REFERRAL });
-        }
+        await User.findByIdAndUpdate(
+            result.referrer,
+            { $inc: { points: 10 } },
+            { new: true }
+        );
+
+        await User.findByIdAndUpdate(
+            userId,
+            { $inc: { points: 10 } },
+            { new: true }
+        );
+
+        sendNotification({ userIds: [result.referrer.toString(), userId.toString()], title: "Referral points", body: "You have earned 10 points for using referral code", type: NotificationType.REFERRAL });
+    }
     console.log("✅ User subscription updated in profile");
 
     return subscription;
