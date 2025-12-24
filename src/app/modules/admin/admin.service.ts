@@ -129,10 +129,17 @@ const getNearbyMerchants = async (query: IQuery, userId: string) => {
       },
     },
     {
+      $match: {
+        role: USER_ROLES.MERCENT,
+        status: USER_STATUS.ACTIVE, // optional but recommended
+      },
+    },
+    {
       $project: {
         firstName: 1,
         profile: 1,
         distance: 1,
+        address: 1,
         lng: { $arrayElemAt: ["$location.coordinates", 0] },
         lat: { $arrayElemAt: ["$location.coordinates", 1] },
       },
