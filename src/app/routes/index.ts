@@ -106,11 +106,11 @@ import { AdminTierRoutes } from "../modules/adminSellandTier/point&TierSystem/ti
 import { NotificationRoutes } from "../modules/notification/notification.routes";
 import { PushRoutes } from "../modules/pushNotification/push.routes";
 import { ReferralRoutes } from "../modules/referral/referral.route";
-<<<<<<< Updated upstream
+
 import { MercentUserManagement } from "../modules/merchentUserManagement/mercentUserManagement.routes";
-=======
+
 import { DisclaimerRoutes } from "../modules/disclaimer/disclaimer.route";
->>>>>>> Stashed changes
+
 
 const router = express.Router();
 

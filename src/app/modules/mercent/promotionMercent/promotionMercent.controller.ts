@@ -255,8 +255,12 @@ const getPopularMerchants = catchAsync(async (req: Request, res: Response) => {
     data: result,
   });
 });
+
+
+
 const getDetailsOfMerchant = catchAsync(async (req: Request, res: Response) => {
-  const result = await PromotionService.getDetailsOfMerchant(req.params.id);
+  const userId = (req.user as any)?._id; // logged-in user id, optional
+  const result = await PromotionService.getDetailsOfMerchant(req.params.id, userId);
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,
@@ -265,6 +269,10 @@ const getDetailsOfMerchant = catchAsync(async (req: Request, res: Response) => {
     data: result,
   });
 });
+
+
+
+
 const getUserTierOfMerchant = catchAsync(
   async (req: Request, res: Response) => {
     const user = req.user as JwtPayload;
