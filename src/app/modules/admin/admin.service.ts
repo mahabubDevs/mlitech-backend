@@ -131,7 +131,7 @@ const getNearbyMerchants = async (query: IQuery, userId: string) => {
     {
       $match: {
         role: USER_ROLES.MERCENT,
-        status: USER_STATUS.ACTIVE, // optional but recommended
+        status: USER_STATUS.ACTIVE,
       },
     },
     {
@@ -139,7 +139,7 @@ const getNearbyMerchants = async (query: IQuery, userId: string) => {
         firstName: 1,
         profile: 1,
         distance: 1,
-        address: 1,
+        address: { $ifNull: ["$address", ""] },
         lng: { $arrayElemAt: ["$location.coordinates", 0] },
         lat: { $arrayElemAt: ["$location.coordinates", 1] },
       },
@@ -179,7 +179,6 @@ const getNearbyMerchants = async (query: IQuery, userId: string) => {
   );
 
   const merchants = await User.aggregate(pipeline);
-
   return merchants;
 };
 
