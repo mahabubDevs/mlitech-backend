@@ -106,7 +106,11 @@ import { AdminTierRoutes } from "../modules/adminSellandTier/point&TierSystem/ti
 import { NotificationRoutes } from "../modules/notification/notification.routes";
 import { PushRoutes } from "../modules/pushNotification/push.routes";
 import { ReferralRoutes } from "../modules/referral/referral.route";
+<<<<<<< Updated upstream
 import { MercentUserManagement } from "../modules/merchentUserManagement/mercentUserManagement.routes";
+=======
+import { DisclaimerRoutes } from "../modules/disclaimer/disclaimer.route";
+>>>>>>> Stashed changes
 
 const router = express.Router();
 
@@ -116,7 +120,7 @@ const apiRoutes = [
   { path: "/usermanagement", route: UserManagementRoutes },
   { path: "/overview", route: DashboardRoutes },
   { path: "/subscription", route: SubscriptionRoutes },
-  { path: "/rule", route: RuleRoutes },
+  // { path: "/rule", route: RuleRoutes },
   { path: "/promo", route: PromoRoutes },
   { path: "/promo-merchant", route: PromoMercentRoutes },
   { path: "/tier", route: TierRoutes },
@@ -139,6 +143,7 @@ const apiRoutes = [
   { path: "/merchant-user", route: MercentUserManagement },
   { path: "/notifications", route: NotificationRoutes },
   { path: "/referrals", route: ReferralRoutes },
+  { path: "/disclaimers", route: DisclaimerRoutes },
 ];
 
 apiRoutes.forEach((route) => router.use(route.path, route.route));
