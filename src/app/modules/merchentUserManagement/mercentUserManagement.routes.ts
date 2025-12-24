@@ -8,44 +8,44 @@ const router = express.Router();
 
 // ---------------- Create User ----------------
 router.post(
-  "/merchant/create-user",
+  "/create-user",
   auth(USER_ROLES.MERCENT, USER_ROLES.ADMIN),
   MercentUserManagementController.createUser
 );
 
 // ---------------- Get All Users (merchant's own) ----------------
 router.get(
-  "/merchant/users",
+  "/users",
   auth(USER_ROLES.MERCENT, USER_ROLES.ADMIN),
   MercentUserManagementController.getMyUsers
 );
 
 // ---------------- Get Single User ----------------
 router.get(
-  "/merchant/users/:id",
+  "/users/:id",
   auth(USER_ROLES.MERCENT, USER_ROLES.ADMIN),
   MercentUserManagementController.getSingleUser
 );
 
 // ---------------- Update User ----------------
-router.put(
-  "/merchant/users/:id",
+router.patch(
+  "/users/:id",
   auth(USER_ROLES.MERCENT, USER_ROLES.ADMIN),
   MercentUserManagementController.updateUser
 );
 
 // ---------------- Delete User ----------------
 router.delete(
-  "/merchant/users/:id",
+  "/users/:id",
   auth(USER_ROLES.MERCENT, USER_ROLES.ADMIN),
   MercentUserManagementController.deleteUser
 );
 
 // ---------------- Toggle Active / Inactive ----------------
 router.patch(
-  "/merchant/users/:id/toggle-status",
+  "/users/toggle-status/:id",
   auth(USER_ROLES.MERCENT, USER_ROLES.ADMIN),
   MercentUserManagementController.toggleUserStatus
 );
 
-export default router;
+export const MercentUserManagement = router;

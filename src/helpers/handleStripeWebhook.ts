@@ -15,6 +15,7 @@ import stripe from '../config/stripe';
 import { SubscriptionService } from '../app/modules/subscription/subscription.service';
 
 const handleStripeWebhook = async (req: Request, res: Response) => {
+    console.log("=======================>>Received Stripe webhook");
     const signature = req.headers['stripe-signature'] as string;
     const webhookSecret = config.stripe.webhookSecret as string;
     console.log("webhook", signature, webhookSecret);

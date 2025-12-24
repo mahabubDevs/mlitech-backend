@@ -27,6 +27,12 @@ const userSchema = new Schema<IUser, UserModal>(
       ref: "User",
       default: null, // 🔥 required false এর চেয়ে better
     },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: false,
+      index: true,
+    },
 
     firstName: {
       type: String,

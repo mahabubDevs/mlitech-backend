@@ -10,7 +10,7 @@ import { Types } from "mongoose";
 const createSubscriptionSession = async (userId: string, packageId: string) => {
     const pkg = await Package.findById(packageId);
     if (!pkg) throw new Error("Package not found");
-
+    console.log("🚀 Creating subscription session for user:", userId, "with package:", packageId);
     // Create Stripe Checkout session
     const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
@@ -37,46 +37,46 @@ const createSubscriptionSession = async (userId: string, packageId: string) => {
 
 
 const activateSubscriptionInDB = async (
-  userId: string,
-  packageId: string,
-  stripeSubscription: any
+    userId: string,
+    packageId: string,
+    stripeSubscription: any
 ): Promise<ISubscription> => {
 
-  console.log("🚀 Activating subscription in DB", { userId, packageId, stripeSubscriptionId: stripeSubscription.id });
+    console.log("🚀 Activating subscription in DB", { userId, packageId, stripeSubscriptionId: stripeSubscription.id });
 
-  // Prevent duplicate subscription
-  const existingSub = await Subscription.findOne({ subscriptionId: stripeSubscription.id });
-  if (existingSub) {
-    console.log("⚠️ Subscription already exists in DB", existingSub._id);
-    // Update user profile correctly
+    // Prevent duplicate subscription
+    const existingSub = await Subscription.findOne({ subscriptionId: stripeSubscription.id });
+    if (existingSub) {
+        console.log("⚠️ Subscription already exists in DB", existingSub._id);
+        // Update user profile correctly
+        await User.findByIdAndUpdate(userId, { subscription: "active" }, { new: true });
+        return existingSub;
+    }
+
+    const subscriptionData: Partial<ISubscription> = {
+        user: new Types.ObjectId(userId),
+        package: new Types.ObjectId(packageId),
+        price: stripeSubscription.plan?.amount / 100 || 0,
+        customerId: stripeSubscription.customer,
+        subscriptionId: stripeSubscription.id,
+        remaining: 0,
+        currentPeriodStart: new Date(stripeSubscription.current_period_start * 1000).toISOString(),
+        currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000).toISOString(),
+        trxId: stripeSubscription.latest_invoice || "N/A",
+        status: stripeSubscription.status === "active" ? "active" : "expired",
+    };
+
+    console.log("📌 Subscription data prepared:", subscriptionData);
+
+    const subscription = await Subscription.create(subscriptionData);
+
+    console.log("✅ Subscription saved:", subscription);
+
+    // Update user profile
     await User.findByIdAndUpdate(userId, { subscription: "active" }, { new: true });
-    return existingSub;
-  }
+    console.log("✅ User subscription updated in profile");
 
-  const subscriptionData: Partial<ISubscription> = {
-    user: new Types.ObjectId(userId),
-    package: new Types.ObjectId(packageId),
-    price: stripeSubscription.plan?.amount / 100 || 0,
-    customerId: stripeSubscription.customer,
-    subscriptionId: stripeSubscription.id,
-    remaining: 0,
-    currentPeriodStart: new Date(stripeSubscription.current_period_start * 1000).toISOString(),
-    currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000).toISOString(),
-    trxId: stripeSubscription.latest_invoice || "N/A",
-    status: stripeSubscription.status === "active" ? "active" : "expired",
-  };
-
-  console.log("📌 Subscription data prepared:", subscriptionData);
-
-  const subscription = await Subscription.create(subscriptionData);
-
-  console.log("✅ Subscription saved:", subscription);
-
-  // Update user profile
-  await User.findByIdAndUpdate(userId, { subscription: "active" }, { new: true });
-  console.log("✅ User subscription updated in profile");
-
-  return subscription;
+    return subscription;
 };
 
 
@@ -162,19 +162,19 @@ const subscriptionsFromDB = async (query: Record<string, unknown>): Promise<ISub
                 { paymentType: { $regex: search, $options: "i" } },
             ]
         }).distinct("_id");
-    
+
         if (matchingPackageIds.length) {
             anyConditions.push({
                 package: { $in: matchingPackageIds }
             });
         }
     }
-    
-    
+
+
 
     if (paymentType) {
         anyConditions.push({
-            package: { $in: await Package.find({paymentType: paymentType}).distinct("_id")  }
+            package: { $in: await Package.find({ paymentType: paymentType }).distinct("_id") }
         })
     }
 
@@ -198,7 +198,7 @@ const subscriptionsFromDB = async (query: Record<string, unknown>): Promise<ISub
         .limit(size);
 
     const count = await Subscription.countDocuments(whereConditions);
-    
+
     const data: any = {
         data: result,
         meta: {

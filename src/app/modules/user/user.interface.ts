@@ -95,6 +95,7 @@ export interface IUser {
   _id?: Types.ObjectId;
   customUserId: string;
   merchantId?: Types.ObjectId;
+  createdBy: Types.ObjectId;
   firstName?: string;
   lastName?: string;
   businessName?: string;

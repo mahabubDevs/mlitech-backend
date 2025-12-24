@@ -9,8 +9,7 @@ import { UserService } from "./mercentUserManagement.service";
  const createUser = catchAsync(async (req: any, res: Response) => {
   const result = await UserService.createUserToDB(
     req.body,
-    req.user.role,
-    req.user.id
+    req.user
   );
 
   sendResponse(res, {
@@ -21,20 +20,27 @@ import { UserService } from "./mercentUserManagement.service";
   });
 });
 
+
 // ---------------- Get Merchant's Own Users ----------------
- const getMyUsers = catchAsync(async (req: any, res: Response) => {
-  const users = await UserService.getUsersByMerchant(req.user);
+const getMyUsers = catchAsync(async (req: any, res: Response) => {
+  const { users, paginationInfo } = await UserService.getUsersByMerchant(
+    req.user,
+    req.query
+  );
+
   sendResponse(res, {
     success: true,
     statusCode: StatusCodes.OK,
     message: "Users fetched successfully",
-    data: users,
+    data: { users, paginationInfo },
   });
 });
 
+
 // ---------------- Get Single User ----------------
- const getSingleUser = catchAsync(async (req: any, res: Response) => {
+const getSingleUser = catchAsync(async (req: any, res: Response) => {
   const user = await UserService.getSingleUser(req.params.id, req.user);
+
   sendResponse(res, {
     success: true,
     statusCode: StatusCodes.OK,
@@ -43,16 +49,19 @@ import { UserService } from "./mercentUserManagement.service";
   });
 });
 
+
 // ---------------- Update User ----------------
- const updateUser = catchAsync(async (req: any, res: Response) => {
-  const user = await UserService.updateUser(req.params.id, req.body, req.user);
+const updateUser = catchAsync(async (req: any, res: Response) => {
+  const updatedUser = await UserService.updateUser(req.params.id, req.body, req.user);
+
   sendResponse(res, {
     success: true,
     statusCode: StatusCodes.OK,
     message: "User updated successfully",
-    data: user,
+    data: updatedUser,
   });
 });
+
 
 // ---------------- Delete User ----------------
  const deleteUser = catchAsync(async (req: any, res: Response) => {

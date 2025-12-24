@@ -10,6 +10,7 @@ import { Package } from '../app/modules/package/package.model';
 
 
 export const handleSubscriptionCreated = async (data: Stripe.Subscription) => {
+    console.log('Handling subscription created event for ID:', data.id);
     try {
         // Retrieve the subscription from Stripe
         const subscription = await stripe.subscriptions.retrieve(data.id);
@@ -73,12 +74,12 @@ export const handleSubscriptionCreated = async (data: Stripe.Subscription) => {
         );
 
          // --- ADD NOTIFICATION ---
-       await NotificationService.createNotificationToDB({
-        text: ` user has subscribed to ${pricingPlan.title}!`,
-        type: 'ADMIN',               
-        read: false,                    
-        referenceId: existingUser._id.toString(), 
-        });
+    //    await NotificationService.createNotificationToDB({
+    //     text: ` user has subscribed to ${pricingPlan.title}!`,
+    //     type: 'ADMIN',               
+    //     read: false,                    
+    //     referenceId: existingUser._id.toString(), 
+    //     });
 
         
     } catch (error) {
