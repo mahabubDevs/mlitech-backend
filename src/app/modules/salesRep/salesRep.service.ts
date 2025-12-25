@@ -12,6 +12,23 @@ import { Subscription } from "../subscription/subscription.model";
 import { Package } from "../package/package.model";
 
 const createSalesRepData = async (user: JwtPayload, packageId: string) => {
+
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  // 🔍 Check if SalesRep exists in last 7 days
+  const existingSalesRep = await SalesRep.findOne({
+    customerId: user._id,
+    createdAt: { $gte: sevenDaysAgo },
+  });
+
+  if (existingSalesRep) {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      "Sales representative already created within last 7 days"
+    );
+  }
+
   await SalesRep.create({
     customerId: user._id,
     packageId,

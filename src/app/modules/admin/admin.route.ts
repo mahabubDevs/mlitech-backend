@@ -27,7 +27,7 @@ router.delete(
 );
 router.patch(
   "/users/:id/status",
-  auth(USER_ROLES.SUPER_ADMIN),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),
   validateRequest(AdminValidation.updateUserStausZodSchema),
   AdminController.updateUserStatus
 );
@@ -105,7 +105,7 @@ router.patch(
 //=== all customers ===//
 router.get(
   "/customers",
-  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN ,USER_ROLES.VIEW_MERCENT),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.VIEW_MERCENT),
   AdminController.getAllCustomers
 );
 
