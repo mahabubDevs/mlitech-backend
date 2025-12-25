@@ -58,7 +58,7 @@ const updateUserStatus = async (id: string, status: USER_STATUS) => {
 
 const getAllCustomers = async (query: Record<string, unknown>) => {
   const baseQuery = User.find({ role: "USER" }).select(
-    "customUserId firstName lastName phone email status address referredInfo.referredBy"
+    "customUserId firstName lastName phone email status address referredInfo.referredBy subscription"
   );
 
   const allCusomtersQuery = new QueryBuilder(baseQuery, query)
