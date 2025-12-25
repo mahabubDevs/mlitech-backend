@@ -16,6 +16,8 @@ const createSalesRepData = async (user: JwtPayload, packageId: string) => {
     customerId: user._id,
     packageId,
   });
+
+  await User.findByIdAndUpdate(user._id, { status: USER_STATUS.INACTIVE });
 };
 const getSalesRepData = async (query: Record<string, unknown>) => {
   const baseQuery = SalesRep.find().populate(
