@@ -44,7 +44,7 @@ const cancelSubscription = catchAsync(async (req: Request, res: Response) => {
 });
 
 
-const subscriptions = catchAsync( async(req: Request, res: Response)=>{
+const subscriptions = catchAsync(async (req: Request, res: Response) => {
     const result = await SubscriptionService.subscriptionsFromDB(req.query);
 
     sendResponse(res, {
@@ -55,12 +55,12 @@ const subscriptions = catchAsync( async(req: Request, res: Response)=>{
     })
 });
 
-const subscriptionDetails = catchAsync( async(req: Request, res: Response)=>{
+const subscriptionDetails = catchAsync(async (req: Request, res: Response) => {
 
     if (!req.user) throw new Error("User not found");
     const result = await SubscriptionService.subscriptionDetailsFromDB(req.user);
 
-    
+
 
     sendResponse(res, {
         statusCode: StatusCodes.OK,
@@ -70,7 +70,7 @@ const subscriptionDetails = catchAsync( async(req: Request, res: Response)=>{
     })
 });
 
-const companySubscriptionDetails= catchAsync( async(req: Request, res: Response)=>{
+const companySubscriptionDetails = catchAsync(async (req: Request, res: Response) => {
     const result = await SubscriptionService.companySubscriptionDetailsFromDB(req.params.id);
 
     sendResponse(res, {

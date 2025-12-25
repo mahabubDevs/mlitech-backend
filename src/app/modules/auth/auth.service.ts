@@ -8,11 +8,11 @@ import { jwtHelper } from '../../../helpers/jwtHelper';
 import { emailTemplate } from '../../../shared/emailTemplate';
 import jwt from 'jsonwebtoken';
 import {
-    IAuthResetPassword,
-    IChangePassword,
-    ILoginData,
-    IVerifyEmail,
-    IVerifyPhone
+  IAuthResetPassword,
+  IChangePassword,
+  ILoginData,
+  IVerifyEmail,
+  IVerifyPhone
 } from '../../../types/auth';
 import cryptoToken from '../../../util/cryptoToken';
 import generateOTP from '../../../util/generateOTP';
@@ -20,7 +20,7 @@ import { ResetToken } from '../resetToken/resetToken.model';
 import { User } from '../user/user.model';
 import { IUser } from '../user/user.interface';
 import { sendOtp } from '../../../shared/twilioService';
-import { USER_STATUS } from '../../../enums/user';
+import { SUBSCRIPTION_STATUS, USER_ROLES, USER_STATUS } from '../../../enums/user';
 
 
 
@@ -52,6 +52,10 @@ const loginUserFromDB = async (payload: ILoginData) => {
     throw new ApiError(StatusCodes.BAD_REQUEST, 'Password is incorrect!');
   }
 
+
+  if (user.role === USER_ROLES.USER && user.subscription !== SUBSCRIPTION_STATUS.ACTIVE) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "You are not subscribed");
+  }
   // 4️⃣ Status check
   switch (user.status) {
     case USER_STATUS.ACTIVE:
@@ -68,7 +72,7 @@ const loginUserFromDB = async (payload: ILoginData) => {
         config.jwt.jwtRefreshExpiresIn as string
       );
 
-      return { 
+      return {
         success: true,
         message: "Login successful",
         accessToken,
@@ -91,40 +95,40 @@ const loginUserFromDB = async (payload: ILoginData) => {
 
 //forget password
 const forgetPasswordToDB = async (phone: string) => {
-    // 1️⃣ Find user by phone
-    const user = await User.findOne({ phone }).select('+phone');
-    if (!user) {
-        throw new ApiError(StatusCodes.BAD_REQUEST, "User doesn't exist!");
-    }
+  // 1️⃣ Find user by phone
+  const user = await User.findOne({ phone }).select('+phone');
+  if (!user) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "User doesn't exist!");
+  }
 
-    // 2️⃣ Generate OTP
-    const otp = generateOTP();
+  // 2️⃣ Generate OTP
+  const otp = generateOTP();
 
-    console.log("Generated OTP for password reset:", otp);
-    // 3️⃣ Save OTP in DB under phoneOTP
-    user.authentication = user.authentication || {};
-    user.authentication.phoneOTP = {
-        code: otp,
-        expireAt: new Date(Date.now() + 3 * 60 * 1000), // 3 min validity
-    };
-    // mark that this authentication flow is for resetting password
-    user.authentication.isResetPassword = true;
-    await user.save();
+  console.log("Generated OTP for password reset:", otp);
+  // 3️⃣ Save OTP in DB under phoneOTP
+  user.authentication = user.authentication || {};
+  user.authentication.phoneOTP = {
+    code: otp,
+    expireAt: new Date(Date.now() + 3 * 60 * 1000), // 3 min validity
+  };
+  // mark that this authentication flow is for resetting password
+  user.authentication.isResetPassword = true;
+  await user.save();
 
-    // // 4️⃣ Send OTP via Twilio
-    // try {
-    //     await sendOtp(user.phone, String(otp));
-    //     console.log(`OTP sent to phone ${user.phone}: ${otp}`);
-    // } catch (error) {
-    //     console.error("Failed to send OTP via Twilio:", error);
-    //     throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, "Failed to send OTP, try again");
-    // }
+  // // 4️⃣ Send OTP via Twilio
+  // try {
+  //     await sendOtp(user.phone, String(otp));
+  //     console.log(`OTP sent to phone ${user.phone}: ${otp}`);
+  // } catch (error) {
+  //     console.error("Failed to send OTP via Twilio:", error);
+  //     throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, "Failed to send OTP, try again");
+  // }
 
-    return { phone: user.phone ,otp: otp };
+  return { phone: user.phone, otp: otp };
 };
 
 
-  
+
 //verify email
 // const verifyEmailToDB = async (payload: IVerifyEmail) => {
 //   const { email, oneTimeCode } = payload;
@@ -263,119 +267,119 @@ const verifyPhoneOtpToDB = async (payload: IVerifyPhone) => {
 
 
 
-  
+
 //forget password
-const resetPasswordToDB = async ( token: string, payload: IAuthResetPassword ) => {
+const resetPasswordToDB = async (token: string, payload: IAuthResetPassword) => {
 
-    const { newPassword, confirmPassword } = payload;
-    console.log("Resetting password with token:", token);
+  const { newPassword, confirmPassword } = payload;
+  console.log("Resetting password with token:", token);
 
-    //isExist token
-    const isExistToken = await ResetToken.isExistToken(token);
-    if (!isExistToken) {
-        throw new ApiError(StatusCodes.UNAUTHORIZED, 'You are not authorized');
-    }
-  
-    //user permission check
-    const isExistUser = await User.findById(isExistToken.user).select('+authentication');
-    if (!isExistUser?.authentication?.isResetPassword) {
-        throw new ApiError(StatusCodes.UNAUTHORIZED, "You don't have permission to change the password. Please click again to 'Forgot Password'");
-    }
-  
-    //validity check
-    const isValid = await ResetToken.isExpireToken(token);
-    if (!isValid) {
-        throw new ApiError(StatusCodes.BAD_REQUEST, 'Token expired, Please click again to the forget password');
-    }
-  
-    //check password
-    if (newPassword !== confirmPassword) {
-        throw new ApiError(StatusCodes.BAD_REQUEST, "New password and Confirm password doesn't match!");
-    }
-  
-    const hashPassword = await bcrypt.hash( newPassword, Number(config.bcrypt_salt_rounds));
-  
-    const updateData = {
-        password: hashPassword,
-        authentication: {
-            isResetPassword: false,
-        }
-    };
-  
-    await User.findOneAndUpdate(
-        { _id: isExistToken.user }, 
-        updateData,
-        {new: true}
-    );
-};
-  
-const changePasswordToDB = async ( user: JwtPayload, payload: IChangePassword) => {
+  //isExist token
+  const isExistToken = await ResetToken.isExistToken(token);
+  if (!isExistToken) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, 'You are not authorized');
+  }
 
-    console.log("Step 1: User payload", user);
+  //user permission check
+  const isExistUser = await User.findById(isExistToken.user).select('+authentication');
+  if (!isExistUser?.authentication?.isResetPassword) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, "You don't have permission to change the password. Please click again to 'Forgot Password'");
+  }
 
-    const { currentPassword, newPassword, confirmPassword } = payload;
-    const isExistUser = await User.findById(user._id).select('+password');
-    console.log("Step 2: Found user", isExistUser);
-    if (!isExistUser) {
-        throw new ApiError(StatusCodes.BAD_REQUEST, "User doesn't exist!");
-    }
-  
-    //current password match
-    if (
-        currentPassword &&
-        !(await User.isMatchPassword(currentPassword, isExistUser.password as string))
-    ) {
-        throw new ApiError(StatusCodes.BAD_REQUEST, 'Password is incorrect');
-    }
-  
-    //newPassword and current password
-    if (currentPassword === newPassword) {
-        throw new ApiError(StatusCodes.BAD_REQUEST, 'Please give different password from current password');
-    }
+  //validity check
+  const isValid = await ResetToken.isExpireToken(token);
+  if (!isValid) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'Token expired, Please click again to the forget password');
+  }
 
-    //new password and confirm password check
-    if (newPassword !== confirmPassword) {
-        throw new ApiError( StatusCodes.BAD_REQUEST, "Password and Confirm password doesn't matched");
-    }
-  
-    //hash password
-    const hashPassword = await bcrypt.hash( newPassword, Number(config.bcrypt_salt_rounds));
-  
-    const updateData = {
-        password: hashPassword,
-    };
+  //check password
+  if (newPassword !== confirmPassword) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "New password and Confirm password doesn't match!");
+  }
 
-    await User.findOneAndUpdate({ _id: user._id }, updateData, { new: true });
+  const hashPassword = await bcrypt.hash(newPassword, Number(config.bcrypt_salt_rounds));
+
+  const updateData = {
+    password: hashPassword,
+    authentication: {
+      isResetPassword: false,
+    }
+  };
+
+  await User.findOneAndUpdate(
+    { _id: isExistToken.user },
+    updateData,
+    { new: true }
+  );
 };
 
+const changePasswordToDB = async (user: JwtPayload, payload: IChangePassword) => {
 
-const newAccessTokenToUser = async(token: string)=>{
+  console.log("Step 1: User payload", user);
 
-    // Check if the token is provided
-    if (!token) {
-      throw new ApiError(StatusCodes.BAD_REQUEST, 'Token is required!');
-    }
-  
-    const verifyUser = jwtHelper.verifyToken(
-      token,
-      config.jwt.jwtRefreshSecret as Secret
-    );
-  
-    const isExistUser = await User.findById(verifyUser?.id);
-    if(!isExistUser){
-      throw new ApiError(StatusCodes.UNAUTHORIZED, "Unauthorized access")
-    }
-  
-    //create token
-    const accessToken = jwtHelper.createToken(
-      { id: isExistUser._id, role: isExistUser.role, email: isExistUser.email },
-      config.jwt.jwt_secret as Secret,
-      config.jwt.jwt_expire_in as string
-    );
-  
-    return { accessToken }
+  const { currentPassword, newPassword, confirmPassword } = payload;
+  const isExistUser = await User.findById(user._id).select('+password');
+  console.log("Step 2: Found user", isExistUser);
+  if (!isExistUser) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "User doesn't exist!");
+  }
+
+  //current password match
+  if (
+    currentPassword &&
+    !(await User.isMatchPassword(currentPassword, isExistUser.password as string))
+  ) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'Password is incorrect');
+  }
+
+  //newPassword and current password
+  if (currentPassword === newPassword) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'Please give different password from current password');
+  }
+
+  //new password and confirm password check
+  if (newPassword !== confirmPassword) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Password and Confirm password doesn't matched");
+  }
+
+  //hash password
+  const hashPassword = await bcrypt.hash(newPassword, Number(config.bcrypt_salt_rounds));
+
+  const updateData = {
+    password: hashPassword,
+  };
+
+  await User.findOneAndUpdate({ _id: user._id }, updateData, { new: true });
+};
+
+
+const newAccessTokenToUser = async (token: string) => {
+
+  // Check if the token is provided
+  if (!token) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'Token is required!');
+  }
+
+  const verifyUser = jwtHelper.verifyToken(
+    token,
+    config.jwt.jwtRefreshSecret as Secret
+  );
+
+  const isExistUser = await User.findById(verifyUser?.id);
+  if (!isExistUser) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, "Unauthorized access")
+  }
+
+  //create token
+  const accessToken = jwtHelper.createToken(
+    { id: isExistUser._id, role: isExistUser.role, email: isExistUser.email },
+    config.jwt.jwt_secret as Secret,
+    config.jwt.jwt_expire_in as string
+  );
+
+  return { accessToken }
 }
-  
+
 // const resendVerificationEmailToDB = async (email: string) => {
 //   // 1️⃣ Find the user
 //   const existingUser = await User.findOne({ email }).select('+authentication');
@@ -467,30 +471,30 @@ const newAccessTokenToUser = async(token: string)=>{
 
 
 const deleteUserFromDB = async (user: JwtPayload, password: string): Promise<void> => {
-    // 1️⃣ Find user
-    const isExistUser = await User.findById(user.id).select('+password');
-    if (!isExistUser) {
-        throw new ApiError(StatusCodes.BAD_REQUEST, "User doesn't exist!");
-    }
+  // 1️⃣ Find user
+  const isExistUser = await User.findById(user.id).select('+password');
+  if (!isExistUser) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "User doesn't exist!");
+  }
 
-    // 2️⃣ Password required check
-    if (!password) {
-        throw new ApiError(StatusCodes.BAD_REQUEST, "Password is required to delete account");
-    }
+  // 2️⃣ Password required check
+  if (!password) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Password is required to delete account");
+  }
 
-    // 3️⃣ Ensure user password exists
-    if (!isExistUser.password) {
-        throw new ApiError(StatusCodes.BAD_REQUEST, "User has no password set");
-    }
+  // 3️⃣ Ensure user password exists
+  if (!isExistUser.password) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "User has no password set");
+  }
 
-    // 4️⃣ Password match check
-    const isMatch = await User.isMatchPassword(password, isExistUser.password);
-    if (!isMatch) {
-        throw new ApiError(StatusCodes.BAD_REQUEST, 'Password is incorrect');
-    }
+  // 4️⃣ Password match check
+  const isMatch = await User.isMatchPassword(password, isExistUser.password);
+  if (!isMatch) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'Password is incorrect');
+  }
 
-    // 5️⃣ Delete user
-    await User.findByIdAndDelete(user.id);
+  // 5️⃣ Delete user
+  await User.findByIdAndDelete(user.id);
 };
 
 
@@ -586,31 +590,31 @@ const uploadDocumentImagesToDB = async (userId: string, files: Express.Multer.Fi
 };
 
 const archiveUserInDB = async (userId: string) => {
-    const user = await User.findById(userId);
-    if (!user) {
-        throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
-    }
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
+  }
 
-    user.status = USER_STATUS.ARCHIVE; // status update
-    await user.save();
+  user.status = USER_STATUS.ARCHIVE; // status update
+  await user.save();
 
-    return user;
+  return user;
 };
- 
+
 
 export const AuthService = {
-    // verifyEmailToDB,
-    loginUserFromDB,
-    forgetPasswordToDB,
-    resetPasswordToDB,
-    changePasswordToDB,
-    newAccessTokenToUser,
-    // resendVerificationEmailToDB,
-    // socialLoginFromDB,
-    deleteUserFromDB,
-    deleteOwnUserAccount,
-    sendPhoneOtpToDB,
-    verifyPhoneOtpToDB,
-    uploadDocumentImagesToDB,
-    archiveUserInDB
+  // verifyEmailToDB,
+  loginUserFromDB,
+  forgetPasswordToDB,
+  resetPasswordToDB,
+  changePasswordToDB,
+  newAccessTokenToUser,
+  // resendVerificationEmailToDB,
+  // socialLoginFromDB,
+  deleteUserFromDB,
+  deleteOwnUserAccount,
+  sendPhoneOtpToDB,
+  verifyPhoneOtpToDB,
+  uploadDocumentImagesToDB,
+  archiveUserInDB
 };

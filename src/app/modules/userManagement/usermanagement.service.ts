@@ -14,44 +14,45 @@ import { createUniqueReferralId } from "../../../util/generateRefferalId";
 import QueryBuilder from "../../../util/queryBuilder";
 
 // create user
-const createUserToDB = async (payload: IUser) => {
-
-  // inline required field check
+const createUserToDB = async (
+  payload: IUser,
+  merchantId: string
+) => {
   if (!payload.email) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, "Email is required");
+    throw new ApiError(400, "Email is required");
   }
 
   if (!payload.phone) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, "Phone number is required");
+    throw new ApiError(400, "Phone number is required");
   }
 
   if (!payload.password) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, "Password is required");
+    throw new ApiError(400, "Password is required");
   }
 
-  // email uniqueness check
   const isEmailExist = await User.isExistUserByEmail(payload.email);
   if (isEmailExist) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, "Email already exists");
+    throw new ApiError(400, "Email already exists");
   }
 
-  // phone uniqueness check
   const isPhoneExist = await User.isExistUserByPhone(payload.phone);
   if (isPhoneExist) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, "Phone already exists");
+    throw new ApiError(400, "Phone already exists");
   }
 
-const referenceId = await createUniqueReferralId();
-  const customerId = await generateCustomUserId(USER_ROLES.MERCENT);
+  // 🔐 merchant can create only CUSTOMER
+  const role = USER_ROLES.USER;
 
+  const referenceId = await createUniqueReferralId();
+  const customerId = await generateCustomUserId(role);
 
   const userData = {
     ...payload,
-    //  customUserId: uuidv4(), // auto generate
-    //  referenceId: uuidv4(),  // auto generate
+    role,
+    merchantId, // ⭐ important
     customUserId: customerId,
-    referenceId: referenceId,
-    verified: true, // auto verified
+    referenceId,
+    verified: true,
   };
 
   const result = await User.create(userData);

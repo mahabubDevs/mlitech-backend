@@ -10,13 +10,17 @@ import ApiError from "../../../errors/ApiErrors";
 
 // create user
 const createUser = catchAsync(async (req: any, res: any) => {
-  const result = await UserService.createUserToDB(req.body);
+  const merchantId = req.user.id; // logged-in merchant
 
-  // Audit log (any use করা হয়েছে)
+  const result = await UserService.createUserToDB(
+    req.body,
+    merchantId
+  );
+
   await AuditService.createLog(
-    req.user?.email || "Unknown", // যিনি user create করেছে
+    req.user.email,
     "CREATE_USER",
-    `Created user: ${result.email} with role: ${result.role}`
+    `Merchant created user: ${result.email}`
   );
 
   sendResponse(res, {
@@ -26,6 +30,7 @@ const createUser = catchAsync(async (req: any, res: any) => {
     data: result,
   });
 });
+
 
 
 const createMerchant = catchAsync(async (req: any, res: any) => {

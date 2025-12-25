@@ -6,11 +6,15 @@ import stripe from "../../../config/stripe";
 import { User } from "../user/user.model";
 import Stripe from "stripe";
 import { Types } from "mongoose";
+import Referral from "../referral/referral.model";
+import PointTransaction from "../pointTransaction/pointTransaction.model";
+import { sendNotification } from "../../../helpers/notificationsHelper";
+import { NotificationType } from "../notification/notification.model";
 
 const createSubscriptionSession = async (userId: string, packageId: string) => {
     const pkg = await Package.findById(packageId);
     if (!pkg) throw new Error("Package not found");
-
+    console.log("🚀 Creating subscription session for user:", userId, "with package:", packageId);
     // Create Stripe Checkout session
     const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
@@ -22,8 +26,8 @@ const createSubscriptionSession = async (userId: string, packageId: string) => {
                 quantity: 1,
             },
         ],
-        success_url: `https://yourfrontend.com/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `https://yourfrontend.com/payment-cancel`,
+        success_url: `https://miltech-business-dashboard-api.vercel.app/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `https://miltech-business-dashboard-api.vercel.app/failed`,
         client_reference_id: userId,
         metadata: {
             packageId: pkg._id.toString(),
@@ -37,46 +41,119 @@ const createSubscriptionSession = async (userId: string, packageId: string) => {
 
 
 const activateSubscriptionInDB = async (
-  userId: string,
-  packageId: string,
-  stripeSubscription: any
+    userId: string,
+    packageId: string,
+    stripeSubscription: any
 ): Promise<ISubscription> => {
 
-  console.log("🚀 Activating subscription in DB", { userId, packageId, stripeSubscriptionId: stripeSubscription.id });
+    console.log("🚀 Activating subscription in DB", { userId, packageId, stripeSubscriptionId: stripeSubscription.id });
 
-  // Prevent duplicate subscription
-  const existingSub = await Subscription.findOne({ subscriptionId: stripeSubscription.id });
-  if (existingSub) {
-    console.log("⚠️ Subscription already exists in DB", existingSub._id);
-    // Update user profile correctly
+    // Prevent duplicate subscription
+    const existingSub = await Subscription.findOne({ subscriptionId: stripeSubscription.id });
+    if (existingSub) {
+        console.log("⚠️ Subscription already exists in DB", existingSub._id);
+        // Update user profile correctly
+        await User.findByIdAndUpdate(userId, { subscription: "active" }, { new: true });
+
+        const result = await Referral.findOne({
+            referredUser: userId
+        })
+        if (result) {
+            console.log("🚀 Processing referral for user: existing", userId);
+            await PointTransaction.create({
+                user: userId,
+                type: "EARN",
+                source: "REFERRAL",
+                referral: result._id,
+                points: 10,
+                note: "Referral points",
+            })
+            await PointTransaction.create({
+                user: result.referrer,
+                type: "EARN",
+                source: "REFERRAL",
+                referral: result._id,
+                points: 10,
+                note: "Referral points",
+            })
+
+            await User.findByIdAndUpdate(
+                result.referrer,
+                { $inc: { points: 10 } },
+                { new: true }
+            );
+
+            await User.findByIdAndUpdate(
+                userId,
+                { $inc: { points: 10 } },
+                { new: true }
+            );
+
+            sendNotification({ userIds: [result.referrer.toString(), userId.toString()], title: "Referral points", body: "You have earned 10 points for using referral code", type: NotificationType.REFERRAL });
+        }
+        return existingSub;
+    }
+
+    const subscriptionData: Partial<ISubscription> = {
+        user: new Types.ObjectId(userId),
+        package: new Types.ObjectId(packageId),
+        price: stripeSubscription.plan?.amount / 100 || 0,
+        customerId: stripeSubscription.customer,
+        subscriptionId: stripeSubscription.id,
+        remaining: 0,
+        currentPeriodStart: new Date(stripeSubscription.current_period_start * 1000).toISOString(),
+        currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000).toISOString(),
+        trxId: stripeSubscription.latest_invoice || "N/A",
+        status: stripeSubscription.status === "active" ? "active" : "expired",
+    };
+
+    console.log("📌 Subscription data prepared:", subscriptionData);
+
+    const subscription = await Subscription.create(subscriptionData);
+
+    console.log("✅ Subscription saved:", subscription);
+
+    // Update user profile
     await User.findByIdAndUpdate(userId, { subscription: "active" }, { new: true });
-    return existingSub;
-  }
+    const result = await Referral.findOne({
+        referredUser: userId
+    })
+    if (result) {
+        console.log("🚀 Processing referral for user: new", userId);
+        await PointTransaction.create({
+            user: userId,
+            type: "EARN",
+            source: "REFERRAL",
+            referral: result._id,
+            points: 10,
+            note: "Referral points",
+        })
+        await PointTransaction.create({
+            user: result.referrer,
+            type: "EARN",
+            source: "REFERRAL",
+            referral: result._id,
+            points: 10,
+            note: "Referral points",
+        })
 
-  const subscriptionData: Partial<ISubscription> = {
-    user: new Types.ObjectId(userId),
-    package: new Types.ObjectId(packageId),
-    price: stripeSubscription.plan?.amount / 100 || 0,
-    customerId: stripeSubscription.customer,
-    subscriptionId: stripeSubscription.id,
-    remaining: 0,
-    currentPeriodStart: new Date(stripeSubscription.current_period_start * 1000).toISOString(),
-    currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000).toISOString(),
-    trxId: stripeSubscription.latest_invoice || "N/A",
-    status: stripeSubscription.status === "active" ? "active" : "expired",
-  };
+        await User.findByIdAndUpdate(
+            result.referrer,
+            { $inc: { points: 10 } },
+            { new: true }
+        );
 
-  console.log("📌 Subscription data prepared:", subscriptionData);
+        await User.findByIdAndUpdate(
+            userId,
+            { $inc: { points: 10 } },
+            { new: true }
+        );
 
-  const subscription = await Subscription.create(subscriptionData);
+        sendNotification({ userIds: [result.referrer.toString(), userId.toString()], title: "Referral points", body: "You have earned 10 points for using referral code", type: NotificationType.REFERRAL });
+    }
+    console.log("✅ User subscription updated in profile");
 
-  console.log("✅ Subscription saved:", subscription);
-
-  // Update user profile
-  await User.findByIdAndUpdate(userId, { subscription: "active" }, { new: true });
-  console.log("✅ User subscription updated in profile");
-
-  return subscription;
+    return subscription;
 };
 
 
@@ -162,19 +239,19 @@ const subscriptionsFromDB = async (query: Record<string, unknown>): Promise<ISub
                 { paymentType: { $regex: search, $options: "i" } },
             ]
         }).distinct("_id");
-    
+
         if (matchingPackageIds.length) {
             anyConditions.push({
                 package: { $in: matchingPackageIds }
             });
         }
     }
-    
-    
+
+
 
     if (paymentType) {
         anyConditions.push({
-            package: { $in: await Package.find({paymentType: paymentType}).distinct("_id")  }
+            package: { $in: await Package.find({ paymentType: paymentType }).distinct("_id") }
         })
     }
 
@@ -198,7 +275,7 @@ const subscriptionsFromDB = async (query: Record<string, unknown>): Promise<ISub
         .limit(size);
 
     const count = await Subscription.countDocuments(whereConditions);
-    
+
     const data: any = {
         data: result,
         meta: {

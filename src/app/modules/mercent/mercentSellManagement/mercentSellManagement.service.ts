@@ -190,6 +190,10 @@ import { Rating } from "../../customer/rating/rating.model";
     if (promoIndex === -1) throw new Error("Promotion not added to this DigitalCard");
 
     const promo = digitalCard.promotions[promoIndex];
+    
+    if (promo.status === "pending") {
+      throw new Error("User approval needed for this promotion");
+    }
 
     if (promo.status === "unused") {
       promo.status = "used";

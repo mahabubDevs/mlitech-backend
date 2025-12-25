@@ -15,7 +15,7 @@ import { Rating } from "../../customer/rating/rating.model";
 
 
 const checkout = catchAsync(async (req: Request, res: Response) => {
-  const { digitalCardCode, totalBill, promotionId,pointRedeemed } = req.body;
+  const { digitalCardCode, totalBill, promotionId, pointRedeemed } = req.body;
   console.log("Checkout request body:", req.body);
 
   if (!req.user) {
@@ -256,7 +256,7 @@ const getMerchantSales = async (req: Request, res: Response) => {
       .sort()
       .paginate()
       .populate(["userId", "digitalCardId"], {
-        userId: "firstName lastName email phone profile",
+        userId: "firstName lastName email phone profile customUserId",
         digitalCardId: "cardCode",
       });
 
@@ -287,6 +287,7 @@ const getMerchantSales = async (req: Request, res: Response) => {
       finalBilled?: number;
       cardIds?: string; // single card code as string
       status?: string;
+      customUserId?: string;
     }
 
     const userMap: Record<string, IUserSummary> = {};
@@ -301,6 +302,7 @@ const getMerchantSales = async (req: Request, res: Response) => {
           _id: userId,
           name: user.firstName + (user.lastName ? ` ${user.lastName}` : ""),
           email: user.email,
+          customUserId: user.customUserId || "",
           phone: user.phone,
           profile: user.profile,
           totalTransactions: 0,

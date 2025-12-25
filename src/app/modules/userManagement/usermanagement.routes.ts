@@ -18,14 +18,14 @@ router
   );
 
   router
-  .route("/merchantrole")
-  .post(
-    auth(USER_ROLES.MERCENT),
-    UserController.createUser
-  )
+  router.route("/merchantrole").post(
+  auth(USER_ROLES.MERCENT),
+  UserController.createUser
+);
+
 
 router.get(
-  "/merchants",
+  "/merchants/all-users",
   auth(),
   UserController.getAllMerchants
 );

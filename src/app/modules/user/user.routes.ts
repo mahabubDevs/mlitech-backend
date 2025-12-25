@@ -15,6 +15,8 @@ router.post(
   UserController.createAdmin
 );
 
+router.get("/summary-counts", auth(), UserController.getUserSummaryCounts);
+
 router
   .route("/")
   .post(
@@ -34,4 +36,5 @@ router.get(
   UserController.getUserOnlineStatus
 );
 
-export const UserRoutes = router;
+
+export const UserRoutes = router

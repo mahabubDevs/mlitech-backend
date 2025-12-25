@@ -108,6 +108,34 @@ const getCustomerAnalytics = catchAsync(async (req: Request, res: Response) => {
 });
 
 
+const exportCustomerAnalytics = catchAsync(
+  async (req: Request, res: Response) => {
+    const { startDate, endDate, subscriptionStatus, customerName, location } =
+      req.query;
+
+    const buffer = await AnalyticsService.exportCustomerAnalytics(
+      startDate as string,
+      endDate as string,
+      {
+        subscriptionStatus: subscriptionStatus as string,
+        customerName: customerName as string,
+        location: location as string,
+      }
+    );
+
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=customer-analytics-full.xlsx"
+    );
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+
+    res.status(200).send(buffer);
+  }
+);
+
 
 
 // controller
@@ -181,5 +209,6 @@ export const AnalyticsController = {
   getBusinessCustomerAnalytics,
   getMerchantAnalytics,
   getCustomerAnalytics,
-  exportMerchantAnalytics
+  exportMerchantAnalytics,
+  exportCustomerAnalytics
 };

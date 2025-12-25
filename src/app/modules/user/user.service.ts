@@ -17,6 +17,7 @@ import { IPackage } from "../shopAuraSubscription/aurashop.interface";
 import { createUniqueReferralId } from "../../../util/generateRefferalId";
 import { sendOtp } from "../../../config/veevoTechOtp";
 import { generateCustomUserId } from "./user.utils";
+import Referral from "../referral/referral.model";
 
 interface IPackageWithId extends IPackage {
   _id: string;
@@ -65,23 +66,12 @@ const createUserToDB = async (payload: CreateUserPayload): Promise<IUser> => {
   const referenceId = await createUniqueReferralId();
   const customUserId = await generateCustomUserId(payload.role as string);
 
-  let referredInfo;
-  if (payload?.referredId) {
-    const referredUser = await User.findOne({ referenceId: payload.referredId });
-    if (!referredUser) {
-      throw new ApiError(StatusCodes.BAD_REQUEST, "Referred Id Invalied!");
-    }
-    referredInfo = {
-      referredId: payload.referredId,
-      referredBy: `${referredUser.firstName} + " " + ${referredUser?.lastName ? referredUser?.lastName : ""}`,
-    };
-  }
+
 
   const userData = {
     ...payload,
     referenceId,
     customUserId,
-    referredInfo,
     status:
       payload.role === USER_ROLES.MERCENT
         ? USER_STATUS.INACTIVE
@@ -97,6 +87,31 @@ const createUserToDB = async (payload: CreateUserPayload): Promise<IUser> => {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Failed to create user");
   }
 
+
+  let referredInfo;
+  if (payload?.referredId) {
+    const referrer = await User.findOne({ referenceId: payload.referredId });
+    if (!referrer) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, "Referred Id Invalied!");
+    }
+    referredInfo = {
+      referredId: payload.referredId,
+      referredBy: `${referrer.firstName} ${referrer?.lastName ? referrer?.lastName : ""}`,
+    };
+
+    const result = await User.findByIdAndUpdate(createUser._id, {
+      $set: {
+        referredInfo,
+      },
+    });
+    if (!result) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, "Failed to update user referredInfo");
+    }
+    await Referral.create({
+      referrer: referrer._id,
+      referredUser: result._id,
+    });
+  }
   // 3️⃣ Generate OTP
   const otp = generateOTP();
 
@@ -217,10 +232,13 @@ const getUserOnlineStatusFromDB = async (userId: string) => {
   };
 };
 
+
+
 export const UserService = {
   createUserToDB,
   getUserProfileFromDB,
   updateProfileToDB,
   createAdminToDB,
   getUserOnlineStatusFromDB,
+
 };

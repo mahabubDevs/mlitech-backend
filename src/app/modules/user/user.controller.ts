@@ -5,6 +5,8 @@ import catchAsync from "../../../shared/catchAsync";
 import sendResponse from "../../../shared/sendResponse";
 import ApiError from "../../../errors/ApiErrors";
 import { JwtPayload } from "jsonwebtoken";
+import { Subscription } from "../subscription/subscription.model";
+import { DigitalCard } from "../customer/digitalCard/digitalCard.model";
 
 // register user
 const createUser = catchAsync(
@@ -121,10 +123,50 @@ const getUserOnlineStatus = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getUserSummaryCounts = catchAsync(async (req: Request, res: Response) => {
+  const userId = (req.user as any)?._id;
+  if (!userId) {
+    return res.status(StatusCodes.UNAUTHORIZED).json({
+      success: false,
+      message: "User not logged in",
+    });
+  }
+
+  // 1️⃣ Fetch subscriptions with package title
+  const subscriptions = await Subscription.find({ user: userId })
+    .populate("package", "title") // fetch only package title
+    .lean();
+
+  // Extract only titles
+  const subscriptionTitles = subscriptions.map(sub => (sub.package as any)?.title).filter(Boolean);
+
+  // 2️⃣ Total spent
+  const totalSpent = subscriptions.reduce((sum, sub) => sum + sub.price, 0);
+
+  // 3️⃣ Total digital cards
+  const totalDigitalCards = await DigitalCard.countDocuments({ userId });
+
+  // 4️⃣ Total promotions
+  const digitalCards = await DigitalCard.find({ userId }).select("promotions").lean();
+  const totalPromotions = digitalCards.reduce((sum, card) => sum + card.promotions.length, 0);
+
+  // 5️⃣ Minimal response
+  res.status(StatusCodes.OK).json({
+    success: true,
+    totalSpent,
+    totalDigitalCards,
+    totalPromotions,
+    subscriptionTitles
+  });
+});
+
+
 export const UserController = {
   createUser,
   createAdmin,
   getUserProfile,
   updateProfile,
   getUserOnlineStatus,
+  getUserSummaryCounts
+
 };
