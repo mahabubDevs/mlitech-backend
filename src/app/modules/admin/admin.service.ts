@@ -6,7 +6,7 @@ import ApiError from "../../../errors/ApiErrors";
 import QueryBuilder from "../../../util/queryBuilder";
 import { sendNotification } from "../../../helpers/notificationsHelper";
 import { NotificationType } from "../notification/notification.model";
-
+import ExcelJS from "exceljs";
 
 
 interface IQuery {
@@ -76,6 +76,7 @@ const getAllCustomers = async (query: Record<string, unknown>) => {
     pagination,
   };
 };
+
 const getAllMerchants = async (query: Record<string, unknown>) => {
   const baseQuery = User.find({ role: USER_ROLES.MERCENT });
 
@@ -96,6 +97,57 @@ const getAllMerchants = async (query: Record<string, unknown>) => {
 };
 
 
+//============merchant export service ============//
+const exportMerchants = async (
+  query: Record<string, unknown>
+): Promise<Buffer> => {
+  /* ---------------- Base Query ---------------- */
+  const baseQuery = User.find({ role: USER_ROLES.MERCENT }).select(
+    "customUserId firstName lastName email phone status address createdAt"
+  );
+
+  /* ---------------- Apply Filters ---------------- */
+  const merchantsQuery = new QueryBuilder(baseQuery, query)
+    .search(["firstName", "lastName", "email", "phone"])
+    .filter()
+    .sort();
+
+  const merchants = await merchantsQuery.modelQuery.lean<any[]>();
+
+  /* ---------------- Excel ---------------- */
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "The Pigeon Hub";
+  workbook.created = new Date();
+
+  const sheet = workbook.addWorksheet("Merchants");
+
+  sheet.columns = [
+    { header: "Merchant ID", key: "customUserId", width: 20 },
+    { header: "First Name", key: "firstName", width: 20 },
+    { header: "Last Name", key: "lastName", width: 20 },
+    { header: "Email", key: "email", width: 30 },
+    { header: "Phone", key: "phone", width: 18 },
+    { header: "Status", key: "status", width: 15 },
+    { header: "Address", key: "address", width: 35 },
+    { header: "Created At", key: "createdAt", width: 22 },
+  ];
+
+  merchants.forEach((m) => {
+    sheet.addRow({
+      ...m,
+      createdAt: m.createdAt
+        ? new Date(m.createdAt).toLocaleString()
+        : "",
+    });
+  });
+
+  sheet.getRow(1).font = { bold: true };
+  sheet.autoFilter = "A1:H1";
+
+  /* ---------------- Buffer ---------------- */
+  const buffer = await workbook.xlsx.writeBuffer();
+  return Buffer.from(buffer as ArrayBuffer);
+};
 
 // near merchants service
 
@@ -296,6 +348,8 @@ const updateMerchantStatus = async (
 
   return merchant;
 };
+
+
 const updateMerchantApproveStatus = async (
   id: string,
   approveStatus: APPROVE_STATUS,
@@ -346,6 +400,61 @@ const updateMerchantApproveStatus = async (
   return result;
 };
 
+
+
+const exportCustomers = async (
+  query: Record<string, unknown>
+): Promise<Buffer> => {
+  /* ---------------- Base Query ---------------- */
+  const baseQuery = User.find({ role: "USER" }).select(
+    "customUserId firstName lastName email phone status address createdAt"
+  );
+
+  /* ---------------- Apply Filters ---------------- */
+  const customersQuery = new QueryBuilder(baseQuery, query)
+    .search(["firstName", "lastName", "email", "phone"])
+    .filter()
+    .sort();
+
+const customers = await customersQuery.modelQuery.lean<any[]>();
+
+
+
+  /* ---------------- Excel ---------------- */
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "The Pigeon Hub";
+  workbook.created = new Date();
+
+  const sheet = workbook.addWorksheet("Customers");
+
+  sheet.columns = [
+    { header: "Customer ID", key: "customUserId", width: 20 },
+    { header: " Name", key: "firstName", width: 20 },
+    // { header: "Last Name", key: "lastName", width: 20 },
+    { header: "Email", key: "email", width: 30 },
+    { header: "Phone", key: "phone", width: 18 },
+    { header: "Status", key: "status", width: 15 },
+    { header: "Address", key: "address", width: 35 },
+    // { header: "Subscripton", key: "", width: 22 },
+    { header: "Created At", key: "createdAt", width: 22 },
+  ];
+
+  customers.forEach((c) => {
+    sheet.addRow({
+      ...c,
+      createdAt: new Date(c.createdAt).toLocaleString(),
+    });
+  });
+
+  sheet.getRow(1).font = { bold: true };
+  sheet.autoFilter = "A1:H1";
+
+  /* ---------------- Buffer ---------------- */
+  const buffer = await workbook.xlsx.writeBuffer();
+  return Buffer.from(buffer as ArrayBuffer);
+};
+
+
 export const AdminService = {
   createAdminToDB,
   deleteAdminFromDB,
@@ -365,6 +474,7 @@ export const AdminService = {
   updateMerchantStatus,
   updateMerchantApproveStatus,
 
-
+  exportCustomers,
+  exportMerchants,
   getNearbyMerchants
 };

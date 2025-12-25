@@ -38,6 +38,14 @@ router.get(
   AdminController.getAllCustomers
 );
 
+//=============== customer export ===================//
+router.get(
+  "/customers/export",
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),
+  AdminController.exportCustomers
+);
+
+
 // ========================= mercent crue operations ========================= //
 //=== all merchants ===//
 
@@ -46,6 +54,13 @@ router.get(
   auth(),
   AdminController.getAllMerchants
 );
+
+router.get(
+  "/merchants/export",
+  // auth(),
+  AdminController.exportMerchants
+);
+
 
 router.get("/merchants/nearby", auth(), AdminController.getNearbyMerchantsController);
 

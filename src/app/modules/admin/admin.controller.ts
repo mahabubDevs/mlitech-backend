@@ -63,6 +63,23 @@ const getAllCustomers = catchAsync(async (req: Request, res: Response) => {
 });
 
 
+//================= customer export ===================//
+const exportCustomers = catchAsync(async (req: Request, res: Response) => {
+  const buffer = await AdminService.exportCustomers(req.query);
+
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  );
+  res.setHeader(
+    "Content-Disposition",
+    "attachment; filename=customers.xlsx"
+  );
+
+  res.send(buffer);
+});
+
+
 // near merchants controller
 const getNearbyMerchantsController = catchAsync(
   async (req: Request, res: Response) => {
@@ -91,6 +108,24 @@ const getAllMerchants = catchAsync(async (req: Request, res: Response) => {
     data: result.allmerchants,
     pagination: result.pagination,
   });
+});
+
+
+
+//=============== mercent export ===================//
+const exportMerchants = catchAsync(async (req: Request, res: Response) => {
+  const buffer = await AdminService.exportMerchants(req.query);
+
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  );
+  res.setHeader(
+    "Content-Disposition",
+    "attachment; filename=merchants.xlsx"
+  );
+
+  res.send(buffer);
 });
 
 // ======== customer crue operations ======== //
@@ -241,6 +276,8 @@ const updateMerchantStatus = catchAsync(async (req, res) => {
     data: result,
   });
 });
+
+
 const updateMerchantApproveStatus = catchAsync(async (req, res) => {
   const user = req.user as JwtPayload
   const result = await AdminService.updateMerchantApproveStatus(
@@ -272,6 +309,7 @@ export const AdminController = {
   getAdmin,
   updateUserStatus,
   getAllCustomers,
+  exportCustomers,
   getAllMerchants,
 
   getSingleCustomer,
@@ -284,7 +322,7 @@ export const AdminController = {
   deleteMerchant,
   updateMerchantStatus,
   updateMerchantApproveStatus,
-
+  exportMerchants,
 
   getNearbyMerchantsController
 };
