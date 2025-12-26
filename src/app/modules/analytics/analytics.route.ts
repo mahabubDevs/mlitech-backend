@@ -59,5 +59,6 @@ router.get(
 );
 
 router.get("/accountings/point-redeemed", auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN), AnalyticsController.getPointRedeemedAnalytics)
+router.get("/accountings/revenue-per-user", auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN), AnalyticsController.getRevenuePerUser)
 
 export const AnalyticsRoutes = router;

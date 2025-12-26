@@ -24,11 +24,11 @@ const subscriptionSchema = new Schema<ISubscription, SubscriptionModel>(
         },
         trxId: {
             type: String,
-            required: function(this: any) {
+            required: function (this: any) {
                 return this.price > 0;
             }
         }
-        ,   
+        ,
         subscriptionId: { type: String, unique: true, required: true },
 
         currentPeriodStart: {
@@ -49,6 +49,12 @@ const subscriptionSchema = new Schema<ISubscription, SubscriptionModel>(
             default: "active",
             required: true
         },
+        source: {
+            type: String,
+            enum: ["online", "salesRep"],
+            default: "online",
+
+        }
 
     },
     {

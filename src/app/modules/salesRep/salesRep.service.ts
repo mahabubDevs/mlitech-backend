@@ -153,6 +153,7 @@ const validateToken = async (userId: string, token: string) => {
     })(),
     trxId: "N/A",
     status: "active",
+    source: "salesRep",
   };
   await Subscription.create({ ...subscriptionData });
 };

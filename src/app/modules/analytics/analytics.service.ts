@@ -3,6 +3,7 @@ import { Sell } from "../mercent/mercentSellManagement/mercentSellManagement.mod
 import { generateExcelBuffer } from "../../../helpers/excelExport";
 import ExcelJS from "exceljs";
 import PointTransaction from "../pointTransaction/pointTransaction.model";
+import { Subscription } from "../subscription/subscription.model";
 
 const monthNames = [
   "Jan",
@@ -1025,6 +1026,70 @@ const getPointRedeemedAnalytics = async (
   return result;
 };
 
+const getRevenuePerUser = async (
+  startDate?: string,
+  endDate?: string
+) => {
+  const matchStage: Record<string, any> = {
+    price: { $gt: 0 },
+    trxId: { $exists: true },
+    status: { $ne: "cancel" },
+  };
+
+  if (startDate || endDate) {
+    matchStage.createdAt = {};
+
+    if (startDate) {
+      matchStage.createdAt.$gte = new Date(startDate);
+    }
+
+    if (endDate) {
+      matchStage.createdAt.$lte = new Date(endDate);
+    }
+  }
+
+  const data = await Subscription.aggregate([
+    { $match: matchStage },
+
+    {
+      $lookup: {
+        from: "users",
+        localField: "user",
+        foreignField: "_id",
+        as: "user",
+      },
+    },
+    { $unwind: "$user" },
+
+    {
+      $group: {
+        _id: "$user._id",
+        customUserId: { $first: "$user.customUserId" },
+        totalTransactions: { $sum: 1 },
+        totalRevenue: { $sum: "$price" },
+      },
+    },
+
+    {
+      $project: {
+        _id: 0,
+        customUserId: 1,
+        totalTransactions: 1,
+        totalRevenue: 1,
+      },
+    },
+
+    { $sort: { totalRevenue: -1 } },
+  ]);
+
+  return {
+    timeRange: {
+      startDate: startDate ? new Date(startDate) : null,
+      endDate: endDate ? new Date(endDate) : null,
+    },
+    data,
+  };
+};
 
 
 export const AnalyticsService = {
@@ -1035,5 +1100,6 @@ export const AnalyticsService = {
   exportCustomerAnalytics,
   exportBusinessCustomerAnalytics,
   getMerchantAnalyticsMonthly,
-  getPointRedeemedAnalytics
+  getPointRedeemedAnalytics,
+  getRevenuePerUser
 };

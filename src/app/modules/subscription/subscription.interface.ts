@@ -11,6 +11,7 @@ export type ISubscription = {
     status: 'expired' | 'active' | 'cancel';
     currentPeriodStart: string;
     currentPeriodEnd: string;
+    source: 'online' | 'salesRep';
 };
 
 export type SubscriptionModel = Model<ISubscription, Record<string, unknown>>;
