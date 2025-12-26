@@ -353,15 +353,27 @@ const exportCustomerMonthlyData = catchAsync(
 );
 
 
+const getPointRedeemedAnalytics = catchAsync(async (req: Request, res: Response) => {
+
+  const result = await AnalyticsService.getPointRedeemedAnalytics(req.query.startDate as string, req.query.endDate as string)
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: "Point redeemed analytics fetched successfully",
+    data: result
+  })
+})
+
 export const AnalyticsController = {
   getBusinessCustomerAnalytics,
   getMerchantAnalytics,
   getCustomerAnalytics,
   exportMerchantAnalytics,
- 
+
   exportCustomerAnalytics,
   exportBusinessCustomerAnalytics,
   exportMerchantMonthlyAnalytics,
-  exportCustomerMonthlyData
+  exportCustomerMonthlyData,
+  getPointRedeemedAnalytics
 
 };

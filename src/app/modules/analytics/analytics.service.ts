@@ -2,6 +2,7 @@ import mongoose, { PipelineStage } from "mongoose";
 import { Sell } from "../mercent/mercentSellManagement/mercentSellManagement.model";
 import { generateExcelBuffer } from "../../../helpers/excelExport";
 import ExcelJS from "exceljs";
+import PointTransaction from "../pointTransaction/pointTransaction.model";
 
 const monthNames = [
   "Jan",
@@ -968,6 +969,63 @@ const getMerchantAnalyticsMonthly = async (
 };
 
 
+const getPointRedeemedAnalytics = async (
+  startDate?: string,
+  endDate?: string
+) => {
+  const matchStage: Record<string, any> = {
+    type: "REDEEM",
+  };
+
+  if (startDate || endDate) {
+    matchStage.createdAt = {};
+
+    if (startDate) {
+      matchStage.createdAt.$gte = new Date(startDate);
+    }
+
+    if (endDate) {
+      matchStage.createdAt.$lte = new Date(endDate);
+    }
+  }
+
+  const result = await PointTransaction.aggregate([
+    { $match: matchStage },
+
+    {
+      $lookup: {
+        from: "users",
+        localField: "user",
+        foreignField: "_id",
+        as: "user",
+      },
+    },
+
+    { $unwind: "$user" },
+
+    {
+      $group: {
+        _id: "$user._id",
+        customerId: { $first: "$user.customUserId" },
+        totalPointsRedeemed: { $sum: "$points" },
+        redemptionCount: { $sum: 1 },
+      },
+    },
+
+    {
+      $project: {
+        _id: 0,
+        customerId: 1,
+        totalPointsRedeemed: 1,
+        redemptionCount: 1,
+      },
+    },
+  ]);
+
+  return result;
+};
+
+
 
 export const AnalyticsService = {
   getBusinessCustomerAnalytics,
@@ -976,5 +1034,6 @@ export const AnalyticsService = {
   getMerchantAnalyticsExport,
   exportCustomerAnalytics,
   exportBusinessCustomerAnalytics,
-  getMerchantAnalyticsMonthly
+  getMerchantAnalyticsMonthly,
+  getPointRedeemedAnalytics
 };

@@ -28,7 +28,7 @@ router.get(
 
 router.get(
   "/merchants/export",
-  auth(USER_ROLES.MERCENT,USER_ROLES.ADMIN,USER_ROLES.SUPER_ADMIN), // Only admins
+  auth(USER_ROLES.MERCENT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN), // Only admins
   AnalyticsController.exportMerchantAnalytics
 );
 
@@ -58,5 +58,6 @@ router.get(
   AnalyticsController.exportCustomerMonthlyData
 );
 
+router.get("/accountings/point-redeemed", auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN), AnalyticsController.getPointRedeemedAnalytics)
 
 export const AnalyticsRoutes = router;
