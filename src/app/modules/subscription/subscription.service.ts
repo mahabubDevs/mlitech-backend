@@ -58,7 +58,7 @@ const activateSubscriptionInDB = async (
         const result = await Referral.findOne({
             referredUser: userId
         })
-        if (result) {
+        if (result && !result.completed) {
             console.log("🚀 Processing referral for user: existing", userId);
             await PointTransaction.create({
                 user: userId,
@@ -89,7 +89,10 @@ const activateSubscriptionInDB = async (
                 { new: true }
             );
 
-            sendNotification({ userIds: [result.referrer.toString(), userId.toString()], title: "Referral points", body: "You have earned 10 points for using referral code", type: NotificationType.REFERRAL });
+            await sendNotification({ userIds: [result.referrer.toString()], title: "Referral points", body: "You have earned 10 points for referring a new user", type: NotificationType.REFERRAL });
+            await sendNotification({ userIds: [userId.toString()], title: "Referral points", body: "You have earned 10 points for using referral code", type: NotificationType.REFERRAL });
+            result.completed = true;
+            await result.save();
         }
         return existingSub;
     }
@@ -118,7 +121,7 @@ const activateSubscriptionInDB = async (
     const result = await Referral.findOne({
         referredUser: userId
     })
-    if (result) {
+    if (result && !result.completed) {
         console.log("🚀 Processing referral for user: new", userId);
         await PointTransaction.create({
             user: userId,
@@ -149,12 +152,15 @@ const activateSubscriptionInDB = async (
             { new: true }
         );
 
-        sendNotification({ userIds: [result.referrer.toString(), userId.toString()], title: "Referral points", body: "You have earned 10 points for using referral code", type: NotificationType.REFERRAL });
+        await sendNotification({ userIds: [result.referrer.toString()], title: "Referral points", body: "You have earned 10 points for referring a new user", type: NotificationType.REFERRAL });
+        await sendNotification({ userIds: [userId.toString()], title: "Referral points", body: "You have earned 10 points for using referral code", type: NotificationType.REFERRAL });
+        result.completed = true;
+        await result.save();
     }
     console.log("✅ User subscription updated in profile");
 
 
-    sendNotification({
+    await sendNotification({
         userIds: [userId.toString()],
         title: "Welcome to the app",
         body: "You have successfully subscribed to our app. We are excited to have you on board!",

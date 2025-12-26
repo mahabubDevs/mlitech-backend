@@ -12,6 +12,8 @@ import { Subscription } from "../subscription/subscription.model";
 import { Package } from "../package/package.model";
 import { sendNotification } from "../../../helpers/notificationsHelper";
 import { NotificationType } from "../notification/notification.model";
+import Referral from "../referral/referral.model";
+import PointTransaction from "../pointTransaction/pointTransaction.model";
 
 const createSalesRepData = async (user: JwtPayload, packageId: string) => {
 
@@ -38,7 +40,7 @@ const createSalesRepData = async (user: JwtPayload, packageId: string) => {
 
   const admins = await User.find({ role: { $in: [USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN] } }).select("_id");
 
-  sendNotification({
+  await sendNotification({
     userIds: admins.map((admin) => admin._id),
     title: "New customer added in sales rep",
     body: "A customer requested to make payment by sales rep.",
@@ -171,6 +173,48 @@ const validateToken = async (userId: string, token: string) => {
     { subscription: SUBSCRIPTION_STATUS.ACTIVE },
     { new: true }
   );
+
+  const referralResult = await Referral.findOne({
+    referredUser: userId
+  })
+  if (referralResult && !referralResult.completed) {
+    console.log("🚀 Processing referral for user: new", userId);
+    await PointTransaction.create({
+      user: userId,
+      type: "EARN",
+      source: "REFERRAL",
+      referral: result._id,
+      points: 10,
+      note: "Referral points",
+    })
+    await PointTransaction.create({
+      user: referralResult.referrer,
+      type: "EARN",
+      source: "REFERRAL",
+      referral: result._id,
+      points: 10,
+      note: "Referral points",
+    })
+
+    await User.findByIdAndUpdate(
+      referralResult.referrer,
+      { $inc: { points: 10 } },
+      { new: true }
+    );
+
+    await User.findByIdAndUpdate(
+      userId,
+      { $inc: { points: 10 } },
+      { new: true }
+    );
+
+    await sendNotification({ userIds: [referralResult.referrer.toString()], title: "Referral points", body: "You have earned 10 points for referring a new user", type: NotificationType.REFERRAL });
+    await sendNotification({ userIds: [userId.toString()], title: "Referral points", body: "You have earned 10 points for using referral code", type: NotificationType.REFERRAL });
+    referralResult.completed = true;
+    await referralResult.save();
+  }
+
+
 };
 
 export const SalesRepService = {

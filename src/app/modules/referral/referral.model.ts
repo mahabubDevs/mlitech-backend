@@ -15,6 +15,10 @@ const referralSchema = new Schema<IReferral>(
             required: true,
             unique: true,
         },
+        completed: {
+            type: Boolean,
+            default: false,
+        }
     },
     { timestamps: true }
 );
