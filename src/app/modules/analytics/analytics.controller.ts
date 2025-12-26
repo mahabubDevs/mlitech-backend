@@ -354,23 +354,45 @@ const exportCustomerMonthlyData = catchAsync(
 
 
 const getPointRedeemedAnalytics = catchAsync(async (req: Request, res: Response) => {
+  const page = req.query.page ? Number(req.query.page) : undefined;
+  const limit = req.query.limit ? Number(req.query.limit) : undefined;
 
-  const result = await AnalyticsService.getPointRedeemedAnalytics(req.query.startDate as string, req.query.endDate as string)
+  const result = await AnalyticsService.getPointRedeemedAnalytics({
+    startDate: req.query.startDate as string,
+    endDate: req.query.endDate as string,
+    page,
+    limit,
+  })
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
     message: "Point redeemed analytics fetched successfully",
-    data: result
+    data: { data: result.data, timeRange: result.timeRange },
+    pagination: result.pagination
   })
 })
+const exportPointRedeemedAnalytics = catchAsync(async (req: Request, res: Response) => {
+  const { startDate, endDate } = req.query;
+  await AnalyticsService.exportPointRedeemedAnalytics(res, startDate as string, endDate as string);
+});
 const getRevenuePerUser = catchAsync(async (req: Request, res: Response) => {
 
-  const result = await AnalyticsService.getRevenuePerUser(req.query.startDate as string, req.query.endDate as string)
+  const page = req.query.page ? Number(req.query.page) : undefined;
+  const limit = req.query.limit ? Number(req.query.limit) : undefined;
+
+  const result = await AnalyticsService.getRevenuePerUser({
+    startDate: req.query.startDate as string,
+    endDate: req.query.endDate as string,
+    page,
+    limit,
+  });
+
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
     message: "Revenue per user analytics fetched successfully",
-    data: result
+    data: { data: result.data, timeRange: result.timeRange },
+    pagination: result.pagination
   })
 })
 const exportRevenuePerUser = catchAsync(async (req: Request, res: Response) => {
@@ -380,14 +402,28 @@ const exportRevenuePerUser = catchAsync(async (req: Request, res: Response) => {
 
 const getCashCollectionAnalytics = catchAsync(async (req: Request, res: Response) => {
 
-  const result = await AnalyticsService.getCashCollectionAnalytics(req.query.startDate as string, req.query.endDate as string)
+  const page = req.query.page ? Number(req.query.page) : undefined;
+  const limit = req.query.limit ? Number(req.query.limit) : undefined;
+
+  const result = await AnalyticsService.getCashCollectionAnalytics({
+    startDate: req.query.startDate as string,
+    endDate: req.query.endDate as string,
+    page,
+    limit,
+  });
+
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
     message: "Cash collection analytics fetched successfully",
-    data: result
+    data: { data: result.data, timeRange: result.timeRange },
+    pagination: result.pagination
   })
 })
+const exportCashCollectionAnalytics = catchAsync(async (req: Request, res: Response) => {
+  const { startDate, endDate } = req.query;
+  await AnalyticsService.exportCashCollectionAnalytics(res, startDate as string, endDate as string);
+});
 
 export const AnalyticsController = {
   getBusinessCustomerAnalytics,
@@ -400,7 +436,9 @@ export const AnalyticsController = {
   exportMerchantMonthlyAnalytics,
   exportCustomerMonthlyData,
   getPointRedeemedAnalytics,
+  exportPointRedeemedAnalytics,
   getRevenuePerUser,
   exportRevenuePerUser,
-  getCashCollectionAnalytics
+  getCashCollectionAnalytics,
+  exportCashCollectionAnalytics
 };

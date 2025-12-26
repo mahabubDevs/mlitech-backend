@@ -6,6 +6,7 @@ import PointTransaction from "../pointTransaction/pointTransaction.model";
 import { Subscription } from "../subscription/subscription.model";
 import { Response } from "express";
 import { SalesRep } from "../salesRep/salesRep.model";
+import { AnalyticsQueryOptions } from "./analytics.interface";
 
 const monthNames = [
   "Jan",
@@ -972,27 +973,25 @@ const getMerchantAnalyticsMonthly = async (
 };
 
 
-const getPointRedeemedAnalytics = async (
-  startDate?: string,
-  endDate?: string
-) => {
+const getPointRedeemedAnalytics = async ({
+  startDate,
+  endDate,
+  page = 1,
+  limit = 10,
+  forExport = false,
+}: AnalyticsQueryOptions) => {
   const matchStage: Record<string, any> = {
     type: "REDEEM",
   };
 
   if (startDate || endDate) {
     matchStage.createdAt = {};
-
-    if (startDate) {
-      matchStage.createdAt.$gte = new Date(startDate);
-    }
-
-    if (endDate) {
-      matchStage.createdAt.$lte = new Date(endDate);
-    }
+    if (startDate) matchStage.createdAt.$gte = new Date(startDate);
+    if (endDate) matchStage.createdAt.$lte = new Date(endDate);
   }
 
-  const result = await PointTransaction.aggregate([
+  // Base aggregation
+  const aggregationPipeline: any[] = [
     { $match: matchStage },
 
     {
@@ -1003,13 +1002,13 @@ const getPointRedeemedAnalytics = async (
         as: "user",
       },
     },
-
     { $unwind: "$user" },
 
     {
       $group: {
         _id: "$user._id",
         customerId: { $first: "$user.customUserId" },
+        customerName: { $first: "$user.firstName" },
         totalPointsRedeemed: { $sum: "$points" },
         redemptionCount: { $sum: 1 },
       },
@@ -1019,19 +1018,104 @@ const getPointRedeemedAnalytics = async (
       $project: {
         _id: 0,
         customerId: 1,
+        customerName: 1,
         totalPointsRedeemed: 1,
         redemptionCount: 1,
       },
     },
-  ]);
 
-  return result;
+    { $sort: { totalPointsRedeemed: -1 } },
+  ];
+
+  let totalCount: number | undefined;
+
+  // Pagination only if not exporting
+  if (!forExport) {
+    const totalCountAgg = await PointTransaction.aggregate([
+      { $match: matchStage },
+      {
+        $lookup: {
+          from: "users",
+          localField: "user",
+          foreignField: "_id",
+          as: "user",
+        },
+      },
+      { $unwind: "$user" },
+      { $group: { _id: "$user._id" } },
+      { $count: "total" },
+    ]);
+    totalCount = totalCountAgg[0]?.total || 0;
+
+    const skip = (page - 1) * limit;
+    aggregationPipeline.push({ $skip: skip }, { $limit: limit });
+  }
+
+  const result = await PointTransaction.aggregate(aggregationPipeline);
+
+  const pagination = !forExport && totalCount !== undefined
+    ? {
+      total: totalCount,
+      limit,
+      page,
+      totalPage: Math.ceil(totalCount / limit),
+    }
+    : undefined;
+
+  return {
+    timeRange: {
+      startDate: startDate ? new Date(startDate) : null,
+      endDate: endDate ? new Date(endDate) : null,
+    },
+    data: result,
+    pagination,
+  };
 };
 
-const getRevenuePerUser = async (
-  startDate?: string,
-  endDate?: string
-) => {
+const exportPointRedeemedAnalytics = async (res: Response, startDate?: string, endDate?: string) => {
+  const { data } = await getPointRedeemedAnalytics({ startDate, endDate, forExport: true });
+
+  const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({ stream: res });
+  const sheet = workbook.addWorksheet("Point Redeemed");
+
+  sheet.columns = [
+    { header: "Customer ID", key: "customerId", width: 25 },
+    { header: "Customer Name", key: "customerName", width: 25 },
+    { header: "Total Points Redeemed", key: "totalPointsRedeemed", width: 20 },
+    { header: "Redemption Count", key: "redemptionCount", width: 20 },
+  ];
+
+  data.forEach(row => sheet.addRow(row));
+
+  sheet.addRow({}).commit();
+  sheet.addRow({
+    customUserId: "TOTAL",
+    totalPointsRedeemed: data.reduce((a, b) => a + b.totalPointsRedeemed, 0),
+    redemptionCount: data.reduce((a, b) => a + b.redemptionCount, 0),
+  }).commit();
+
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  );
+  res.setHeader(
+    "Content-Disposition",
+    "attachment; filename=point-redeemed.xlsx"
+  );
+
+  await sheet.commit();
+  await workbook.commit();
+};
+
+
+
+const getRevenuePerUser = async ({
+  startDate,
+  endDate,
+  page = 1,
+  limit = 10,
+  forExport = false,
+}: AnalyticsQueryOptions) => {
   const matchStage: Record<string, any> = {
     price: { $gt: 0 },
     trxId: { $exists: true },
@@ -1040,17 +1124,12 @@ const getRevenuePerUser = async (
 
   if (startDate || endDate) {
     matchStage.createdAt = {};
-
-    if (startDate) {
-      matchStage.createdAt.$gte = new Date(startDate);
-    }
-
-    if (endDate) {
-      matchStage.createdAt.$lte = new Date(endDate);
-    }
+    if (startDate) matchStage.createdAt.$gte = new Date(startDate);
+    if (endDate) matchStage.createdAt.$lte = new Date(endDate);
   }
 
-  const data = await Subscription.aggregate([
+  // Build aggregation pipeline
+  const aggregationPipeline: any[] = [
     { $match: matchStage },
 
     {
@@ -1066,23 +1145,65 @@ const getRevenuePerUser = async (
     {
       $group: {
         _id: "$user._id",
-        customUserId: { $first: "$user.customUserId" },
+        customerId: { $first: "$user.customUserId" },
+        customerName: { $first: "$user.firstName" },
         totalTransactions: { $sum: 1 },
         totalRevenue: { $sum: "$price" },
+        firstTransaction: { $min: "$createdAt" },
+        lastTransaction: { $max: "$createdAt" },
       },
     },
 
     {
       $project: {
         _id: 0,
-        customUserId: 1,
+        customerId: 1,
+        customerName: 1,
         totalTransactions: 1,
         totalRevenue: 1,
+        firstTransaction: 1,
+        lastTransaction: 1,
       },
     },
 
     { $sort: { totalRevenue: -1 } },
-  ]);
+  ];
+
+  let totalCount: number | undefined;
+
+  // Apply pagination only if not exporting
+  if (!forExport) {
+    // Count unique users after grouping
+    const totalCountAgg = await Subscription.aggregate([
+      { $match: matchStage },
+      {
+        $lookup: {
+          from: "users",
+          localField: "user",
+          foreignField: "_id",
+          as: "user",
+        },
+      },
+      { $unwind: "$user" },
+      { $group: { _id: "$user._id" } },
+      { $count: "total" },
+    ]);
+    totalCount = totalCountAgg[0]?.total || 0;
+
+    const skip = (page - 1) * limit;
+    aggregationPipeline.push({ $skip: skip }, { $limit: limit });
+  }
+
+  const data = await Subscription.aggregate(aggregationPipeline);
+
+  const pagination = !forExport && totalCount !== undefined
+    ? {
+      total: totalCount,
+      limit,
+      page,
+      totalPage: Math.ceil(totalCount / limit),
+    }
+    : undefined;
 
   return {
     timeRange: {
@@ -1090,34 +1211,43 @@ const getRevenuePerUser = async (
       endDate: endDate ? new Date(endDate) : null,
     },
     data,
+    pagination,
   };
 };
+
+
 
 const exportRevenuePerUser = async (
   res: Response,
   startDate?: string,
   endDate?: string
 ) => {
-  const { data } = await getRevenuePerUser(startDate, endDate);
+  const { data } = await getRevenuePerUser({ startDate, endDate, forExport: true });
 
-  const workbook = new ExcelJS.Workbook();
+  const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({ stream: res });
   const sheet = workbook.addWorksheet("Customer Revenue");
 
   sheet.columns = [
-    { header: "Customer ID", key: "customUserId", width: 25 },
-    { header: "Total Transactions", key: "totalTransactions", width: 22 },
+    { header: "Customer ID", key: "customerId", width: 25 },
+    { header: "Customer Name", key: "customerName", width: 25 },
+    { header: "Total Transactions", key: "totalTransactions", width: 20 },
     { header: "Total Revenue", key: "totalRevenue", width: 20 },
+    // { header: "First Transaction", key: "firstTransaction", width: 25 },
+    // { header: "Last Transaction", key: "lastTransaction", width: 25 },
   ];
 
-  data.forEach(row => sheet.addRow(row));
+  data.forEach(row => sheet.addRow({
+    ...row,
+    firstTransaction: row.firstTransaction.toISOString(),
+    lastTransaction: row.lastTransaction.toISOString(),
+  }).commit());
 
-  // Summary row
-  sheet.addRow({});
+  sheet.addRow({}).commit();
   sheet.addRow({
     customUserId: "TOTAL",
     totalTransactions: data.reduce((a, b) => a + b.totalTransactions, 0),
     totalRevenue: data.reduce((a, b) => a + b.totalRevenue, 0),
-  });
+  }).commit();
 
   res.setHeader(
     "Content-Type",
@@ -1128,31 +1258,28 @@ const exportRevenuePerUser = async (
     "attachment; filename=customer-revenue.xlsx"
   );
 
-  await workbook.xlsx.write(res);
-  res.end();
+  await sheet.commit();
+  await workbook.commit();
 };
 
-const getCashCollectionAnalytics = async (
-  startDate?: string,
-  endDate?: string
-) => {
+const getCashCollectionAnalytics = async ({
+  startDate,
+  endDate,
+  page = 1,
+  limit = 10,
+  forExport = false,
+}: AnalyticsQueryOptions) => {
   const matchStage: Record<string, any> = {
     paymentStatus: "paid",
   };
 
   if (startDate || endDate) {
     matchStage.createdAt = {};
-
-    if (startDate) {
-      matchStage.createdAt.$gte = new Date(startDate);
-    }
-
-    if (endDate) {
-      matchStage.createdAt.$lte = new Date(endDate);
-    }
+    if (startDate) matchStage.createdAt.$gte = new Date(startDate);
+    if (endDate) matchStage.createdAt.$lte = new Date(endDate);
   }
 
-  const data = await SalesRep.aggregate([
+  const aggregationPipeline: any[] = [
     { $match: matchStage },
 
     {
@@ -1168,7 +1295,7 @@ const getCashCollectionAnalytics = async (
     {
       $group: {
         _id: "$customer._id",
-        customUserId: { $first: "$customer.customUserId" },
+        customerId: { $first: "$customer.customUserId" },
         salesRep: { $first: "$adminName" },
         totalTransactions: { $sum: 1 },
         totalReceived: { $sum: "$price" },
@@ -1178,7 +1305,7 @@ const getCashCollectionAnalytics = async (
     {
       $project: {
         _id: 0,
-        customUserId: 1,
+        customerId: 1,
         salesRep: 1,
         totalTransactions: 1,
         totalReceived: 1,
@@ -1186,7 +1313,42 @@ const getCashCollectionAnalytics = async (
     },
 
     { $sort: { totalReceived: -1 } },
-  ]);
+  ];
+
+  let totalCount: number | undefined;
+
+  if (!forExport) {
+    // Count unique customers after grouping
+    const totalCountAgg = await SalesRep.aggregate([
+      { $match: matchStage },
+      {
+        $lookup: {
+          from: "users",
+          localField: "customerId",
+          foreignField: "_id",
+          as: "customer",
+        },
+      },
+      { $unwind: "$customer" },
+      { $group: { _id: "$customer._id" } },
+      { $count: "total" },
+    ]);
+    totalCount = totalCountAgg[0]?.total || 0;
+
+    const skip = (page - 1) * limit;
+    aggregationPipeline.push({ $skip: skip }, { $limit: limit });
+  }
+
+  const data = await SalesRep.aggregate(aggregationPipeline);
+
+  const pagination = !forExport && totalCount !== undefined
+    ? {
+      total: totalCount,
+      limit,
+      page,
+      totalPage: Math.ceil(totalCount / limit),
+    }
+    : undefined;
 
   return {
     timeRange: {
@@ -1194,7 +1356,56 @@ const getCashCollectionAnalytics = async (
       endDate: endDate ? new Date(endDate) : null,
     },
     data,
+    pagination,
   };
+};
+
+
+const exportCashCollectionAnalytics = async (
+  res: Response,
+  startDate?: string,
+  endDate?: string
+) => {
+  const { data } = await getCashCollectionAnalytics({ startDate, endDate, forExport: true });
+
+
+  const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({ stream: res });
+  const sheet = workbook.addWorksheet("Cash Collection");
+
+  sheet.columns = [
+    { header: "Customer ID", key: "customerId", width: 25 },
+    { header: "Sales Rep", key: "salesRep", width: 25 },
+    { header: "Total Transactions", key: "totalTransactions", width: 22 },
+    { header: "Total Received", key: "totalReceived", width: 20 },
+  ];
+
+  data.forEach(row => sheet.addRow(row));
+
+  // Summary row
+  sheet.addRow({});
+  sheet.addRow({
+    customUserId: "TOTAL",
+    totalTransactions: data.reduce(
+      (sum, row) => sum + row.totalTransactions,
+      0
+    ),
+    totalReceived: data.reduce(
+      (sum, row) => sum + row.totalReceived,
+      0
+    ),
+  });
+
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  );
+  res.setHeader(
+    "Content-Disposition",
+    "attachment; filename=cash-collection.xlsx"
+  );
+
+  await sheet.commit();
+  await workbook.commit();
 };
 
 export const AnalyticsService = {
@@ -1206,7 +1417,9 @@ export const AnalyticsService = {
   exportBusinessCustomerAnalytics,
   getMerchantAnalyticsMonthly,
   getPointRedeemedAnalytics,
+  exportPointRedeemedAnalytics,
   getRevenuePerUser,
   exportRevenuePerUser,
-  getCashCollectionAnalytics
+  getCashCollectionAnalytics,
+  exportCashCollectionAnalytics
 };
