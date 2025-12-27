@@ -14,22 +14,15 @@ import { createUniqueReferralId } from "../../../util/generateRefferalId";
 import QueryBuilder from "../../../util/queryBuilder";
 
 
-const ALLOWED_CREATOR_ROLES = [
-  USER_ROLES.USER,         // CUSTOMER
-  USER_ROLES.ADMIN_SELL, // VIEW MERCHANT
-  USER_ROLES.ADMIN,        // ADMIN
-  USER_ROLES.ADMIN_REP     // ADMIN_REP
-];
+
 
 // create user
-const createUserToDB = async (
-  payload: IUser,
-  creator?: any // logged-in user (merchant or admin)
-) => {
+const createUserToDB = async (payload: IUser, creator?: any) => {
   if (!payload.email) throw new ApiError(400, "Email is required");
   if (!payload.phone) throw new ApiError(400, "Phone number is required");
   if (!payload.password) throw new ApiError(400, "Password is required");
 
+  // ✅ Email / phone check
   const isEmailExist = await User.isExistUserByEmail(payload.email);
   if (isEmailExist) throw new ApiError(400, "Email already exists");
 
@@ -43,8 +36,7 @@ const createUserToDB = async (
     USER_ROLES.ADMIN_REP
   ];
 
-  // 🔐 Role validation
-  let role = USER_ROLES.USER; // default CUSTOMER
+  let role = USER_ROLES.USER;
   if (payload.role) {
     if (!ALLOWED_CREATOR_ROLES.includes(payload.role as USER_ROLES)) {
       throw new ApiError(400, "User can only be created with allowed roles");
@@ -58,7 +50,7 @@ const createUserToDB = async (
   const userData = {
     ...payload,
     role,
-    merchantId: creator?.role?.startsWith("MERCHANT") ? creator.id : null,
+    // merchantId: creator?.role?.startsWith("MERCHANT") ? creator._id : null, // ✅ ObjectId pass
     customUserId,
     referenceId,
     verified: true,
@@ -67,6 +59,7 @@ const createUserToDB = async (
   const result = await User.create(userData);
   return result;
 };
+
 
 
 

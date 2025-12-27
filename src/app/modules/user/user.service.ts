@@ -15,7 +15,7 @@ import { Subscription } from "../subscription/subscription.model";
 import { IPackage } from "../shopAuraSubscription/aurashop.interface";
 
 import { createUniqueReferralId } from "../../../util/generateRefferalId";
-import { sendOtp } from "../../../config/veevoTechOtp";
+import { sendOtp } from "../../../config/m3sms";
 import { generateCustomUserId } from "./user.utils";
 import Referral from "../referral/referral.model";
 
@@ -90,6 +90,7 @@ const createUserToDB = async (payload: CreateUserPayload): Promise<IUser> => {
 
   let referredInfo;
   if (payload?.referredId) {
+    console.log("**********************Referred ID found:", payload.referredId);
     const referrer = await User.findOne({ referenceId: payload.referredId });
     if (!referrer) {
       throw new ApiError(StatusCodes.BAD_REQUEST, "Referred Id Invalied!");

@@ -53,9 +53,9 @@ const loginUserFromDB = async (payload: ILoginData) => {
   }
 
 
-  if (user.role === USER_ROLES.USER && user.subscription !== SUBSCRIPTION_STATUS.ACTIVE) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, "You are not subscribed");
-  }
+  // if (user.role === USER_ROLES.USER && user.subscription !== SUBSCRIPTION_STATUS.ACTIVE) {
+  //   throw new ApiError(StatusCodes.BAD_REQUEST, "You are not subscribed");
+  // }
   // 4️⃣ Status check
   switch (user.status) {
     case USER_STATUS.ACTIVE:
@@ -79,6 +79,7 @@ const loginUserFromDB = async (payload: ILoginData) => {
         refreshToken,
         user: {
           pages: user.pages || [],
+           subscription: user.subscription,
         }
       };
 

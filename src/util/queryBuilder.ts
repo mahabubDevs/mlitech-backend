@@ -51,12 +51,13 @@ filter() {
 
  
   //sorting
-  sort() {
-    let sort = (this?.query?.sort as string) || '-createdAt';
-    this.modelQuery = this.modelQuery.sort(sort);
- 
-    return this;
-  }
+ sort() {
+
+  let sortField = (this?.query?.sort as string) || '-timestamp -createdAt';
+  this.modelQuery = this.modelQuery.sort(sortField);
+
+  return this;
+}
  
   //pagination
   paginate() {

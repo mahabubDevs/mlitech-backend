@@ -9,18 +9,20 @@ import sendResponse from "../../../../shared/sendResponse";
 
 const addFavorite = catchAsync(async (req: Request, res: Response) => {
   const user = req.user as IUser;
-  console.log("User in addFavorite:", user);
   const { merchantId } = req.body;
 
-  const result = await FavoriteService.addFavorite(user._id?.toString() || "", merchantId);
+  const result = await FavoriteService.toggleFavorite(user._id?.toString() || "", merchantId);
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
-    message: "Merchant added to favorites",
+    message: result.isFavorite 
+      ? "Merchant added to favorites" 
+      : "Merchant removed from favorites",
     data: result,
   });
 });
+
 
 const getFavorites = catchAsync(async (req: Request, res: Response) => {
   const user = req.user as IUser;

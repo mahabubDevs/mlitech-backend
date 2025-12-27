@@ -68,6 +68,8 @@ const checkout = catchAsync(async (req: Request, res: Response) => {
 });
 
 
+
+
 const requestApproval = catchAsync(async (req: Request, res: Response) => {
   const {
     digitalCardCode,
@@ -85,6 +87,16 @@ const requestApproval = catchAsync(async (req: Request, res: Response) => {
     });
   }
 
+  // ✅ Negative value check
+  if (totalBill < 0 || pointRedeemed < 0) {
+    return sendResponse(res, {
+      statusCode: StatusCodes.BAD_REQUEST,
+      success: false,
+      message: "totalBill and pointRedeemed cannot be negative",
+    });
+  }
+
+  // Updated: Pass both digitalCardCode and promotionId
   const result = await SellService.requestApproval({
     merchantId: merchant._id.toString(),
     digitalCardCode,
@@ -100,6 +112,7 @@ const requestApproval = catchAsync(async (req: Request, res: Response) => {
     data: result,
   });
 });
+
 
 // User → Get Pending Requests
 const getPendingRequests = catchAsync(async (req: Request, res: Response) => {
@@ -346,12 +359,9 @@ const getMerchantSales = async (req: Request, res: Response) => {
 
 
 
-const getMerchantCustomersList = async (
-  req: Request,
-  res: Response
-) => {
+const getMerchantCustomersList = async (req: Request, res: Response) => {
   try {
-    // 🔐 merchant from logged-in user
+    // 🔐 logged-in merchant
     const merchant = req.user as { _id: string; role?: string };
 
     if (!merchant?._id || !Types.ObjectId.isValid(merchant._id)) {
@@ -363,10 +373,10 @@ const getMerchantCustomersList = async (
 
     const merchantId = merchant._id;
 
-    // 1️⃣ Base query (this merchant only)
-    let query = Sell.find({ merchantId });
+    // 1️⃣ Base query (only completed sales for this merchant)
+    let query = Sell.find({ merchantId, status: "completed" });
 
-    // 2️⃣ Apply query builder
+    // 2️⃣ Apply QueryBuilder before executing
     const qb = new QueryBuilder(query, req.query)
       .filter()
       .search(["userId.firstName", "userId.lastName"])
@@ -391,33 +401,19 @@ const getMerchantCustomersList = async (
     }
 
     // 4️⃣ Collect unique customer userIds
-    const userIds = [
-      ...new Set(
-        sales
-          .map((tx: any) => tx.userId?._id?.toString())
-          .filter(Boolean)
-      ),
-    ];
+    const userIds = [...new Set(sales.map((tx: any) => tx.userId?._id?.toString()).filter(Boolean))];
 
-    // 5️⃣ Fetch ratings (given to this merchant)
-    const ratings = await Rating.find({
-      merchantId,
-      userId: { $in: userIds },
-    })
+    // 5️⃣ Fetch ratings for these users
+    const ratings = await Rating.find({ merchantId, userId: { $in: userIds } })
       .select("userId rating comment")
       .lean();
 
-    // 6️⃣ Build rating map
     const ratingMap: Record<string, { rating: number; comment: string }> = {};
-
     ratings.forEach((r: any) => {
-      ratingMap[r.userId.toString()] = {
-        rating: r.rating,
-        comment: r.comment,
-      };
+      ratingMap[r.userId.toString()] = { rating: r.rating, comment: r.comment };
     });
 
-    // 7️⃣ Customer summary interface
+    // 6️⃣ Aggregate customer data
     interface IUserSummary {
       _id: string;
       name: string;
@@ -443,7 +439,6 @@ const getMerchantCustomersList = async (
 
     const userMap: Record<string, IUserSummary> = {};
 
-    // 8️⃣ Aggregate sales per customer
     sales.forEach((tx: any) => {
       const user = tx.userId;
       if (!user?._id) return;
@@ -468,13 +463,10 @@ const getMerchantCustomersList = async (
           availablePoints: tx.digitalCardId?.availablePoints || 0,
           tier: tx.digitalCardId?.tier || "",
           createdAt: tx.digitalCardId?.createdAt || null,
-          salesRep:
-            tx.merchantId?.businessName ||
-            tx.merchantId?.shopName ||
-            tx.merchantId?.firstName ||
-            "",
+          salesRep: tx.merchantId?.businessName || tx.merchantId?.shopName || tx.merchantId?.firstName || "",
           rating: ratingMap[userId]?.rating,
           ratingComment: ratingMap[userId]?.comment,
+          status: "completed", // ✅ সব status completed
         };
       }
 
@@ -483,14 +475,13 @@ const getMerchantCustomersList = async (
       userMap[userId].totalPointsRedeemed += tx.pointRedeemed || 0;
       userMap[userId].totalBilled += tx.totalBill || 0;
       userMap[userId].finalBilled += tx.discountedBill || 0;
-      userMap[userId].status = tx.status;
 
       if (tx.digitalCardId?.cardCode) {
         userMap[userId].cardIds = tx.digitalCardId.cardCode;
       }
     });
 
-    // 9️⃣ Response
+    // 7️⃣ Response
     return res.status(200).json({
       success: true,
       data: Object.values(userMap),

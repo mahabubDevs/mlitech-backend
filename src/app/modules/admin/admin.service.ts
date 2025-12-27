@@ -8,6 +8,7 @@ import { sendNotification } from "../../../helpers/notificationsHelper";
 import { NotificationType } from "../notification/notification.model";
 import ExcelJS from "exceljs";
 import { Types } from "mongoose";
+import { Favorite } from "../customer/favorite/favorite.model";
 
 
 interface IQuery {
@@ -88,8 +89,8 @@ const getAllCustomers = async (query: Record<string, unknown>) => {
 };
 
 const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
-  const { address, service, radius, ...rest } = query; // lat/lng আর query থেকে বাদ
-  const { location: userLocation } = user; // auth middleware থেকে লগইন ইউজারের location
+  const { address, service, radius, favorite, ...rest } = query;
+  const { location: userLocation, _id: userId } = user;
 
   let baseQuery = User.find({ role: USER_ROLES.MERCENT });
 
@@ -121,12 +122,29 @@ const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
     });
   }
 
-  const [allmerchants, pagination] = await Promise.all([
+  // 3️⃣ Fetch merchants and pagination
+  const [allmerchants, pagination, favorites] = await Promise.all([
     allMerchantsQuery.modelQuery.lean(),
     allMerchantsQuery.getPaginationInfo(),
+    Favorite.find({ userId }).select("merchantId").lean(),
   ]);
 
-  return { allmerchants, pagination };
+  // 4️⃣ Create favorite map
+  const favoriteMap = new Set(favorites.map(f => f.merchantId.toString()));
+
+  // 5️⃣ Mark favorites and apply filter if favorite query exists
+  let merchantsWithFavorite = allmerchants.map(merchant => ({
+    ...merchant,
+    isFavorite: favoriteMap.has((merchant._id as any).toString()),
+  }));
+
+  if (favorite === "true") {
+    merchantsWithFavorite = merchantsWithFavorite.filter(m => m.isFavorite);
+  } else if (favorite === "false") {
+    merchantsWithFavorite = merchantsWithFavorite.filter(m => !m.isFavorite);
+  }
+
+  return { allmerchants: merchantsWithFavorite, pagination };
 };
 
 

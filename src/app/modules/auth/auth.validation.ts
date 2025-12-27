@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z ,AnyZodObject  } from 'zod';
 
 const createVerifyEmailZodSchema = z.object({
     body: z.object({
@@ -32,27 +32,48 @@ const createForgetPasswordZodSchema = z.object({
   })
 });
   
-const createResetPasswordZodSchema = z.object({
-    body: z.object({
-        newPassword: z.string({ required_error: 'Password is required' }),
-        confirmPassword: z.string({
-            required_error: 'Confirm Password is required',
-        })
-    })
-});
-  
-const createChangePasswordZodSchema = z.object({
-    body: z.object({
-        currentPassword: z.string({
-            required_error: 'Current Password is required',
-        }),
-        newPassword: z.string({ required_error: 'New Password is required' }),
-        confirmPassword: z.string({
-            required_error: 'Confirm Password is required',
-        })
-    })
-});
 
+const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
+
+const createResetPasswordZodSchema = z
+  .object({
+    body: z.object({
+      newPassword: z
+        .string({ required_error: 'Password is required' })
+        .regex(
+          passwordRegex,
+          'Password must be at least 8 characters, include uppercase, lowercase, number, and special character'
+        ),
+      confirmPassword: z.string({ required_error: 'Confirm Password is required' }),
+    }),
+  })
+  .refine((data) => data.body.newPassword === data.body.confirmPassword, {
+    message: "New password and confirm password must match",
+    path: ["body", "confirmPassword"],
+  }) as unknown as AnyZodObject;
+  
+const createChangePasswordZodSchema = z
+  .object({
+    body: z.object({
+      currentPassword: z.string({
+        required_error: 'Current Password is required',
+      }),
+      newPassword: z
+        .string({ required_error: 'New Password is required' })
+        .regex(
+          passwordRegex,
+          'Password must be at least 8 characters, include uppercase, lowercase, number, and special character'
+        ),
+      confirmPassword: z.string({
+        required_error: 'Confirm Password is required',
+      }),
+    }),
+  })
+  .refine((data) => data.body.newPassword === data.body.confirmPassword, {
+    message: "New password and confirm password must match",
+    path: ["body", "confirmPassword"],
+  }) as unknown as AnyZodObject;
+ 
 const createVerifyPhoneZodSchema = z.object({
     body: z.object({
         phone: z.string({ required_error: 'Phone number is required' }),

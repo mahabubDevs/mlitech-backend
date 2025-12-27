@@ -10,17 +10,15 @@ import ApiError from "../../../errors/ApiErrors";
 
 // create user
 const createUser = catchAsync(async (req: any, res: any) => {
-  const merchantId = req.user.id; // logged-in merchant
-console.log("🚀 Creating user under merchant:", req.body);
-  const result = await UserService.createUserToDB(
-    req.body,
-    merchantId
-  );
+  const creator = req.user; // logged-in merchant or admin
+  console.log("🚀 Creating user under merchant/admin:", req.body);
+
+  const result = await UserService.createUserToDB(req.body, creator);
 
   await AuditService.createLog(
-    req.user.email,
+    creator.email,
     "CREATE_USER",
-    `Merchant created user: ${result.email}`
+    `User created: ${result.email} by ${creator.email}`
   );
 
   sendResponse(res, {

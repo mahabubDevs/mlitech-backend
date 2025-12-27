@@ -1,17 +1,29 @@
 import { z } from "zod";
 
+// Create Tier Schema
 export const createTierSchema = z.object({
-  name: z.string().min(1, "Tier name is required"),
+  name: z.string().min(1, { message: "Tier name is required" }),
+  
   pointsThreshold: z.coerce
-    .number()
-    .nonnegative("Points threshold must be >= 0"),
-  reward: z.string().min(1, "Reward is required"),
-  accumulationRule: z.number().min(1, "Accumulation rule is required"),
-  redemptionRule: z.number().min(1, "Redemption rule is required"),
+    .number({ invalid_type_error: "Points threshold must be a number" })
+    .nonnegative({ message: "Points threshold must be >= 0" }),
+
+  reward: z.string().min(1, { message: "Reward is required" }),
+
+  accumulationRule: z.coerce
+    .number({ invalid_type_error: "Accumulation rule must be a number" })
+    .min(1, { message: "Accumulation rule must be >= 1" }),
+
+  redemptionRule: z.coerce
+    .number({ invalid_type_error: "Redemption rule must be a number" })
+    .min(1, { message: "Redemption rule must be >= 1" }),
+
   minTotalSpend: z.coerce
-    .number()
-    .nonnegative("Minimum total spend must be >= 0"),
+    .number({ invalid_type_error: "Minimum total spend must be a number" })
+    .nonnegative({ message: "Minimum total spend must be >= 0" }),
+
   isActive: z.coerce.boolean().optional(),
 });
 
+// Update Tier Schema
 export const updateTierSchema = createTierSchema.partial();

@@ -48,5 +48,11 @@ export default {
     apiKey: process.env.VEEVOTECH_API_KEY,
     senderId: process.env.VEEVOTECH_SENDER_ID,
   },
+  m3Sms: {
+    userId: process.env.M3_SMS_USER_ID,
+    password: process.env.M3_SMS_PASSWORD,
+    header: process.env.M3_SMS_HEADER,
+    url: process.env.M3_SMS_URL,
+  },
   frontendUrl: process.env.FRONTEND_URL,
 };

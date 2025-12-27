@@ -288,6 +288,9 @@ import { Rating } from "../../customer/rating/rating.model";
 // -----------------------------
 
 
+
+
+
 const requestApproval = async ({
   merchantId,
   digitalCardCode,
@@ -295,59 +298,64 @@ const requestApproval = async ({
   totalBill = 0,
   pointRedeemed = 0,
 }: RequestApprovalOptions) => {
-  const POINT_EARN_RATE = 100; // 100 currency spent = 1 point
-  const POINT_REDEEM_RATE = 1; // 1 point = 1 currency
+  const POINT_EARN_RATE = 100;
+  const POINT_REDEEM_RATE = 1;
 
-  // 1️⃣ Find Digital Card
-  const digitalCard = await DigitalCard.findOne({
-    merchantId: new Types.ObjectId(merchantId),
-    cardCode: digitalCardCode,
-  });
+  let digitalCard: any = null;
 
-  if (!digitalCard) {
-    throw new Error("Digital Card not found for this merchant");
+  // 1️⃣ If promotionId is given, find promotion first
+  if (promotionId) {
+    const promotion = await Promotion.findById(promotionId);
+    if (!promotion) throw new Error("Promotion not found");
+
+    // Find DigitalCard which has this promotion
+    digitalCard = await DigitalCard.findOne({
+      merchantId,
+      "promotions.promotionId": promotion._id,
+      "promotions.status": { $in: ["pending", "unused"] },
+      "promotions.usedAt": null,
+    });
+
+    if (!digitalCard) throw new Error("Digital Card containing this promotion not found");
+
+  } else if (digitalCardCode) {
+    // 2️⃣ Otherwise, search by digitalCardCode
+    digitalCard = await DigitalCard.findOne({
+      merchantId,
+      cardCode: digitalCardCode,
+    });
+
+    if (!digitalCard) throw new Error("Digital Card not found for this merchant");
+  } else {
+    throw new Error("digitalCardCode or promotionId is required");
   }
 
   let discount = 0;
 
-  // 2️⃣ If promotionId is provided, find promotion in digital card
   if (promotionId) {
     const promo = digitalCard.promotions.find(
-      (p) => p.promotionId?.toString() === promotionId
+      (p: { promotionId?: Types.ObjectId; status?: string; usedAt?: Date }) => p.promotionId?.toString() === promotionId
     );
 
-    if (!promo) {
-      throw new Error("Promotion not found in digital card");
-    }
+    if (!promo) throw new Error("Promotion not found in digital card");
 
-    if (promo.status !== "pending") {
-      throw new Error("Promotion does not require approval");
-    }
+    if (promo.status !== "pending") throw new Error("Promotion does not require approval");
 
-    // 3️⃣ Fetch promotion details
     const selectedPromotion = await Promotion.findById(promotionId);
     discount = selectedPromotion?.discountPercentage || 0;
   }
 
-  // 4️⃣ Apply promotion discount first
   const discountedBill = totalBill - (totalBill * discount) / 100;
-
-  // 5️⃣ Calculate redeemed points discount
   const pointDiscount = pointRedeemed * POINT_REDEEM_RATE;
-
-  // 6️⃣ Calculate final bill
   const finalBill = discountedBill - pointDiscount;
+  const pointsEarned = totalBill / POINT_EARN_RATE;
 
-  // 7️⃣ Calculate points earned
-  const pointsEarned = totalBill / POINT_EARN_RATE; // 100 currency = 1 point
-
-  // 8️⃣ Prepare response data
   const formattedData = {
     merchantId,
     userId: digitalCard.userId,
     digitalCard: digitalCard._id,
     digitalCardCode: digitalCard.cardCode,
-    promotionId, // null if no promotion selected
+    promotionId,
     totalBill: parseFloat(totalBill.toFixed(4)),
     discountedBill,
     pointRedeemed: parseFloat(pointRedeemed.toFixed(4)),
@@ -356,15 +364,15 @@ const requestApproval = async ({
     pointsEarned,
   };
 
-  // 9️⃣ Emit via socket if needed
+  // Emit via socket if needed
   const io = (global as any).io;
   if (io) {
     io.emit(`getApplyRequest::${digitalCard.userId}`, formattedData);
   }
 
-  // 10️⃣ Return simulated response
   return formattedData;
 };
+
 
 
 // -----------------------------
