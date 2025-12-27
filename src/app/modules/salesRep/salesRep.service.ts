@@ -183,7 +183,7 @@ const validateToken = async (userId: string, token: string) => {
       user: userId,
       type: "EARN",
       source: "REFERRAL",
-      referral: result._id,
+      referral: referralResult._id,
       points: 10,
       note: "Referral points",
     })
@@ -191,7 +191,7 @@ const validateToken = async (userId: string, token: string) => {
       user: referralResult.referrer,
       type: "EARN",
       source: "REFERRAL",
-      referral: result._id,
+      referral: referralResult._id,
       points: 10,
       note: "Referral points",
     })
