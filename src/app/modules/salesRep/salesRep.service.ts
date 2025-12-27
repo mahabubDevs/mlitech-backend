@@ -174,6 +174,13 @@ const validateToken = async (userId: string, token: string) => {
     { new: true }
   );
 
+  await sendNotification({
+    userIds: [userId],
+    title: "Welcome to the app",
+    body: "You have successfully subscribed to our app. We are excited to have you on board!",
+    type: NotificationType.WELCOME
+  })
+
   const referralResult = await Referral.findOne({
     referredUser: userId
   })
