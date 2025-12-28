@@ -183,6 +183,13 @@ const validateToken = async (userId: string, token: string) => {
   })
   if (referralResult && !referralResult.completed) {
     console.log("🚀 Processing referral for user: new", userId);
+    const referredUser = await User.findById(userId).select("firstName lastName");
+    const referrerUser = await User.findById(referralResult.referrer).select("firstName lastName");
+
+    const referredUserName = `${referredUser?.firstName || ""} ${referredUser?.lastName || ""}`.trim();
+    const referrerUserName = `${referrerUser?.firstName || ""} ${referrerUser?.lastName || ""}`.trim();
+
+    // Create point transactions
     await PointTransaction.create({
       user: userId,
       type: "EARN",
@@ -190,7 +197,7 @@ const validateToken = async (userId: string, token: string) => {
       referral: referralResult._id,
       points: 10,
       note: "Referral points",
-    })
+    });
     await PointTransaction.create({
       user: referralResult.referrer,
       type: "EARN",
@@ -198,22 +205,26 @@ const validateToken = async (userId: string, token: string) => {
       referral: referralResult._id,
       points: 10,
       note: "Referral points",
-    })
+    });
 
-    await User.findByIdAndUpdate(
-      referralResult.referrer,
-      { $inc: { points: 10 } },
-      { new: true }
-    );
+    // Update points
+    await User.findByIdAndUpdate(referralResult.referrer, { $inc: { points: 10 } }, { new: true });
+    await User.findByIdAndUpdate(userId, { $inc: { points: 10 } }, { new: true });
 
-    await User.findByIdAndUpdate(
-      userId,
-      { $inc: { points: 10 } },
-      { new: true }
-    );
+    // Send notifications with names
+    await sendNotification({
+      userIds: [referralResult.referrer.toString()],
+      title: "Referral points",
+      body: `You have earned 10 points for referring ${referredUserName}`,
+      type: NotificationType.REFERRAL,
+    });
+    await sendNotification({
+      userIds: [userId.toString()],
+      title: "Referral points",
+      body: `You have earned 10 points for being referred by ${referrerUserName}`,
+      type: NotificationType.REFERRAL,
+    });
 
-    await sendNotification({ userIds: [referralResult.referrer.toString()], title: "Referral points", body: "You have earned 10 points for referring a new user", type: NotificationType.REFERRAL });
-    await sendNotification({ userIds: [userId.toString()], title: "Referral points", body: "You have earned 10 points for using referral code", type: NotificationType.REFERRAL });
     referralResult.completed = true;
     await referralResult.save();
   }
