@@ -1,5 +1,6 @@
 import mongoose, { Types } from "mongoose";
 import { RecentViewedPromotion } from "./recentViewedPromotion.model";
+import { DigitalCard } from "../customer/digitalCard/digitalCard.model";
 
 const LIMIT = 10;
 
@@ -49,8 +50,27 @@ const getRecentViewedFromDB = async (userId: mongoose.Types.ObjectId) => {
     })
     .lean();
 
-  return record?.items || [];
+  if (!record?.items?.length) return [];
+
+  // 🔹 Get added promotions from digital card
+  const digitalCard = await DigitalCard.findOne(
+    { userId },
+    { "promotions.promotionId": 1 }
+  ).lean();
+
+  const addedPromotionIds = new Set(
+    digitalCard?.promotions?.map(p =>
+      p.promotionId!.toString()
+    ) || []
+  );
+
+  // 🔹 Attach flag per promotion
+  return record.items.map((promotion: any) => ({
+    ...promotion,
+    isPromotionAdded: addedPromotionIds.has(promotion._id.toString()),
+  }));
 };
+
 
 export const RecentViewedPromotionService = {
   addRecentViewedToDB,
