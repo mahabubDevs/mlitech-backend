@@ -5,6 +5,7 @@ import QueryBuilder from "../../../util/queryBuilder";
 import { firebaseHelper } from "../../../helpers/firebaseHelper";
 import { User } from "../user/user.model";
 import admin from "../../../config/firebase";
+import { DigitalCard } from "../customer/digitalCard/digitalCard.model";
 
 
 // Send push (existing)
@@ -114,6 +115,127 @@ const sendNotificationToAllUsers = async (
 
 
 
+const sendMerchantPromotion = async (payload: any, merchantId: string) => {
+  const { message, image, target, filters } = payload;
+
+  console.log("📌 Merchant ID:", merchantId);
+  console.log("📌 Payload received:", payload);
+
+  const cards = await DigitalCard.find({ merchantId })
+    .populate("userId", "fcmToken location totalPurchases totalSpend purchases")
+    .select("userId availablePoints")
+    .lean();
+
+  console.log(`📌 Customers fetched from DB: ${cards.length}`);
+
+  const tokens = cards
+    .filter((c: any) => {
+      const user = c.userId;
+      if (!user?.fcmToken) return false;
+
+      // Points filter
+      if (target?.type === "points" && filters?.minPoints !== undefined) {
+        if ((c.availablePoints ?? 0) < filters.minPoints) {
+          console.log(`❌ User ${user._id} skipped due to points: ${c.availablePoints}`);
+          return false;
+        }
+      }
+
+      // Segment check
+      let segment = "all_customer";
+      const totalPurchases = user.totalPurchases || 0;
+      const purchases = user.purchases || [];
+      const last6MonthsPurchases = purchases.filter(
+        (p: any) =>
+          new Date(p.createdAt) >= new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000)
+      );
+      const totalSpend = user.totalSpend || 0;
+      const avgSpend = 1000;
+
+      if (
+        totalPurchases === 0 ||
+        (totalPurchases === 1 &&
+          purchases[0]?.createdAt > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
+      ) {
+        segment = "new_customer";
+      } else if (totalPurchases >= 2 && last6MonthsPurchases.length < 5) {
+        segment = "returning_customer";
+      } else if (last6MonthsPurchases.length >= 5 || totalSpend >= 1.5 * avgSpend) {
+        segment = "loyal_customer";
+      } else if (last6MonthsPurchases.length >= 20 || totalSpend >= 3 * avgSpend) {
+        segment = "vip_customer";
+      }
+
+      // ✅ Fix: allow all_customer to include everyone
+      if (filters?.segment && filters.segment !== "all_customer" && filters.segment !== segment) {
+        console.log(`❌ User ${user._id} skipped due to segment mismatch: ${segment}`);
+        return false;
+      }
+
+      // Radius filter
+      if (filters?.radius && filters.merchantLocation && user.location?.coordinates) {
+        const [userLng, userLat] = user.location.coordinates;
+        const [merchLng, merchLat] = filters.merchantLocation.coordinates;
+        const distance = getDistanceFromLatLonInKm(userLat, userLng, merchLat, merchLng);
+        if (distance > filters.radius) {
+          console.log(`❌ User ${user._id} skipped due to radius: ${distance.toFixed(2)} km`);
+          return false;
+        }
+        console.log(`✅ User ${user._id} within radius: ${distance.toFixed(2)} km`);
+      }
+
+      return true;
+    })
+    .map((c: any) => c.userId.fcmToken)
+    .filter((t: string | undefined): t is string => !!t);
+
+  console.log("📌 Final tokens to send:", tokens.length);
+
+  if (tokens.length === 0) {
+    return { sentCount: 0, failedCount: 0, message: "No customers matched" };
+  }
+
+  const firebaseMessage = {
+    notification: { title: "Promotion", body: message, image },
+    data: { type: "promotion", merchantId: merchantId.toString() },
+    tokens,
+  };
+
+  const response = await admin.messaging().sendEachForMulticast(firebaseMessage);
+
+  await Push.create({
+    title: "Promotion",
+    body: message,
+    state: "PROMOTION",
+    createdBy: merchantId,
+    sentCount: response.successCount,
+    failedCount: response.failureCount,
+  });
+
+  return { sentCount: response.successCount, failedCount: response.failureCount };
+};
+
+// Helper functions
+function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371;
+  const dLat = deg2rad(lat2 - lat1);
+  const dLon = deg2rad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(deg2rad(lat1)) *
+      Math.cos(deg2rad(lat2)) *
+      Math.sin(dLon / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function deg2rad(deg: number) {
+  return deg * (Math.PI / 180);
+}
+
+
+
+
 // Get all push notifications (Admin)
 // const getAllPushesFromDB = async (query: any) => {
 //   let baseQuery = Push.find({});
@@ -127,5 +249,6 @@ const sendNotificationToAllUsers = async (
 
 export const PushService = {
   sendNotificationToAllUsers,
+  sendMerchantPromotion
   // getAllPushesFromDB,
 };
