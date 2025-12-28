@@ -27,10 +27,7 @@ const createSalesRepData = async (user: JwtPayload, packageId: string) => {
   });
 
   if (existingSalesRep) {
-    throw new ApiError(
-      StatusCodes.BAD_REQUEST,
-      "Sales representative already created within last 7 days"
-    );
+    return null;
   }
 
   await SalesRep.create({
