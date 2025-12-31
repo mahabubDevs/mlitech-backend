@@ -58,7 +58,11 @@ router.get(
   mercentSellManagementController.getMerchantCustomersList
 );
 
-
+router.get(
+  "/customer/export",
+  auth(USER_ROLES.MERCENT, USER_ROLES.VIEW_MERCENT, USER_ROLES.USER),
+  mercentSellManagementController.exportMerchantCustomersExcel
+);
 // router.post(
 //   "/finalize-checkout",
 //   auth(USER_ROLES.MERCENT),

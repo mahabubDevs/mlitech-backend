@@ -170,10 +170,6 @@ const checkout = async (
   });
   if (!digitalCard) throw new Error("Digital Card not found");
 
-  console.log("💠 Digital Card Found:", digitalCard._id.toString());
-  console.log("💠 Available Points Before:", digitalCard.availablePoints);
-  console.log("💠 Lifetime Points Before:", digitalCard.lifeTimeEarnPoints);
-  console.log("💠 Current Tier:", digitalCard.tier);
 
   let discount = 0;
   let selectedPromotion: any = null;
@@ -214,12 +210,19 @@ const checkout = async (
 
   // 5️⃣ Determine current tier
   const applicableTier = tiers.filter(t => t.pointsThreshold <= (digitalCard.lifeTimeEarnPoints || 0)).pop();
-  const redeemMultiplier = applicableTier?.redemptionRule || 1;
-  const earnMultiplier = applicableTier?.accumulationRule || 1;
 
-  console.log("💠 Applicable Tier:", applicableTier?.name || "None");
-  console.log("💠 Redeem Multiplier:", redeemMultiplier);
-  console.log("💠 Earn Multiplier:", earnMultiplier);
+  //check if tier exists 
+  const hashTier = !!applicableTier;
+  
+ //Tier % values
+
+ const earnMultiplier = hashTier ? applicableTier.redemptionRule : 0;
+ const redeemMultiplier = hashTier ? applicableTier.accumulationRule : 0;
+
+  // const redeemMultiplier = applicableTier?.redemptionRule || 1;
+  // const earnMultiplier = applicableTier?.accumulationRule || 1;
+
+
 
   // 6️⃣ Validate redeem points
   if (pointRedeemed > (digitalCard.availablePoints || 0)) {
@@ -227,20 +230,48 @@ const checkout = async (
   }
 
   // 7️⃣ Point discount & points earned
-  const pointDiscount = parseFloat((pointRedeemed * POINT_REDEEM_RATE * redeemMultiplier).toFixed(4));
-  const pointsEarned = parseFloat(((discountedBill / POINT_EARN_RATE) * earnMultiplier).toFixed(4));
 
-  console.log("💠 Points Redeemed:", pointRedeemed);
-  console.log("💠 Point Discount:", pointDiscount);
-  console.log("💠 Points Earned:", pointsEarned);
+  const basePoints = discountedBill / POINT_EARN_RATE;
+  const baseDiscount = pointRedeemed * POINT_REDEEM_RATE;
+
+
+  // const pointDiscount = parseFloat((pointRedeemed * POINT_REDEEM_RATE * redeemMultiplier).toFixed(4));
+  // const pointsEarned = parseFloat(((discountedBill / POINT_EARN_RATE) * earnMultiplier).toFixed(4));
+
+
+  // apply tier % if applicable 
+  const pointsEarned = parseFloat(
+    (hashTier ? basePoints * (1+ earnMultiplier/100) : basePoints).toFixed(4)
+  )
+
+  const pointDiscount = parseFloat(
+    (hashTier ? baseDiscount * (1 + redeemMultiplier/100) : baseDiscount).toFixed(4)
+  );
+
 
   // 8️⃣ Update digital card
-  digitalCard.availablePoints = parseFloat(
-    ((digitalCard.availablePoints || 0) + pointsEarned - pointRedeemed).toFixed(4)
+  // digitalCard.availablePoints = parseFloat(
+  //   ((digitalCard.availablePoints || 0) + pointsEarned - pointRedeemed).toFixed(4)
+  // );
+  // digitalCard.lifeTimeEarnPoints = parseFloat(
+  //   ((digitalCard.lifeTimeEarnPoints || 0) + pointsEarned).toFixed(4)
+  // );
+
+    digitalCard.availablePoints = parseFloat(
+    (
+      (digitalCard.availablePoints || 0) +
+      pointsEarned -
+      pointRedeemed
+    ).toFixed(4)
   );
-  digitalCard.lifeTimeEarnPoints = parseFloat(
-    ((digitalCard.lifeTimeEarnPoints || 0) + pointsEarned).toFixed(4)
+
+   digitalCard.lifeTimeEarnPoints = parseFloat(
+    (
+      (digitalCard.lifeTimeEarnPoints || 0) +
+      pointsEarned
+    ).toFixed(4)
   );
+
 
   // 9️⃣ Tier upgrade
   const newTier = tiers.filter(t => t.pointsThreshold <= digitalCard.lifeTimeEarnPoints).pop();
@@ -252,14 +283,11 @@ const checkout = async (
       const rewardPoints = parseFloat(newTier.reward);
       digitalCard.availablePoints += rewardPoints;
       digitalCard.lifeTimeEarnPoints += rewardPoints;
-      console.log(`💠 Tier Reward Points Added: ${rewardPoints}`);
     }
   }
 
   await digitalCard.save();
-  console.log("💠 Available Points After:", digitalCard.availablePoints);
-  console.log("💠 Lifetime Points After:", digitalCard.lifeTimeEarnPoints);
-  console.log("💠 Current Tier After:", digitalCard.tier);
+
 
   // 10️⃣ Final bill
   const finalBill = parseFloat((discountedBill - pointDiscount).toFixed(4));

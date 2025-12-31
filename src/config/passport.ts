@@ -12,7 +12,19 @@ passport.use(new GoogleStrategy({
 }, async (accessToken, refreshToken, profile, done) => {
     try {
         
-        console.log(profile)
+        let user = await User.findOne({ appId: profile.id });
+
+        if (!user) {
+            user = await User.create({
+                appId: profile.id,
+                firstName: profile.displayName || profile.name?.givenName || profile.emails?.[0]?.value || "User",
+                email: profile.emails?.[0]?.value,
+                profile: profile.photos?.[0]?.value
+            });
+        }
+
+        done(null, user);
+
         done(null, profile);
     } catch (error) {
         done(error, undefined);
@@ -32,7 +44,7 @@ passport.use(new FacebookStrategy({
         if (!user) {
             user = await User.create({
                 appId: profile.id,
-                name: profile.displayName,
+                firstName : profile.displayName || profile.name?.givenName || profile.emails?.[0]?.value || "User",
                 email: profile.emails?.[0]?.value
             });
         }
@@ -45,16 +57,17 @@ passport.use(new FacebookStrategy({
 
 // Serialize & Deserialize User
 passport.serializeUser((user: any, done) => {
-    done(null, user.id);
+    done(null, user.id); // save user id in session
 });
 
 passport.deserializeUser(async (id, done) => {
     try {
-        // const user = await User.findById(id);
-        done(null, id as any);
+        const user = await User.findById(id); // fetch full user object
+        done(null, user); // attach to req.user
     } catch (error) {
         done(error, null);
     }
 });
+
 
 export default passport;

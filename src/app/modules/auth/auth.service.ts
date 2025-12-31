@@ -298,6 +298,11 @@ const resetPasswordToDB = async (token: string, payload: IAuthResetPassword) => 
     throw new ApiError(StatusCodes.BAD_REQUEST, "New password and Confirm password doesn't match!");
   }
 
+  const isSamePassword = await bcrypt.compare(newPassword,isExistUser.password || '');
+  if (isSamePassword) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'Please provide a different password from the previous one');
+  }
+
   const hashPassword = await bcrypt.hash(newPassword, Number(config.bcrypt_salt_rounds));
 
   const updateData = {

@@ -181,7 +181,7 @@ const getMerchantDigitalCard = catchAsync(async (req, res) => {
     return sendResponse(res, {
       statusCode: StatusCodes.NOT_FOUND,
       success: false,
-      message: "No Digital Card with valid promotions found",
+      message: "No Digital Card for this customer found",
     });
   }
 

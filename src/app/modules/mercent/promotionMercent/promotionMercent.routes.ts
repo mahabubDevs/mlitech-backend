@@ -20,7 +20,7 @@ router.get(
   PromotionController.getPromotionsByUserCategory
 );
 
-router.get("/merchants/:id", PromotionController.getDetailsOfMerchant);
+router.get("/merchants/:id", auth(), PromotionController.getDetailsOfMerchant);
 router.get(
   "/merchants",
   auth(USER_ROLES.MERCENT),
