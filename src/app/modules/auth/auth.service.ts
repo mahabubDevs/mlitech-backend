@@ -21,6 +21,9 @@ import { User } from '../user/user.model';
 import { IUser } from '../user/user.interface';
 import { sendOtp } from '../../../shared/twilioService';
 import { SUBSCRIPTION_STATUS, USER_ROLES, USER_STATUS } from '../../../enums/user';
+import { OAuth2Client } from 'google-auth-library';
+import { createUniqueReferralId } from '../../../util/generateRefferalId';
+import { generateCustomUserId } from '../user/user.utils';
 
 
 
@@ -79,7 +82,7 @@ const loginUserFromDB = async (payload: ILoginData) => {
         refreshToken,
         user: {
           pages: user.pages || [],
-           subscription: user.subscription,
+          subscription: user.subscription,
         }
       };
 
@@ -608,6 +611,50 @@ const archiveUserInDB = async (userId: string) => {
 };
 
 
+const googleLoginToDB = async (idToken: string) => {
+  const client = new OAuth2Client(config.social.google_client_id);
+
+  const ticket = await client.verifyIdToken({
+    idToken,
+    audience: config.social.google_client_id,
+  });
+
+  const payload = ticket.getPayload();
+  if (!payload?.email) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, "Invalid Google token");
+  }
+
+  const { email, name, picture, sub } = payload;
+
+  let user = await User.findOne({ email });
+
+  if (!user) {
+
+    const referenceId = await createUniqueReferralId();
+    const customUserId = await generateCustomUserId(USER_ROLES.USER);
+    const userData = {
+      referenceId,
+      customUserId,
+      email,
+      firstname: name,
+      avatar: picture,
+      googleId: sub,
+      authProvider: "google",
+      isVerified: true,
+    }
+    user = await User.create(userData);
+  }
+
+
+  const accessToken = jwtHelper.createToken(
+    { id: user._id, role: user.role, email: user.email, phoneNumber: user.phone },
+    config.jwt.jwt_secret!,
+    config.jwt.jwt_expire_in!
+  );
+
+  return { accessToken };
+}
+
 export const AuthService = {
   // verifyEmailToDB,
   loginUserFromDB,
@@ -622,5 +669,6 @@ export const AuthService = {
   sendPhoneOtpToDB,
   verifyPhoneOtpToDB,
   uploadDocumentImagesToDB,
-  archiveUserInDB
+  archiveUserInDB,
+  googleLoginToDB
 };

@@ -3,6 +3,7 @@ import { IDisclaimer } from "./disclaimer.interface";
 import { Disclaimer } from "./disclaimer.model";
 import { notifyAllActiveUsers } from "../../../helpers/notifiyAllActiveUsers";
 import { NotificationType } from "../notification/notification.model";
+import { DISCLAIMER_NOTIFICATION_MAP } from "./disclaimer.notification.config";
 
 // create or update disclaimer
 const createUpdateDisclaimer = async (
@@ -14,13 +15,16 @@ const createUpdateDisclaimer = async (
     { $set: payload },
     { new: true, upsert: true }
   );
+  const notificationConfig = DISCLAIMER_NOTIFICATION_MAP[payload.type];
 
-  await notifyAllActiveUsers({
-    title: payload.type === 'customer-privacy-policy' ? 'Privacy Policy Updated' : 'Terms and Conditions Updated',
-    body: payload.type === 'customer-privacy-policy' ? 'Privacy Policy have been updated.' : 'Terms and Conditions have been updated.',
-    type: NotificationType.POLICY,
-
-  });
+  if (notificationConfig) {
+    await notifyAllActiveUsers({
+      title: notificationConfig.title,
+      body: notificationConfig.body,
+      type: NotificationType.POLICY,
+      audience: notificationConfig.audience,
+    });
+  }
 
   return result;
 };

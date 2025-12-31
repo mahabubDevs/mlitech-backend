@@ -1,10 +1,10 @@
-import { z ,AnyZodObject  } from 'zod';
+import { z, AnyZodObject } from 'zod';
 
 const createVerifyEmailZodSchema = z.object({
-    body: z.object({
-        email: z.string({ required_error: 'Email is required' }).email({ message: 'Invalid email address' }),
-        oneTimeCode: z.number({ required_error: 'One time code is required' })
-    })
+  body: z.object({
+    email: z.string({ required_error: 'Email is required' }).email({ message: 'Invalid email address' }),
+    oneTimeCode: z.number({ required_error: 'One time code is required' })
+  })
 });
 
 const createLoginZodSchema = z.object({
@@ -20,7 +20,7 @@ const createLoginZodSchema = z.object({
     password: z.string({ required_error: 'Password is required' })
   })
 });
-  
+
 const createForgetPasswordZodSchema = z.object({
   body: z.object({
     phone: z
@@ -31,7 +31,7 @@ const createForgetPasswordZodSchema = z.object({
       }, { message: "Invalid phone number" })
   })
 });
-  
+
 
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
 
@@ -51,7 +51,7 @@ const createResetPasswordZodSchema = z
     message: "New password and confirm password must match",
     path: ["body", "confirmPassword"],
   }) as unknown as AnyZodObject;
-  
+
 const createChangePasswordZodSchema = z
   .object({
     body: z.object({
@@ -73,19 +73,26 @@ const createChangePasswordZodSchema = z
     message: "New password and confirm password must match",
     path: ["body", "confirmPassword"],
   }) as unknown as AnyZodObject;
- 
+
 const createVerifyPhoneZodSchema = z.object({
-    body: z.object({
-        phone: z.string({ required_error: 'Phone number is required' }),
-        oneTimeCode: z.number({ required_error: 'One time code is required' })
-    })
+  body: z.object({
+    phone: z.string({ required_error: 'Phone number is required' }),
+    oneTimeCode: z.number({ required_error: 'One time code is required' })
+  })
 });
 
+
+const googleLoginZodSchema = z.object({
+  body: z.object({
+    idToken: z.string({ required_error: 'ID token is required' })
+  })
+});
 export const AuthValidation = {
-    createVerifyEmailZodSchema,
-    createForgetPasswordZodSchema,
-    createLoginZodSchema,
-    createResetPasswordZodSchema,
-    createChangePasswordZodSchema,
-    createVerifyPhoneZodSchema
+  createVerifyEmailZodSchema,
+  createForgetPasswordZodSchema,
+  createLoginZodSchema,
+  createResetPasswordZodSchema,
+  createChangePasswordZodSchema,
+  createVerifyPhoneZodSchema,
+  googleLoginZodSchema
 };

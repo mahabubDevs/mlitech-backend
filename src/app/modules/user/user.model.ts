@@ -86,21 +86,24 @@ const userSchema = new Schema<IUser, UserModal>(
     },
     email: {
       type: String,
-      required: true,
-      unique: true,
       lowercase: true,
     },
     phone: {
       type: String,
-      required: true,
-      unique: true,
     },
     password: {
       type: String,
-      required: true,
       select: 0,
-      minlength: 8,
+
     },
+    googleId: { type: String, },
+    appleId: { type: String, },
+    authProviders: {
+      type: [String],
+      enum: ["local", "google", "apple"],
+      default: ["local"],
+    },
+
     country: {
       type: String,
       required: false,
@@ -235,11 +238,34 @@ const userSchema = new Schema<IUser, UserModal>(
   }
 );
 
+
+
 userSchema.index({ location: "2dsphere" });
 // Virtual id for JWT
 userSchema.virtual("id").get(function () {
   return this._id.toHexString();
 });
+
+userSchema.index(
+  { email: 1 },
+  { unique: true, partialFilterExpression: { email: { $exists: true, $ne: null } } }
+);
+
+userSchema.index(
+  { phone: 1 },
+  { unique: true, partialFilterExpression: { phone: { $exists: true, $ne: null } } }
+);
+
+userSchema.index(
+  { googleId: 1 },
+  { unique: true, partialFilterExpression: { googleId: { $exists: true } } }
+);
+
+userSchema.index(
+  { appleId: 1 },
+  { unique: true, partialFilterExpression: { appleId: { $exists: true } } }
+);
+
 
 // Virtual for fully verified
 
@@ -277,15 +303,15 @@ userSchema.statics.isMatchPassword = async (
 
 //check user
 userSchema.pre("save", async function (this: any, next) {
-  if (this.isNew) {
-    // only check email uniqueness on new user
-    const isExist = await User.findOne({ email: this.email });
-    if (isExist) {
-      return next(
-        new ApiError(StatusCodes.BAD_REQUEST, "Email already exist!")
-      );
-    }
-  }
+  // if (this.isNew) {
+  //   // only check email uniqueness on new user
+  //   const isExist = await User.findOne({ email: this.email });
+  //   if (isExist) {
+  //     return next(
+  //       new ApiError(StatusCodes.BAD_REQUEST, "Email already exist!")
+  //     );
+  //   }
+  // }
 
   // Hash password if modified
   if (this.isModified("password") && this.password) {

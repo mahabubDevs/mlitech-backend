@@ -26,18 +26,18 @@ import { Secret } from 'jsonwebtoken';
 
 
 const verifyPhone = catchAsync(async (req, res) => {
-  // OTP + phone number comes from request body
-  const result = await AuthService.verifyPhoneOtpToDB(req.body);
+    // OTP + phone number comes from request body
+    const result = await AuthService.verifyPhoneOtpToDB(req.body);
 
-  sendResponse(res, {
-    success: true,
-    statusCode: StatusCodes.OK,
-    message: result.message,
-    data: {
-      accessToken: result.accessToken,
-      resetToken: result.resetToken, // ✅ include reset token
-    },
-  });
+    sendResponse(res, {
+        success: true,
+        statusCode: StatusCodes.OK,
+        message: result.message,
+        data: {
+            accessToken: result.accessToken,
+            resetToken: result.resetToken, // ✅ include reset token
+        },
+    });
 });
 
 
@@ -85,7 +85,7 @@ const changePassword = catchAsync(async (req: Request, res: Response) => {
     if (!user) {
         throw new Error("User not authenticated");
     }
-    
+
     console.log("Step 1: User data", user);
     const { ...passwordData } = req.body;
     await AuthService.changePasswordToDB(user, passwordData);
@@ -152,27 +152,27 @@ const deleteUser = catchAsync(async (req: Request, res: Response) => {
 });
 
 const deleteOwnUser = catchAsync(async (req: Request, res: Response) => {
-  // Step 1: Get logged-in user ID
-  const userId = req.user && (req.user as any)._id;
-  if (!userId) throw new ApiError(StatusCodes.BAD_REQUEST, "User ID missing in request token");
-  
-  // Step 2: Get password from request
-  const { password } = req.body;
-  if (!password) throw new ApiError(StatusCodes.BAD_REQUEST, "Password is required to delete account");
+    // Step 1: Get logged-in user ID
+    const userId = req.user && (req.user as any)._id;
+    if (!userId) throw new ApiError(StatusCodes.BAD_REQUEST, "User ID missing in request token");
 
-  console.log("Logged-in userId from token:", userId);
-  console.log("Password received for account deletion:", password);
+    // Step 2: Get password from request
+    const { password } = req.body;
+    if (!password) throw new ApiError(StatusCodes.BAD_REQUEST, "Password is required to delete account");
 
-  // Step 3: Call service
-  const result = await AuthService.deleteOwnUserAccount(userId, password);
+    console.log("Logged-in userId from token:", userId);
+    console.log("Password received for account deletion:", password);
 
-  // Step 4: Send response
-  sendResponse(res, {
-    success: true,
-    statusCode: StatusCodes.OK,
-    message: "User account deleted successfully",
-    data: result
-  });
+    // Step 3: Call service
+    const result = await AuthService.deleteOwnUserAccount(userId, password);
+
+    // Step 4: Send response
+    sendResponse(res, {
+        success: true,
+        statusCode: StatusCodes.OK,
+        message: "User account deleted successfully",
+        data: result
+    });
 });
 
 
@@ -195,25 +195,25 @@ const sendPhoneOtp = catchAsync(async (req: Request, res: Response) => {
     });
 });
 const uploadDocumentImages = async (req: Request, res: Response) => {
-  const userId = req.user && (req.user as any)._id;
-  console.log("User ID from request:", userId);
+    const userId = req.user && (req.user as any)._id;
+    console.log("User ID from request:", userId);
     if (!userId) {
-    throw new ApiError(400, 'User ID is required');
-  }
+        throw new ApiError(400, 'User ID is required');
+    }
 
-  // req.files type assertion
-  const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-  if (!files || !files['image']) {
-    throw new ApiError(400, 'No images uploaded');
-  }
+    // req.files type assertion
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+    if (!files || !files['image']) {
+        throw new ApiError(400, 'No images uploaded');
+    }
 
-  const uploadedPaths = await AuthService.uploadDocumentImagesToDB(userId, files['image']);
+    const uploadedPaths = await AuthService.uploadDocumentImagesToDB(userId, files['image']);
 
-  res.status(200).json({
-    success: true,
-    message: 'Images uploaded successfully',
-    data: uploadedPaths,
-  });
+    res.status(200).json({
+        success: true,
+        message: 'Images uploaded successfully',
+        data: uploadedPaths,
+    });
 };
 
 
@@ -246,6 +246,18 @@ const archiveUser = catchAsync(async (req: Request, res: Response) => {
 });
 
 
+const googleLogin = catchAsync(async (req: Request, res: Response) => {
+    const { idToken } = req.body;
+    const result = await AuthService.googleLoginToDB(idToken);
+
+    sendResponse(res, {
+        success: true,
+        statusCode: StatusCodes.OK,
+        message: 'User login successfully',
+        data: result
+    });
+});
+
 
 export const AuthController = {
     // verifyEmail,
@@ -261,5 +273,6 @@ export const AuthController = {
     sendPhoneOtp,
     verifyPhone,
     uploadDocumentImages,
-    archiveUser
+    archiveUser,
+    googleLogin
 };

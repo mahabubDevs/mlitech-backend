@@ -111,6 +111,9 @@ export interface IUser {
   phone?: string;
   email?: string;
   password?: string;
+  googleId?: string;
+  appleId?: string;
+  authProviders?: string[];
   website?: string;
   country?: string;
   city?: string;

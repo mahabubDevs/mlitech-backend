@@ -70,7 +70,7 @@ router.post(
         try {
             const { phone, oneTimeCode } = req.body;
 
-            req.body = { phone, oneTimeCode: Number(oneTimeCode)};
+            req.body = { phone, oneTimeCode: Number(oneTimeCode) };
             next();
 
         } catch (error) {
@@ -97,10 +97,10 @@ router.post(
 
 
 router.post(
-  '/upload-documents',
-  fileUploadHandler(),
-  auth(USER_ROLES.ADMIN, USER_ROLES.USER),
-  AuthController.uploadDocumentImages
+    '/upload-documents',
+    fileUploadHandler(),
+    auth(USER_ROLES.ADMIN, USER_ROLES.USER),
+    AuthController.uploadDocumentImages
 );
 
 router.put(
@@ -132,14 +132,14 @@ router.delete(
 
 
 // Google Auth Routes
-router.get("/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+// router.get("/google", passport.authenticate("google", { scope: ["profile", "email"] }));
 
-router.get("/google/callback", 
-    passport.authenticate("google", { failureRedirect: "/" }),
-    (req, res) => {
-        res.redirect("/"); // Redirect after successful login
-    }
-);
+// router.get("/google/callback", 
+//     passport.authenticate("google", { failureRedirect: "/" }),
+//     (req, res) => {
+//         res.redirect("/"); // Redirect after successful login
+//     }
+// );
 
 // Facebook Auth Routes
 // router.get("/facebook", passport.authenticate("facebook", { scope: ["email"] }));
@@ -150,5 +150,7 @@ router.get("/google/callback",
 //         res.redirect("/dashboard"); // Redirect after successful login
 //     }
 // );
+
+router.post("/google", AuthController.googleLogin)
 
 export const AuthRoutes = router;
