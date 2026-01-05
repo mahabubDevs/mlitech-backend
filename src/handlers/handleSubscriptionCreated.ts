@@ -49,6 +49,18 @@ export const handleSubscriptionCreated = async (data: Stripe.Subscription) => {
         const price = subscription.items.data[0].price.unit_amount! / 100;
         const remaining = subscription.items.data[0].quantity || 1;
 
+
+        // Check if user already has subscription for this package
+        const existingSubscription = await Subscription.findOne({
+            user: existingUser._id,
+            package: pricingPlan._id
+        });
+
+        if (existingSubscription) {
+            console.log(`ℹ️ Subscription already exists for user ${existingUser._id} and package ${pricingPlan._id}`);
+            return; // বা throw new Error() করতে পারো, তবে duplicate save হবে না
+        }
+
         // Create subscription
         const newSubscription = new Subscription({
             user: existingUser._id,

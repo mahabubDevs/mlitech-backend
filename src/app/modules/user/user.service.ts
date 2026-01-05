@@ -19,8 +19,12 @@ import { sendOtp } from "../../../config/m3sms";
 import { generateCustomUserId } from "./user.utils";
 import Referral from "../referral/referral.model";
 
+
+
+
 interface IPackageWithId extends IPackage {
   _id: string;
+  isFreeTrial?: boolean;
 }
 
 const createAdminToDB = async (payload: any): Promise<IUser> => {
@@ -147,23 +151,25 @@ const createUserToDB = async (payload: CreateUserPayload): Promise<IUser> => {
 
 const getUserProfileFromDB = async (
   user: JwtPayload
-): Promise<Partial<IUser> & { totalPigeons: number; subscriptions: any[] }> => {
+): Promise<
+  Partial<IUser> & {
+    subscriptions: any[];
+    totalSubscriptions: number;
+    hasUsedFreePlan: boolean;
+  }
+> => {
   const { _id } = user;
 
-  // 1️⃣ Check if user exists
   const isExistUser: any = await User.isExistUserById(_id);
   if (!isExistUser) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "User doesn't exist!");
   }
 
-  // 2️⃣ Count total pigeons (pages array)
-
-  // populate er por type define kora holo
   const subscriptions = await Subscription.find({ user: _id }).populate<{
     package: IPackageWithId | null;
   }>({
     path: "package",
-    select: "title price duration",
+    select: "title price duration isFreeTrial",
   });
 
   const formattedSubscriptions = subscriptions.map((sub) => ({
@@ -178,16 +184,20 @@ const getUserProfileFromDB = async (
     trxId: sub.trxId,
     subscriptionStripeId: sub.subscriptionId,
   }));
-  // 5️⃣ Total subscriptions
-  const totalSubscriptions = subscriptions.length;
-  // 5️⃣ Return combined profile + subscriptions + totalPigeons
+
+  // 🔥 Check free plan usage
+  const hasUsedFreePlan = subscriptions.some(
+    (sub) => sub.package?.isFreeTrial === true
+  );
+
   return {
     ...isExistUser.toObject(),
-
     subscriptions: formattedSubscriptions,
-    totalSubscriptions,
+    totalSubscriptions: subscriptions.length,
+    hasUsedFreePlan, // ✅ NEW FIELD
   };
 };
+
 
 const updateProfileToDB = async (
   user: JwtPayload,

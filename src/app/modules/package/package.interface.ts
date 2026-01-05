@@ -15,6 +15,7 @@ export type IPackage = {
     status?: 'Active' | 'Delete';
     payoutAccountId?: string;
     admin: Types.ObjectId;
+    
 };
 
 export type PackageModel = Model<IPackage, Record<string, unknown>>;

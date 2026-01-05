@@ -10,32 +10,111 @@ import Referral from "../referral/referral.model";
 import PointTransaction from "../pointTransaction/pointTransaction.model";
 import { sendNotification } from "../../../helpers/notificationsHelper";
 import { NotificationType } from "../notification/notification.model";
+import { calculateEndDate } from "../../../helpers/dateHelper";
+import { SUBSCRIPTION_STATUS } from "../../../enums/user";
 
 const createSubscriptionSession = async (userId: string, packageId: string) => {
-    const pkg = await Package.findById(packageId);
-    if (!pkg) throw new Error("Package not found");
-    console.log("🚀 Creating subscription session for user:", userId, "with package:", packageId);
-    // Create Stripe Checkout session
-    const session = await stripe.checkout.sessions.create({
-        payment_method_types: ["card"],
-        mode: "subscription",
-        customer_email: (await User.findById(userId))?.email,
-        line_items: [
-            {
-                price: pkg.priceId,
-                quantity: 1,
-            },
-        ],
-        success_url: `https://miltech-business-dashboard-api.vercel.app/success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `https://miltech-business-dashboard-api.vercel.app/failed`,
-        client_reference_id: userId,
-        metadata: {
-            packageId: pkg._id.toString(),
-        },
+  console.log("🚀 createSubscriptionSession called");
+  console.log("UserId:", userId, "PackageId:", packageId);
+
+  // Package check
+  const pkg = await Package.findById(packageId);
+  if (!pkg) {
+    console.log("❌ Package not found");
+    throw new Error("Package not found");
+  }
+  console.log("📦 Package found:", pkg.title, "isFreeTrial:", pkg.isFreeTrial);
+
+  // User check
+  const user = await User.findById(userId);
+  if (!user) {
+    console.log("❌ User not found");
+    throw new Error("User not found");
+  }
+  console.log("👤 User found:", user.firstName, user.email);
+
+  // Free plan check
+  if (pkg.isFreeTrial) {
+    console.log("⚡ Free plan detected");
+
+    const hasUsedFreePlan = await Subscription.exists({
+      user: userId,
+      package: packageId,
+    });
+    console.log("Has user already used free plan?", hasUsedFreePlan);
+
+    if (hasUsedFreePlan) {
+      console.log("❌ User already used free plan");
+      throw new Error("You have already used the free plan");
+    }
+
+    // Free plan → DB only
+    const subscription = await Subscription.create({
+      user: userId,
+      package: packageId,
+      price: 0,
+      subscriptionId: "FREE_PLAN_" + Date.now(),
+      currentPeriodStart: new Date(),
+      currentPeriodEnd: calculateEndDate(pkg.duration),
+      status: "active",
+      source: "manual",
+      remaining: 1,
+      customerId: null,
     });
 
-    return { sessionId: session.id, url: session.url };
+    // 🔥 PROFILE SUBSCRIPTION STATUS UPDATE
+    await User.findByIdAndUpdate(userId, {
+      subscription: SUBSCRIPTION_STATUS.ACTIVE,
+    });
+
+    console.log("✅ Free plan subscription created:", subscription);
+
+    return { sessionId: null, url: null, subscription };
+  }
+
+  // Paid plan → Stripe
+  console.log("💰 Paid plan detected");
+
+  // Check if user already bought any plan (Free or Paid)
+  const hasAnyPlanBefore = await Subscription.exists({
+    user: userId,
+  });
+  console.log("Has user any previous plan?", hasAnyPlanBefore);
+
+  if (!hasAnyPlanBefore) {
+    // First-time Paid plan → add 20% points
+    const pointsToAdd = Math.round(pkg.price * 0.2);
+    await User.findByIdAndUpdate(userId, { $inc: { points: pointsToAdd } });
+    console.log(`💎 Added ${pointsToAdd} points to user ${userId}`);
+  } else {
+    console.log("No points added: user already has previous plan(s)");
+  }
+
+  if (!pkg.priceId) {
+    console.log("❌ priceId missing for paid package");
+    throw new Error("PriceId missing for paid package");
+  }
+
+  // Stripe Checkout session
+  const session = await stripe.checkout.sessions.create({
+    payment_method_types: ["card"],
+    mode: "subscription",
+    customer_email: user.email,
+    line_items: [{ price: pkg.priceId, quantity: 1 }],
+    success_url: `https://miltech-business-dashboard-api.vercel.app/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `https://miltech-business-dashboard-api.vercel.app/failed`,
+    client_reference_id: userId,
+    metadata: { packageId: pkg._id.toString() },
+  });
+
+  console.log("✅ Stripe checkout session created:", session.id, session.url);
+
+  return { sessionId: session.id, url: session.url };
 };
+
+
+
+
 
 // Called from webhook to save subscription after payment success
 

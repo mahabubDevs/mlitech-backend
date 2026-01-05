@@ -3,63 +3,64 @@ import { ISubscription, SubscriptionModel } from "./subscription.interface";
 
 
 const subscriptionSchema = new Schema<ISubscription, SubscriptionModel>(
-    {
-        customerId: {
-            type: String,
-            required: true
-        },
-        price: {
-            type: Number,
-            required: true
-        },
-        user: {
-            type: Schema.Types.ObjectId,
-            ref: "User",
-            required: true
-        },
-        package: {
-            type: Schema.Types.ObjectId,
-            ref: "Package",
-            required: true
-        },
-        trxId: {
-            type: String,
-            required: function (this: any) {
-                return this.price > 0;
-            }
-        }
-        ,
-        subscriptionId: { type: String, unique: true, required: true },
-
-        currentPeriodStart: {
-            type: String,
-            required: true
-        },
-        currentPeriodEnd: {
-            type: String,
-            required: true
-        },
-        remaining: {
-            type: Number,
-            required: true
-        },
-        status: {
-            type: String,
-            enum: ["expired", "active", "cancel"],
-            default: "active",
-            required: true
-        },
-        source: {
-            type: String,
-            enum: ["online", "salesRep"],
-            default: "online",
-
-        }
-
+  {
+    customerId: {
+      type: String,
+      required: function (this: any) {
+        // online/salesRep ছাড়া অন্য source হলে optional
+        return this.source === "online" || this.source === "salesRep";
+      },
     },
-    {
-        timestamps: true
-    }
-)
+    price: {
+      type: Number,
+      required: true,
+    },
+    user: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    package: {
+      type: Schema.Types.ObjectId,
+      ref: "Package",
+      required: true,
+    },
+    trxId: {
+      type: String,
+      required: function (this: any) {
+        return this.price > 0;
+      },
+    },
+    subscriptionId: { type: String, unique: true, required: true },
+    currentPeriodStart: {
+      type: String,
+      required: true,
+    },
+    currentPeriodEnd: {
+      type: String,
+      required: true,
+    },
+    remaining: {
+      type: Number,
+      required: true,
+    },
+    status: {
+      type: String,
+      enum: ["expired", "active", "cancel"],
+      default: "active",
+      required: true,
+    },
+    source: {
+      type: String,
+      enum: ["online", "salesRep", "free", "manual"], // ✅ manual add
+      default: "online",
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+
 
 export const Subscription = model<ISubscription, SubscriptionModel>("Subscription", subscriptionSchema)

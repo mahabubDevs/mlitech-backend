@@ -8,11 +8,20 @@ import Stripe from "stripe";
 import { createSubscriptionProduct } from "../../../helpers/createSubscriptionProductHelper";
 
 const createPackageToDB = async (payload: Partial<IPackage>): Promise<IPackage> => {
-  // Check existing package
-  const existingPackage = await Package.findOne({ title: payload.title, admin: payload.admin, status: "Active" });
+  // ✅ Check existing package
+  const existingPackage = await Package.findOne({
+    title: payload.title,
+    admin: payload.admin,
+    status: "Active",
+  });
   if (existingPackage) return existingPackage;
 
-  // Create Stripe Product + Price
+  // 🔹 If price is 0, mark as free plan
+  if (payload.price === 0) {
+    payload.isFreeTrial = true;
+  }
+
+  // ✅ Create Stripe Product + Price
   const product = await createSubscriptionProduct({
     title: payload.title!,
     description: payload.description!,
@@ -24,13 +33,11 @@ const createPackageToDB = async (payload: Partial<IPackage>): Promise<IPackage> 
   payload.productId = product.productId;
   payload.priceId = product.priceId;
 
-  // Remove any reference to paymentLink
-  // payload.paymentLink = ???  <-- remove this line
-
   // Save to DB
   const result = await Package.create(payload as IPackage);
+
+  // Optionally: delete Stripe product if DB save fails
   if (!result) {
-    // Optionally: delete Stripe product if DB save fails
     await stripe.products.del(product.productId);
   }
 

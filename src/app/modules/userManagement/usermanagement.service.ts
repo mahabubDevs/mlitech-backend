@@ -30,13 +30,13 @@ const createUserToDB = async (payload: IUser, creator?: any) => {
   if (isPhoneExist) throw new ApiError(400, "Phone already exists");
 
   const ALLOWED_CREATOR_ROLES = [
-    USER_ROLES.USER,
-    USER_ROLES.VIEW_MERCENT,
+    USER_ROLES.ADMIN_SELL,
+    USER_ROLES.VIEW_ADMIN,
     USER_ROLES.ADMIN,
     USER_ROLES.ADMIN_REP
   ];
 
-  let role = USER_ROLES.USER;
+  let role = USER_ROLES.VIEW_ADMIN;
   if (payload.role) {
     if (!ALLOWED_CREATOR_ROLES.includes(payload.role as USER_ROLES)) {
       throw new ApiError(400, "User can only be created with allowed roles");

@@ -9,24 +9,33 @@ import { StatusCodes } from "http-status-codes";
 
 const createSubscription = catchAsync(async (req: Request, res: Response) => {
     const { packageId } = req.body;
-
     if (!req.user) throw new Error("User not found");
     if (!packageId) throw new Error("Package ID is required");
 
-    // determine user id (handle different shapes of req.user)
     const userId = (req.user as any)._id || (req.user as any).id;
     if (!userId) throw new Error("User ID not found");
 
-    // Call service to create Stripe session
     const session = await SubscriptionService.createSubscriptionSession(userId, packageId);
 
-    sendResponse(res, {
-        statusCode: StatusCodes.OK,
-        success: true,
-        message: "Stripe checkout session created successfully",
-        data: session
-    });
+    if (session.url) {
+        // Paid plan → Stripe redirect
+        sendResponse(res, {
+            statusCode: StatusCodes.OK,
+            success: true,
+            message: "Stripe checkout session created successfully",
+            data: session
+        });
+    } else {
+        // Free plan → no redirect
+        sendResponse(res, {
+            statusCode: StatusCodes.OK,
+            success: true,
+            message: "Free plan activated successfully",
+            data: session.subscription
+        });
+    }
 });
+
 
 
 

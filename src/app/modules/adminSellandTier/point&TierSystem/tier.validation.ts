@@ -7,7 +7,7 @@ export const createTierSchema = z.object({
     .nonnegative("Points threshold must be >= 0"),
   reward: z.string().min(1, "Reward is required"),
   accumulationRule: z.number().min(1, "Accumulation rule is required"),
-  redemptionRule: z.number().min(1, "Redemption rule is required"),
+  redemptionRule: z.number().min(0, "Redemption rule is required"),
   minTotalSpend: z.coerce
     .number()
     .nonnegative("Minimum total spend must be >= 0"),

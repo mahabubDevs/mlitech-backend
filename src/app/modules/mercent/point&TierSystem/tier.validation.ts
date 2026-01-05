@@ -16,7 +16,7 @@ export const createTierSchema = z.object({
 
   redemptionRule: z.coerce
     .number({ invalid_type_error: "Redemption rule must be a number" })
-    .min(1, { message: "Redemption rule must be >= 1" }),
+    .min(0, { message: "Redemption rule must be >= 0" }),
 
   minTotalSpend: z.coerce
     .number({ invalid_type_error: "Minimum total spend must be a number" })

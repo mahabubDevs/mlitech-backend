@@ -84,7 +84,7 @@ const createVerifyOtpZodSchema = z.object({
     body: z.object({
         identifier: z.string({ required_error: "Phone number or email is required" })
             .refine((val) => {
-                const phoneRegex = /^[0-9]{6,15}$/;
+                const phoneRegex = /^\+?[0-9]{6,15}$/;
                 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
                 return phoneRegex.test(val) || emailRegex.test(val);
             }, { message: "Identifier must be a valid phone number or email" }),

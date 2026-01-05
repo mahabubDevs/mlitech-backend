@@ -54,7 +54,9 @@ const createMerchant = catchAsync(async (req: any, res: any) => {
 // get all users
 const getAllUsers = catchAsync(async (req: Request, res: Response) => {
   const requestingUserRole = (req.user as any)?.role || "ADMIN";
-  const result = await UserService.getAllUsersFromDB(requestingUserRole);
+
+  // pass query params
+  const result = await UserService.getAllUsersFromDB(requestingUserRole, req.query);
 
   sendResponse(res, {
     success: true,
@@ -63,6 +65,7 @@ const getAllUsers = catchAsync(async (req: Request, res: Response) => {
     data: result,
   });
 });
+
 
 // get single user
 const getSingleUser = catchAsync(async (req: Request, res: Response) => {

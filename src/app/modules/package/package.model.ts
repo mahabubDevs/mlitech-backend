@@ -6,7 +6,7 @@ const packageSchema = new Schema<IPackage, PackageModel>({
     description: { type: String, required: true },
     price: { type: Number, required: true },
     duration: { type: String, enum: ['1 month', '4 months', '8 months', '1 year'], required: true },
-    paymentType: { type: String, enum: ['Monthly', 'Yearly'], required: true },
+    paymentType: { type: String, enum: ['Monthly', 'Yearly'], required: false },
     features: [{ type: String, required: true }],
     productId: { type: String, required: true },
     priceId: { type: String, required: true },

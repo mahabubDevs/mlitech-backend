@@ -12,6 +12,7 @@ export type ISubscription = {
     currentPeriodStart: string;
     currentPeriodEnd: string;
     source: 'online' | 'salesRep';
+    
 };
 
 export type SubscriptionModel = Model<ISubscription, Record<string, unknown>>;
