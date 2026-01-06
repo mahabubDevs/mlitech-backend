@@ -1296,7 +1296,7 @@ const getCashCollectionAnalytics = async ({
       $group: {
         _id: "$customer._id",
         customerId: { $first: "$customer.customUserId" },
-        salesRep: { $first: "$adminName" },
+        salesRep: { $first: "$salesRepName" },
         totalTransactions: { $sum: 1 },
         totalReceived: { $sum: "$price" },
       },
@@ -1445,7 +1445,7 @@ const getCashReceivableAnalytics = async ({
         _id: "$customer._id",
         customerId: { $first: "$customer.customUserId" },
         location: { $first: "$customer.address" },
-        salesRep: { $first: "$adminName" },
+        salesRep: { $first: "$salesRepName" },
         totalTransactions: { $sum: 1 },
         totalOutstanding: { $sum: "$price" },
       },

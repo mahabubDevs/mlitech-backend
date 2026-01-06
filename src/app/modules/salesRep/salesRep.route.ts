@@ -24,13 +24,21 @@ router.patch(
   auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.ADMIN_SELL, USER_ROLES.ADMIN_REP),
   SalesRepController.updateUserAcknowledgeStatus
 );
-
 router.post(
-  "/token/users/:id",
-  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.ADMIN_SELL, USER_ROLES.ADMIN_REP),
+  "/:id/token",
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),
   SalesRepController.generateToken
 );
-
+router.patch(
+  "/:id/activate-account",
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.ADMIN_SELL, USER_ROLES.ADMIN_REP),
+  SalesRepController.activateAccount
+)
+router.patch(
+  "/:id/deactivate-account",
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.ADMIN_SELL, USER_ROLES.ADMIN_REP),
+  SalesRepController.deactivateAccount
+)
 router.post(
   "/validate",
   auth(USER_ROLES.USER),

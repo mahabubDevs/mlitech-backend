@@ -94,10 +94,17 @@ const updateUserAcknowledgeStatus = async (dataId: string, salesRepId: string) =
     );
   }
 };
-const generateToken = async (userId: string, adminId: string) => {
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  const user = await User.findById(userId).select("status");
+const generateToken = async (id: string) => {
+
+  const salesRep = await SalesRep.findById(id);
+  if (!salesRep) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Sales rep not found");
+  }
+
+  if (salesRep.token) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Token already generated");
+  }
+  const user = await User.findById(salesRep.customerId).select("status");
 
   if (!user) {
     throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
@@ -109,15 +116,12 @@ const generateToken = async (userId: string, adminId: string) => {
 
   const token = generateCashToken();
 
-
-  const adminName = await User.findById(adminId).select("firstName lastName");
-
-  const result = await SalesRep.findOneAndUpdate(
-    { customerId: new Types.ObjectId(userId), createdAt: { $gte: sevenDaysAgo } },
+  const result = await SalesRep.findByIdAndUpdate(
+    id,
     {
       token,
       tokenGenerateDate: new Date(),
-      adminName: `${adminName?.firstName} ${adminName?.lastName ?? ""}`.trim(),
+      paymentStatus: "paid"
     },
     { new: true, runValidators: true }
   );
@@ -240,10 +244,127 @@ const validateToken = async (userId: string, token: string) => {
 
 };
 
+const activateAccount = async (id: string) => {
+
+  const salesRep = await SalesRep.findById(id);
+  if (!salesRep) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Sales rep not found");
+  }
+  const packageData = await Package.findById(salesRep.packageId).select("price");
+
+  if (!packageData) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Package not found");
+  }
+  const subscriptionData: Partial<ISubscription> = {
+    user: new Types.ObjectId(salesRep.customerId),
+    package: new Types.ObjectId(salesRep.packageId),
+    price: packageData?.price,
+    customerId: salesRep.customerId.toString(),
+    subscriptionId: new Date().toISOString(),
+    remaining: 0,
+    currentPeriodStart: new Date().toISOString(),
+    currentPeriodEnd: (() => {
+      const d = new Date();
+      d.setDate(d.getDate() + 30);
+      return d.toISOString();
+    })(),
+    trxId: "N/A",
+    status: "active",
+    source: "salesRep",
+  };
+  await Subscription.create({ ...subscriptionData });
+  await User.findByIdAndUpdate(
+    salesRep.customerId,
+    { subscription: SUBSCRIPTION_STATUS.ACTIVE },
+    { new: true }
+  );
+  salesRep.subscriptionStatus = SUBSCRIPTION_STATUS.ACTIVE;
+  await salesRep.save();
+
+  await sendNotification({
+    userIds: [salesRep.customerId.toString()],
+    title: "Welcome to the app",
+    body: "You have successfully subscribed to our app. We are excited to have you on board!",
+    type: NotificationType.WELCOME
+  })
+
+  const referralResult = await Referral.findOne({
+    referredUser: salesRep.customerId
+  })
+  if (referralResult && !referralResult.completed) {
+    console.log("🚀 Processing referral for user: new", salesRep.customerId);
+    const referredUser = await User.findById(salesRep.customerId).select("firstName lastName");
+    const referrerUser = await User.findById(referralResult.referrer).select("firstName lastName");
+
+    const referredUserName = `${referredUser?.firstName || ""} ${referredUser?.lastName || ""}`.trim();
+    const referrerUserName = `${referrerUser?.firstName || ""} ${referrerUser?.lastName || ""}`.trim();
+
+    // Create point transactions
+    await PointTransaction.create({
+      user: salesRep.customerId,
+      type: "EARN",
+      source: "REFERRAL",
+      referral: referralResult._id,
+      points: 0,
+      note: "Referral points",
+    });
+    await PointTransaction.create({
+      user: referralResult.referrer,
+      type: "EARN",
+      source: "REFERRAL",
+      referral: referralResult._id,
+      points: 0,
+      note: "Referral points",
+    });
+
+    // Update points
+    // await User.findByIdAndUpdate(referralResult.referrer, { $inc: { points: 0 } }, { new: true });
+    // await User.findByIdAndUpdate(salesRep.customerId, { $inc: { points: 0 } }, { new: true });
+
+    // Send notifications with names
+    await sendNotification({
+      userIds: [referralResult.referrer.toString()],
+      title: "Referral points",
+      body: `${referredUserName} has joined using your referral code`,
+      type: NotificationType.REFERRAL,
+    });
+    await sendNotification({
+      userIds: [salesRep.customerId.toString()],
+      title: "Referral points",
+      body: `You have joined using referral code of ${referrerUserName}`,
+      type: NotificationType.REFERRAL,
+    });
+
+    referralResult.completed = true;
+    await referralResult.save();
+
+
+  };
+
+}
+
+const deactivateAccount = async (id: string) => {
+  const salesRep = await SalesRep.findById(id);
+  if (!salesRep) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Sales rep not found");
+  }
+  salesRep.subscriptionStatus = SUBSCRIPTION_STATUS.INACTIVE;
+  await salesRep.save();
+
+  const user = await User.findById(salesRep.customerId);
+  if (!user) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
+  }
+  user.subscription = SUBSCRIPTION_STATUS.INACTIVE;
+  await user.save();
+};
+
 export const SalesRepService = {
   createSalesRepData,
   getSalesRepData,
   updateUserAcknowledgeStatus,
   generateToken,
   validateToken,
+  activateAccount,
+  deactivateAccount
 };
