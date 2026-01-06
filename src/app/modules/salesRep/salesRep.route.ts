@@ -20,14 +20,14 @@ router.get(
   SalesRepController.getSalesRepData
 );
 router.patch(
-  "/acknowledge/users/:id",
-  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN,USER_ROLES.ADMIN_SELL,USER_ROLES.ADMIN_REP),
+  "/:id/acknowledge",
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.ADMIN_SELL, USER_ROLES.ADMIN_REP),
   SalesRepController.updateUserAcknowledgeStatus
 );
 
 router.post(
   "/token/users/:id",
-  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN,USER_ROLES.ADMIN_SELL,USER_ROLES.ADMIN_REP),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.ADMIN_SELL, USER_ROLES.ADMIN_REP),
   SalesRepController.generateToken
 );
 

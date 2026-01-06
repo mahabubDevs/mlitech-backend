@@ -29,7 +29,8 @@ const getSalesRepData = catchAsync(async (req: Request, res: Response) => {
 
 const updateUserAcknowledgeStatus = catchAsync(
   async (req: Request, res: Response) => {
-    await SalesRepService.updateUserAcknowledgeStatus(req.params.id);
+    const user = req.user as JwtPayload;
+    await SalesRepService.updateUserAcknowledgeStatus(req.params.id, user._id);
 
     sendResponse(res, {
       statusCode: StatusCodes.OK,

@@ -179,6 +179,11 @@ const userSchema = new Schema<IUser, UserModal>(
       default: SUBSCRIPTION_STATUS.INACTIVE,
       enum: Object.values(SUBSCRIPTION_STATUS),
     },
+    paymentStatus: {
+      type: String,
+      enum: ["paid", "unpaid", "expired"],
+      default: "unpaid",
+    },
     stripeAccountId: { type: String, default: null },
 
     authentication: {

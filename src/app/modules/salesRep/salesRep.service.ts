@@ -48,7 +48,7 @@ const createSalesRepData = async (user: JwtPayload, packageId: string) => {
 const getSalesRepData = async (query: Record<string, unknown>) => {
   const baseQuery = SalesRep.find().populate(
     "customerId",
-    "firstName lastName email phone  status lastStatusChanged"
+    "customUserId salesRepName salesRepReferralId firstName lastName email phone  paymentStatus subscriptionStatus lastStatusChanged"
   );
 
   const salesRepQuery = new QueryBuilder(baseQuery, query)
@@ -68,12 +68,20 @@ const getSalesRepData = async (query: Record<string, unknown>) => {
   };
 };
 
-const updateUserAcknowledgeStatus = async (userId: string) => {
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  const result = await SalesRep.findOneAndUpdate(
-    { customerId: new Types.ObjectId(userId), createdAt: { $gte: sevenDaysAgo } },
+const updateUserAcknowledgeStatus = async (dataId: string, salesRepId: string) => {
+
+  const salesRep = await User.findById(salesRepId);
+  if (!salesRep) {
+    throw new ApiError(
+      StatusCodes.NOT_FOUND,
+      "No sales rep found for the given user"
+    );
+  }
+  const result = await SalesRep.findByIdAndUpdate(
+    dataId,
     {
+      salesRepName: `${salesRep?.firstName} ${salesRep?.lastName ?? ""}`.trim(),
+      salesRepReferralId: salesRep.referenceId,
       acknowledged: true,
       acknowledgeDate: new Date(),
     },
