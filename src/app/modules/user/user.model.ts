@@ -233,10 +233,19 @@ const userSchema = new Schema<IUser, UserModal>(
       type: Number,
       default: 0,
     },
+    redeem: {
+      type: Number,
+      default: 0,
+    },
     totalVisits: {
       type: Number,
       default: 0,
     },
+    hasViewedReferral: {
+      type: Boolean,
+      default: false,
+    }
+
   },
   {
     timestamps: true,

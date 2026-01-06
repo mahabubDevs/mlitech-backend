@@ -62,6 +62,10 @@ const loginUserFromDB = async (payload: ILoginData) => {
   // 4️⃣ Status check
   switch (user.status) {
     case USER_STATUS.ACTIVE:
+
+
+     
+  
       // create tokens
       const accessToken = jwtHelper.createToken(
         { id: user._id, role: user.role, email: user.email },

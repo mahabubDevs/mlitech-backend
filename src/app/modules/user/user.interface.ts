@@ -157,7 +157,9 @@ export interface IUser {
   lastActive: Date;
   socketIds: string[];
   points: number;
+  redeem: number;
   totalVisits: number;
+  hasViewedReferral: boolean;
 }
 
 export type UserModal = {

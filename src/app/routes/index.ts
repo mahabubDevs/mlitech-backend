@@ -110,6 +110,7 @@ import { ReferralRoutes } from "../modules/referral/referral.route";
 import { MercentUserManagement } from "../modules/merchentUserManagement/mercentUserManagement.routes";
 
 import { DisclaimerRoutes } from "../modules/disclaimer/disclaimer.route";
+import { TransectionRoute } from "../modules/transectionHistory/transection.routes";
 
 
 const router = express.Router();
@@ -144,6 +145,7 @@ const apiRoutes = [
   { path: "/notifications", route: NotificationRoutes },
   { path: "/referrals", route: ReferralRoutes },
   { path: "/disclaimers", route: DisclaimerRoutes },
+  { path: "/history", route: TransectionRoute },
 ];
 
 apiRoutes.forEach((route) => router.use(route.path, route.route));

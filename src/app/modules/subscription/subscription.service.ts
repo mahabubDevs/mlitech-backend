@@ -12,6 +12,7 @@ import { sendNotification } from "../../../helpers/notificationsHelper";
 import { NotificationType } from "../notification/notification.model";
 import { calculateEndDate } from "../../../helpers/dateHelper";
 import { SUBSCRIPTION_STATUS } from "../../../enums/user";
+import { TransactionHistory } from "../transectionHistory/transection.model";
 
 const createSubscriptionSession = async (userId: string, packageId: string) => {
   console.log("🚀 createSubscriptionSession called");
@@ -81,13 +82,32 @@ const createSubscriptionSession = async (userId: string, packageId: string) => {
   });
   console.log("Has user any previous plan?", hasAnyPlanBefore);
 
+  let pointsToAdd = 0;
+
   if (!hasAnyPlanBefore) {
-    // First-time Paid plan → add 20% points
-    const pointsToAdd = Math.round(pkg.price * 0.2);
+    pointsToAdd = Math.round(pkg.price * 0.2);
+
     await User.findByIdAndUpdate(userId, { $inc: { points: pointsToAdd } });
     console.log(`💎 Added ${pointsToAdd} points to user ${userId}`);
-  } else {
-    console.log("No points added: user already has previous plan(s)");
+  }
+
+  if (pointsToAdd > 0) {
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $inc: { points: 0 } },
+      { new: true }
+    );
+
+    await TransactionHistory.create({
+      userId,
+      type: "EARN",
+      points: pointsToAdd,
+      source: "SUBSCRIPTION_BONUS",
+      subscriptionId: pkg._id,
+      balanceAfter: updatedUser!.points,
+    });
+
+    console.log("📜 Transaction created for points earn");
   }
 
   if (!pkg.priceId) {
@@ -95,22 +115,55 @@ const createSubscriptionSession = async (userId: string, packageId: string) => {
     throw new Error("PriceId missing for paid package");
   }
 
-  // Stripe Checkout session
-  const session = await stripe.checkout.sessions.create({
-    payment_method_types: ["card"],
-    mode: "subscription",
-    customer_email: user.email,
-    line_items: [{ price: pkg.priceId, quantity: 1 }],
-    success_url: `https://miltech-business-dashboard-api.vercel.app/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `https://miltech-business-dashboard-api.vercel.app/failed`,
-    client_reference_id: userId,
-    metadata: { packageId: pkg._id.toString() },
+ // Get user points
+let userPoints = user.points || 0;
+console.log("👤 User points:", userPoints);
+
+let finalPrice = pkg.price; // start with original price
+
+let stripePriceId: string;
+
+// যদি user points থাকে → deduct + new Stripe Price
+if (userPoints > 0) {
+  finalPrice = Math.max(pkg.price - userPoints, 1); // minimum 1 USD
+  console.log(`💲 Original price: ${pkg.price}, -${userPoints} points = Final: ${finalPrice}`);
+
+  // Create new Stripe Price
+  const stripePrice = await stripe.prices.create({
+    product: pkg.productId,
+    unit_amount: Math.round(finalPrice * 100),
+    currency: "usd",
+    recurring: { interval: pkg.paymentType?.toLowerCase() === "monthly" ? "month" : "year" },
   });
 
-  console.log("✅ Stripe checkout session created:", session.id, session.url);
+  stripePriceId = stripePrice.id;
 
-  return { sessionId: session.id, url: session.url };
+  console.log("✅ New Stripe Price created with points deduction:", stripePriceId);
+} else {
+  // User points = 0 → use existing price
+  stripePriceId = pkg.priceId;
+  console.log("ℹ️ No points used → using existing Stripe Price:", stripePriceId);
+}
+
+
+
+// Stripe Checkout session
+const session = await stripe.checkout.sessions.create({
+  payment_method_types: ["card"],
+  mode: "subscription",
+  customer_email: user.email,
+  line_items: [{ price: stripePriceId, quantity: 1 }],
+  success_url: `https://miltech-business-dashboard-api.vercel.app/success?session_id={CHECKOUT_SESSION_ID}`,
+  cancel_url: `https://miltech-business-dashboard-api.vercel.app/failed`,
+  client_reference_id: userId,
+  metadata: { packageId: pkg._id.toString(), pointsUsed: userPoints },
+});
+
+console.log("✅ Stripe checkout session created:", session.id, session.url);
+
+return { sessionId: session.id, url: session.url };
 };
+
 
 
 

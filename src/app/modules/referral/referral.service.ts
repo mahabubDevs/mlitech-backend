@@ -7,6 +7,12 @@ import { StatusCodes } from "http-status-codes";
 import ApiError from "../../../errors/ApiErrors";
 
 const getMyReferredUser = async (userId: string) => {
+
+      // ✅ Mark referral page as viewed
+ await User.updateOne(
+  { _id: userId, hasViewedReferral: false },  
+  { $set: { hasViewedReferral: true } }
+);
     // 1. Get current user's location
     const currentUser = await User.findById(userId).select("location referenceId points");
     if (!currentUser) throw new ApiError(StatusCodes.BAD_REQUEST, "User not found");
