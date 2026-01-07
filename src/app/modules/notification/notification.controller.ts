@@ -48,8 +48,22 @@ const sendTestNotification = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const sendSalesRepActiveTestNotification = catchAsync(async (req: Request, res: Response) => {
+  const user = req.user;
+  const result = await NotificationService.sendSalesRepActiveTestNotification(
+    user as JwtPayload
+  );
+
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: "Notification sent successfully",
+    data: result,
+  });
+});
 export const NotificationController = {
   getMyNotification,
   readMyNotifications,
   sendTestNotification,
+  sendSalesRepActiveTestNotification,
 };

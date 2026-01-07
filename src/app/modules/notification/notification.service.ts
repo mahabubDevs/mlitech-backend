@@ -59,8 +59,15 @@ const sendTestNotification = async (user: JwtPayload) => {
   });
 };
 
+const sendSalesRepActiveTestNotification = async (user: JwtPayload) => {
+  io.emit(`salesActivation::${user._id.toString()}`, {
+    status: "active"
+  });
+};
+
 export const NotificationService = {
   getUserNotificationFromDB,
   readUserNotificationToDB,
   sendTestNotification,
+  sendSalesRepActiveTestNotification,
 };
