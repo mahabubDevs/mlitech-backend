@@ -46,6 +46,10 @@ const createSalesRepData = async (user: JwtPayload, packageId: string) => {
     type: NotificationType.SYSTEM,
   });
 
+  await User.findByIdAndUpdate(user._id, { isUserWaiting: true }, {
+    upsert: true
+  });
+
 };
 const getSalesRepData = async (query: Record<string, unknown>) => {
   const baseQuery = SalesRep.find().populate(
@@ -285,8 +289,11 @@ const activateAccount = async (id: string) => {
   await Subscription.create({ ...subscriptionData });
   await User.findByIdAndUpdate(
     salesRep.customerId,
-    { subscription: SUBSCRIPTION_STATUS.ACTIVE },
-    { new: true }
+    {
+      subscription: SUBSCRIPTION_STATUS.ACTIVE,
+      isUserWaiting: false
+    },
+    { new: true, upsert: true }
   );
 
   await SalesRep.findByIdAndUpdate(
@@ -357,6 +364,8 @@ const activateAccount = async (id: string) => {
 
 
   };
+
+
 
 }
 

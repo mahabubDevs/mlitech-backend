@@ -134,6 +134,7 @@ export interface IUser {
   city?: string;
   service?: string;
   subscription?: string;
+  isUserWaiting?: boolean;
   paymentStatus?: string;
   prefreances?: string[];
   about?: string;

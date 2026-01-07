@@ -179,6 +179,10 @@ const userSchema = new Schema<IUser, UserModal>(
       default: SUBSCRIPTION_STATUS.INACTIVE,
       enum: Object.values(SUBSCRIPTION_STATUS),
     },
+    isUserWaiting: {
+      type: Boolean,
+      default: false,
+    },
     paymentStatus: {
       type: String,
       enum: ["paid", "unpaid", "expired"],
