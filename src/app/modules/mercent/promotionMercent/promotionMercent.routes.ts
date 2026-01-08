@@ -49,6 +49,11 @@ router.get(
   auth(),
   PromotionController.getPromotionsForUser
 );
+router.get(
+  "/user-combine-promotions",
+  auth(),
+  PromotionController.getCombinePromotionsForUser
+);
 
 router.get("/:id", auth(), PromotionController.getSinglePromotion);
 

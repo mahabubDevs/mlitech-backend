@@ -42,10 +42,13 @@ const verifyOtp = catchAsync(async (req, res) => {
 
 
 const loginUser = catchAsync(async (req: Request, res: Response) => {
-    const { ...loginData } = req.body;
+    const loginData = req.body;
     console.log("Login Data Received:", loginData);
+
+    // ✅ Login and get accessToken + refreshToken
     const result = await AuthService.loginUserFromDB(loginData);
 
+    // 🔹 Response same as before
     sendResponse(res, {
         success: true,
         statusCode: StatusCodes.OK,
@@ -53,6 +56,7 @@ const loginUser = catchAsync(async (req: Request, res: Response) => {
         data: result
     });
 });
+
 
 const forgetPassword = catchAsync(async (req: Request, res: Response) => {
   const { identifier } = req.body; // phone or email

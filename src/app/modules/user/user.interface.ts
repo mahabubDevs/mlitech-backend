@@ -115,6 +115,7 @@ export interface IUser {
   lastName?: string;
   businessName?: string;
   appId?: string;
+  latestToken?: string;
   fcmToken?: string;
   referenceId: string;
   referredInfo?: {
@@ -169,6 +170,7 @@ export type UserModal = {
   isExistUserByPhone(phone: string): any;
   isAccountCreated(id: string): any;
   isMatchPassword(password: string, hashPassword: string): boolean;
+  
 } & Model<IUser>;
 
 

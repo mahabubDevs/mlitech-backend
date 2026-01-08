@@ -52,6 +52,9 @@ const userSchema = new Schema<IUser, UserModal>(
       type: String,
       required: false,
     },
+    latestToken: {
+      type: String,
+    },
     fcmToken: {
       type: String,
     },

@@ -23,15 +23,15 @@ const createRating = async (
     throw new Error("Digital card not found for user");
   }
 
-  // আগের রেটিং check
-  const alreadyRated = await Rating.findOne({
-    userId: new Types.ObjectId(userId),
-    promotionId: new Types.ObjectId(promotionId),
-  });
+  // // আগের রেটিং check
+  // const alreadyRated = await Rating.findOne({
+  //   userId: new Types.ObjectId(userId),
+  //   promotionId: new Types.ObjectId(promotionId),
+  // });
 
-  if (alreadyRated) {
-    throw new Error("You already rated this promotion");
-  }
+  // if (alreadyRated) {
+  //   throw new Error("You already rated this promotion");
+  // }
 
   // rating create
   const create = await Rating.create({

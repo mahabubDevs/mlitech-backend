@@ -117,32 +117,39 @@ const createSubscriptionSession = async (userId: string, packageId: string) => {
 
  // Get user points
 let userPoints = user.points || 0;
-console.log("👤 User points:", userPoints);
-
-let finalPrice = pkg.price; // start with original price
-
+let finalPrice = pkg.price;
 let stripePriceId: string;
 
-// যদি user points থাকে → deduct + new Stripe Price
 if (userPoints > 0) {
-  finalPrice = Math.max(pkg.price - userPoints, 1); // minimum 1 USD
-  console.log(`💲 Original price: ${pkg.price}, -${userPoints} points = Final: ${finalPrice}`);
+  finalPrice = Math.max(pkg.price - userPoints, 1);
 
-  // Create new Stripe Price
-  const stripePrice = await stripe.prices.create({
-    product: pkg.productId,
-    unit_amount: Math.round(finalPrice * 100),
-    currency: "usd",
-    recurring: { interval: pkg.paymentType?.toLowerCase() === "monthly" ? "month" : "year" },
-  });
+  // Check if priceId already exists for this points
+  pkg.priceIdWithPoints = pkg.priceIdWithPoints || {};
 
-  stripePriceId = stripePrice.id;
+  if (pkg.priceIdWithPoints[userPoints]) {
+    // ✅ Existing Stripe price for this points → reuse
+    stripePriceId = pkg.priceIdWithPoints[userPoints];
+    console.log("ℹ️ Reusing existing Stripe Price:", stripePriceId);
+  } else {
+    // ❌ Create new Stripe Price for this points
+    const stripePrice = await stripe.prices.create({
+      product: pkg.productId,
+      unit_amount: Math.round(finalPrice * 100),
+      currency: "usd",
+      recurring: { interval: pkg.paymentType?.toLowerCase() === "monthly" ? "month" : "year" },
+    });
 
-  console.log("✅ New Stripe Price created with points deduction:", stripePriceId);
+    stripePriceId = stripePrice.id;
+    console.log("✅ New Stripe Price created:", stripePriceId);
+
+    // Save to package DB for future reuse
+    pkg.priceIdWithPoints[userPoints] = stripePriceId;
+    await Package.findByIdAndUpdate(pkg._id, { priceIdWithPoints: pkg.priceIdWithPoints });
+  }
 } else {
-  // User points = 0 → use existing price
+  // Points = 0 → use original price
   stripePriceId = pkg.priceId;
-  console.log("ℹ️ No points used → using existing Stripe Price:", stripePriceId);
+  console.log("ℹ️ No points used → using original Stripe Price:", stripePriceId);
 }
 
 
@@ -357,25 +364,39 @@ const subscriptionDetailsFromDB = async (user: JwtPayload): Promise<{ subscripti
     return { subscription };
 };
 
-const companySubscriptionDetailsFromDB = async (id: string): Promise<{ subscription: ISubscription | {} }> => {
+const companySubscriptionDetailsFromDB = async (
+  userId: string
+): Promise<{ subscriptions: ISubscription[] }> => {
+  // 1️⃣ Fetch all subscriptions for the user, populate package details, and sort latest first
+  const subscriptions = await Subscription.find({ user: userId })
+    .populate("package", "title credit")
+    .sort({ createdAt: -1 }) // latest first
+    .lean();
 
-    const subscription = await Subscription.findOne({ user: id }).populate("package", "title credit").lean();
-    if (!subscription) {
-        return { subscription: {} }; // Return empty object if no subscription found
+  if (!subscriptions || subscriptions.length === 0) {
+    return { subscriptions: [] };
+  }
+
+  // 2️⃣ Optionally check Stripe status for each subscription and mark expired
+  await Promise.all(subscriptions.map(async (sub) => {
+    let subscriptionFromStripe;
+    try {
+      subscriptionFromStripe = await stripe.subscriptions.retrieve(sub.subscriptionId);
+    } catch (error) {
+      console.warn("Stripe subscription retrieve failed:", error);
+      subscriptionFromStripe = null;
     }
 
-    const subscriptionFromStripe = await stripe.subscriptions.retrieve(subscription.subscriptionId);
-
-    // Check subscription status and update database accordingly
-    if (subscriptionFromStripe?.status !== "active") {
-        await Promise.all([
-            User.findByIdAndUpdate(id, { isSubscribed: false }, { new: true }),
-            Subscription.findOneAndUpdate({ user: id }, { status: "expired" }, { new: true }),
-        ]);
+    if (!subscriptionFromStripe || subscriptionFromStripe.status !== "active") {
+      await Promise.all([
+        User.findByIdAndUpdate(userId, { isSubscribed: false }, { new: true }),
+        Subscription.findByIdAndUpdate(sub._id, { status: "expired" }, { new: true }),
+      ]);
     }
+  }));
 
-    return { subscription };
-};
+  return { subscriptions };
+}
 
 
 
@@ -447,3 +468,13 @@ export const SubscriptionService = {
     companySubscriptionDetailsFromDB,
     cancelSubscription
 }
+
+
+
+
+
+
+
+
+// batter thinkg but any time need then apply this logic
+

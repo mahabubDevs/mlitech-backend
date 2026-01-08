@@ -79,6 +79,9 @@ const loginUserFromDB = async (payload: ILoginData) => {
         config.jwt.jwtRefreshExpiresIn as string
       );
 
+      // ✅ Save latest token to DB
+    await User.findByIdAndUpdate(user._id, { latestToken: accessToken });
+
       return {
         success: true,
         message: "Login successful",
