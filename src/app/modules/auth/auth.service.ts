@@ -64,8 +64,8 @@ const loginUserFromDB = async (payload: ILoginData) => {
     case USER_STATUS.ACTIVE:
 
 
-     
-  
+
+
       // create tokens
       const accessToken = jwtHelper.createToken(
         { id: user._id, role: user.role, email: user.email },
@@ -87,6 +87,10 @@ const loginUserFromDB = async (payload: ILoginData) => {
         user: {
           pages: user.pages || [],
           subscription: user.subscription,
+          isUserWaiting: user.isUserWaiting,
+          location: user.location,
+
+
         }
       };
 
@@ -249,62 +253,62 @@ const forgetPasswordToDB = async (identifier: string) => {
 
 // verifyPhoneOtpToDB.ts
 const verifyOtpToDB = async (payload: { identifier: string, oneTimeCode: number }) => {
-    const { identifier, oneTimeCode } = payload;
+  const { identifier, oneTimeCode } = payload;
 
-    const isEmail = identifier.includes("@");
+  const isEmail = identifier.includes("@");
 
-    // 1️⃣ Find user by email or phone
-    const user = isEmail
-        ? await User.findOne({ email: identifier }).select("+authentication")
-        : await User.findOne({ phone: identifier }).select("+authentication");
+  // 1️⃣ Find user by email or phone
+  const user = isEmail
+    ? await User.findOne({ email: identifier }).select("+authentication")
+    : await User.findOne({ phone: identifier }).select("+authentication");
 
-    if (!user) throw new ApiError(StatusCodes.BAD_REQUEST, "User doesn't exist!");
+  if (!user) throw new ApiError(StatusCodes.BAD_REQUEST, "User doesn't exist!");
 
-    // 2️⃣ Validate OTP
-    if (!oneTimeCode) {
-        throw new ApiError(StatusCodes.BAD_REQUEST, "Please provide OTP sent to your identifier");
-    }
+  // 2️⃣ Validate OTP
+  if (!oneTimeCode) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Please provide OTP sent to your identifier");
+  }
 
-    const otpInfo = isEmail ? user.authentication?.emailOTP : user.authentication?.phoneOTP;
+  const otpInfo = isEmail ? user.authentication?.emailOTP : user.authentication?.phoneOTP;
 
-    if (!otpInfo || otpInfo.code !== oneTimeCode) {
-        throw new ApiError(StatusCodes.BAD_REQUEST, "You provided wrong OTP");
-    }
+  if (!otpInfo || otpInfo.code !== oneTimeCode) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "You provided wrong OTP");
+  }
 
-    if (!otpInfo.expireAt || otpInfo.expireAt < new Date()) {
-        throw new ApiError(StatusCodes.BAD_REQUEST, "OTP already expired, request new one");
-    }
+  if (!otpInfo.expireAt || otpInfo.expireAt < new Date()) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "OTP already expired, request new one");
+  }
 
-    // 3️⃣ Mark verified & clear OTP
-    if (!user.verified) user.verified = true;
+  // 3️⃣ Mark verified & clear OTP
+  if (!user.verified) user.verified = true;
 
-    if (user.authentication) {
-        if (isEmail) delete user.authentication.emailOTP;
-        else delete user.authentication.phoneOTP;
+  if (user.authentication) {
+    if (isEmail) delete user.authentication.emailOTP;
+    else delete user.authentication.phoneOTP;
 
-        user.authentication.isResetPassword = true; // allow reset flow
-    } else {
-        user.authentication = { isResetPassword: true } as any;
-    }
+    user.authentication.isResetPassword = true; // allow reset flow
+  } else {
+    user.authentication = { isResetPassword: true } as any;
+  }
 
-    await user.save();
+  await user.save();
 
-    // 4️⃣ Generate JWT access token
-    const accessToken = jwtHelper.createToken(
-        { id: user._id, role: user.role, email: user.email, phoneNumber: user.phone },
-        config.jwt.jwt_secret!,
-        config.jwt.jwt_expire_in!
-    );
+  // 4️⃣ Generate JWT access token
+  const accessToken = jwtHelper.createToken(
+    { id: user._id, role: user.role, email: user.email, phoneNumber: user.phone },
+    config.jwt.jwt_secret!,
+    config.jwt.jwt_expire_in!
+  );
 
-    // 5️⃣ Generate reset token (for password reset)
-    const resetToken = cryptoToken();
-    await ResetToken.create({
-        user: user._id,
-        token: resetToken,
-        expireAt: new Date(Date.now() + 5 * 60 * 1000), // 5 min
-    });
+  // 5️⃣ Generate reset token (for password reset)
+  const resetToken = cryptoToken();
+  await ResetToken.create({
+    user: user._id,
+    token: resetToken,
+    expireAt: new Date(Date.now() + 5 * 60 * 1000), // 5 min
+  });
 
-    return { message: "OTP verified successfully", accessToken, resetToken };
+  return { message: "OTP verified successfully", accessToken, resetToken };
 };
 
 
