@@ -384,18 +384,26 @@ const getCombinePromotionsForUser = catchAsync(async (req: Request, res: Respons
   let merchantPromotions = await Promotion.find({
     customerSegment: { $in: [userSegment, "all_customer"] },
     status: "active",
-    type: "merchant" // ধরুন type field আছে
+    // type: "merchant" // ধরুন type field আছে
   })
     .populate("merchantId", "website name")
     .lean();
+
+
+    // ✅ Attach source
+merchantPromotions = merchantPromotions.map(p => ({ ...p, source: "merchant" }));
 
   // 4️⃣ Fetch Admin Promotions
   let adminPromotions = await Promotion.find({
     customerSegment: { $in: [userSegment, "all_customer"] },
     status: "active",
-    type: "admin" // ধরুন admin type
+    // type: "admin" // ধরুন admin type
   })
     .lean();
+
+
+    // ✅ Attach source
+adminPromotions = adminPromotions.map(p => ({ ...p, source: "admin" }));
 
   // 5️⃣ Combine both arrays
   let promotions = [...merchantPromotions, ...adminPromotions];

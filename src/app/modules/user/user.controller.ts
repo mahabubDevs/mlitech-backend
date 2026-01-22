@@ -70,6 +70,16 @@ const updateProfile = catchAsync(
       bodyData = JSON.parse(req.body.data);
     }
 
+      if (bodyData.phone) {
+      return sendResponse(res, {
+        success: false,
+        statusCode: 400,
+        message: "Phone number cannot be changed",
+      });
+    }
+
+   
+
     let profile;
     if (req.files && "profile" in req.files && req.files.profile[0]) {
       profile = `/images/${req.files.profile[0].filename}`;
@@ -88,11 +98,32 @@ const updateProfile = catchAsync(
       delete bodyData.longitude;
     }
 
+
+      /** 🔔 Notification settings safe update */
+  const notificationUpdate: Record<string, boolean> = {};
+
+    if (bodyData.notificationSettings) {
+      // Loop through notificationSettings
+      for (const [key, value] of Object.entries(bodyData.notificationSettings)) {
+        // value যদি string "true"/"false" হয়, তাহলে boolean-এ convert করো
+        if (typeof value === "string") {
+          notificationUpdate[`notificationSettings.${key}`] = value.toLowerCase() === "true";
+        } else {
+          // যদি boolean হয়ে আসে, 그대로 assign করো
+          notificationUpdate[`notificationSettings.${key}`] = value as boolean;
+        }
+      }
+
+  // মূল bodyData থেকে notificationSettings remove করো
+  delete bodyData.notificationSettings;
+}
+
     const data = {
       profile,
       photo,
 
       ...bodyData,
+      ...notificationUpdate,
     };
 
     // console.log("data", data);
@@ -100,6 +131,9 @@ const updateProfile = catchAsync(
       user as JwtPayload,
       data
     );
+
+
+
 
     sendResponse(res, {
       success: true,

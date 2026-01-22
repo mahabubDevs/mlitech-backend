@@ -54,13 +54,13 @@ const updateUserZodSchema = z.object({
       .optional()
       .transform((val) => val?.toLowerCase()),
 
-    phoneNumber: z.string().optional(), // keep as is
+    // phoneNumber: z.string().optional(), // keep as is
     email: z
       .string()
       .email({ message: "Invalid email address" })
       .optional()
       .transform((val) => val?.toLowerCase()),
-    phone: z.string().optional(), // keep as is
+    // phone: z.string().optional(), // keep as is
     password: z
       .string()
       .min(6, "Password must be at least 6 characters")
@@ -105,6 +105,16 @@ const updateUserZodSchema = z.object({
       .optional(),
 
     pages: z.array(z.string().transform((val) => val.toLowerCase())).optional(),
+  //   notificationSettings: z
+  // .object({
+  //   promotionalEmails: z.boolean().optional(),
+  //   appNotifications: z.boolean().optional(),
+  //   smsNotifications: z.boolean().optional(),
+  //   referralNotifications: z.boolean().optional(),
+  //   subscriptionNotifications: z.boolean().optional(),
+  //   pushNotifications: z.boolean().optional(),
+  // })
+  // .optional(),
 
     datingIntentions: z
       .string()

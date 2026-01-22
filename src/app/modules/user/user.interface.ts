@@ -162,6 +162,14 @@ export interface IUser {
   redeem: number;
   totalVisits: number;
   hasViewedReferral: boolean;
+  notificationSettings?: {
+    promotionalEmails: boolean;
+    appNotifications: boolean;
+    smsNotifications: boolean;
+    referralNotifications: boolean;
+    subscriptionNotifications: boolean;
+    pushNotifications: boolean;
+  };
 }
 
 export type UserModal = {

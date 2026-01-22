@@ -15,7 +15,8 @@ import { Subscription } from "../subscription/subscription.model";
 import { IPackage } from "../shopAuraSubscription/aurashop.interface";
 
 import { createUniqueReferralId } from "../../../util/generateRefferalId";
-import { sendOtp } from "../../../config/m3sms";
+// import { sendOtp } from "../../../config/m3sms";
+import { sendOtp } from "../../../config/veevoTechOtp";
 import { generateCustomUserId } from "./user.utils";
 import Referral from "../referral/referral.model";
 import { sendNotification } from "../../../helpers/notificationsHelper";
@@ -61,19 +62,24 @@ const createUserToDB = async (payload: CreateUserPayload): Promise<IUser> => {
   const isExitByEmail = await User.isExistUserByEmail(payload.email as string);
   const isExitByPhone = await User.isExistUserByPhone(payload.phone as string);
 
-  if (isExitByEmail || isExitByPhone) {
+  // ✅ If verified user exists → throw error (same as old logic)
+  if ((isExitByEmail && isExitByEmail.verified) || (isExitByPhone && isExitByPhone.verified)) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "User Already Exist");
   }
 
+  let user: IUser | null = null;
 
-
-
-
-  // 2️⃣ Create user data
+// Update
+if (isExitByEmail || isExitByPhone) {
+  const existingUser = isExitByEmail || isExitByPhone;
+  user = await User.findByIdAndUpdate(existingUser._id, payload, { new: true });
+  if (!user) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Failed to update existing user");
+  }
+} else {
+  // Create
   const referenceId = await createUniqueReferralId();
   const customUserId = await generateCustomUserId(payload.role as string);
-
-
 
   const userData = {
     ...payload,
@@ -83,48 +89,43 @@ const createUserToDB = async (payload: CreateUserPayload): Promise<IUser> => {
       payload.role === USER_ROLES.MERCENT
         ? USER_STATUS.INACTIVE
         : USER_STATUS.ACTIVE,
-
     ...(payload.role === USER_ROLES.MERCENT && {
       approveStatus: APPROVE_STATUS.PENDING,
     }),
   };
 
-  const createUser = await User.create(userData);
-  if (!createUser) {
+  user = await User.create(userData);
+  if (!user) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Failed to create user");
   }
+}
 
 
-  let referredInfo;
-  if (payload?.referredId) {
-    console.log("**********************Referred ID found:", payload.referredId);
+  // 4️⃣ Handle referral if exists
+  if (payload?.referredId && !user.referredInfo) {
     const referrer = await User.findOne({ referenceId: payload.referredId });
     if (!referrer) {
-      throw new ApiError(StatusCodes.BAD_REQUEST, "Referred Id Invalied!");
+      throw new ApiError(StatusCodes.BAD_REQUEST, "Referred Id Invalid!");
     }
-    referredInfo = {
+
+    const referredInfo = {
       referredId: payload.referredId,
-      referredBy: `${referrer.firstName} ${referrer?.lastName ? referrer?.lastName : ""}`,
+      referredBy: `${referrer.firstName} ${referrer.lastName || ""}`,
     };
 
-    const result = await User.findByIdAndUpdate(createUser._id, {
-      $set: {
-        referredInfo,
-      },
-    });
-    if (!result) {
-      throw new ApiError(StatusCodes.BAD_REQUEST, "Failed to update user referredInfo");
-    }
+    await User.findByIdAndUpdate(user._id, { $set: { referredInfo } });
+
     await Referral.create({
       referrer: referrer._id,
-      referredUser: result._id,
+      referredUser: user._id,
     });
   }
-  // 3️⃣ Generate OTP
+
+  // 5️⃣ Generate OTP
   const otp = generateOTP();
 
-  // 4️⃣ Save OTP to DB
-  await User.findByIdAndUpdate(createUser._id, {
+  // 6️⃣ Save OTP to DB
+  await User.findByIdAndUpdate(user._id, {
     $set: {
       "authentication.phoneOTP": {
         code: otp,
@@ -135,29 +136,32 @@ const createUserToDB = async (payload: CreateUserPayload): Promise<IUser> => {
 
   console.log("Generated OTP for user:", otp);
 
-  // 5️⃣ Send OTP via VeevoTech API
-  if (createUser.phone) {
+  // 7️⃣ Send OTP via VeevoTech API
+  if (user.phone) {
     try {
-      await sendOtp(createUser.phone, otp.toString());
-      console.log(`OTP sent to phone: ${createUser.phone}`);
+      await sendOtp(user.phone, otp.toString());
+      console.log(`OTP sent to phone: ${user.phone}`);
     } catch (error) {
       console.error("Failed to send OTP via VeevoTech:", error);
     }
   } else {
-    console.warn("⚠️ No phone number found for user:", createUser._id);
+    console.warn("⚠️ No phone number found for user:", user._id);
   }
 
-  const superAdmin = await User.findOne({ role: USER_ROLES.SUPER_ADMIN  }).select("_id");
-  sendNotification({
-    userIds: [superAdmin!._id.toString()],
-    title: "A new user has registered",
-    body: `User ${createUser.firstName} has registered with the role ${createUser.role}.`,
-    type: NotificationType.SYSTEM,
-  });
+  // 8️⃣ Notify Super Admin
+  const superAdmin = await User.findOne({ role: USER_ROLES.SUPER_ADMIN }).select("_id");
+  if (superAdmin) {
+    sendNotification({
+      userIds: [superAdmin._id.toString()],
+      title: "A new user has registered/updated",
+      body: `User ${user.firstName} has registered or updated with the role ${user.role}.`,
+      type: NotificationType.SYSTEM,
+    });
+  }
 
-
-  return createUser;
+  return user;
 };
+
 
 
 

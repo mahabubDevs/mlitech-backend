@@ -260,23 +260,18 @@ const getMerchantSales = async (req: Request, res: Response) => {
     const merchantId = merchant._id;
 
     /* -----------------------------
-       0️⃣ Date filter based on period (UTC)
+       0️⃣ Date filter (UTC)
     ------------------------------*/
-    const period = req.query.period as string; // "day", "week", "month"
+    const period = req.query.period as string;
     const now = new Date();
     let dateFilter: any = {};
 
     if (period === "day") {
       const startOfDayUTC = new Date(
-        Date.UTC(
-          now.getUTCFullYear(),
-          now.getUTCMonth(),
-          now.getUTCDate()
-        )
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
       );
       dateFilter = { createdAt: { $gte: startOfDayUTC } };
-    } 
-    else if (period === "week") {
+    } else if (period === "week") {
       const startOfWeekUTC = new Date(
         Date.UTC(
           now.getUTCFullYear(),
@@ -285,26 +280,28 @@ const getMerchantSales = async (req: Request, res: Response) => {
         )
       );
       dateFilter = { createdAt: { $gte: startOfWeekUTC } };
-    } 
-    else if (period === "month") {
+    } else if (period === "month") {
       const startOfMonthUTC = new Date(
         Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
       );
       dateFilter = { createdAt: { $gte: startOfMonthUTC } };
     }
 
-    console.log("📌 Merchant Sales Period:", period);
-    console.log("📌 Merchant Sales Date Filter (UTC):", dateFilter);
+    /* -----------------------------
+       🔍 Search keyword
+    ------------------------------*/
+    const search = (req.query.search as string)?.toLowerCase() || "";
 
     /* -----------------------------
-       1️⃣ Base query for this merchant
+       1️⃣ Fetch sales
     ------------------------------*/
-    let query = Sell.find({ merchantId, ...dateFilter })
-      .populate("userId", "firstName lastName email phone profile customUserId")
+    const sales = await Sell.find({ merchantId, ...dateFilter })
+      .populate(
+        "userId",
+        "firstName lastName email phone profile customUserId"
+      )
       .populate("digitalCardId", "cardCode")
       .lean();
-
-    const sales = await query;
 
     if (!sales || sales.length === 0) {
       return res.status(200).json({
@@ -321,7 +318,27 @@ const getMerchantSales = async (req: Request, res: Response) => {
     }
 
     /* -----------------------------
-       2️⃣ Aggregate user data
+       2️⃣ Apply SEARCH (JS level)
+    ------------------------------*/
+    let filteredSales = sales;
+
+    if (search) {
+      filteredSales = sales.filter((tx: any) => {
+        const user = tx.userId || {};
+        const card = tx.digitalCardId || {};
+
+        return (
+          user.firstName?.toLowerCase().includes(search) ||
+          user.lastName?.toLowerCase().includes(search) ||
+          user.email?.toLowerCase().includes(search) ||
+          user.phone?.toLowerCase().includes(search) ||
+          card.cardCode?.toLowerCase().includes(search)
+        );
+      });
+    }
+
+    /* -----------------------------
+       3️⃣ Aggregate user data
     ------------------------------*/
     interface IUserSummary {
       _id: string;
@@ -341,7 +358,7 @@ const getMerchantSales = async (req: Request, res: Response) => {
 
     const userMap: Record<string, IUserSummary> = {};
 
-    sales.forEach((tx: any) => {
+    filteredSales.forEach((tx: any) => {
       const user = tx.userId;
       if (!user || !user._id) return;
 
@@ -378,7 +395,7 @@ const getMerchantSales = async (req: Request, res: Response) => {
     });
 
     /* -----------------------------
-       3️⃣ Manual Pagination
+       4️⃣ Pagination
     ------------------------------*/
     const customers = Object.values(userMap);
     const page = Number(req.query.page) || 1;
@@ -409,6 +426,7 @@ const getMerchantSales = async (req: Request, res: Response) => {
 
 
 
+
 const getMerchantCustomersList = async (req: Request, res: Response) => {
   try {
     const merchant = req.user as { _id: string };
@@ -430,13 +448,23 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
     let dateFilter: any = {};
 
     if (period === "day") {
-      const startOfDayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+      const startOfDayUTC = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+      );
       dateFilter = { createdAt: { $gte: startOfDayUTC } };
     } else if (period === "week") {
-      const startOfWeekUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - now.getUTCDay()));
+      const startOfWeekUTC = new Date(
+        Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth(),
+          now.getUTCDate() - now.getUTCDay()
+        )
+      );
       dateFilter = { createdAt: { $gte: startOfWeekUTC } };
     } else if (period === "month") {
-      const startOfMonthUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+      const startOfMonthUTC = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
+      );
       dateFilter = { createdAt: { $gte: startOfMonthUTC } };
     }
 
@@ -444,18 +472,23 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
     console.log("📌 Date filter applied (UTC):", dateFilter);
 
     /* -----------------------------
+       🔍 Search keyword
+    ------------------------------*/
+    const search = (req.query.search as string)?.toLowerCase() || "";
+
+    /* -----------------------------
        1️⃣ Fetch all completed sells
     ------------------------------*/
     let query = Sell.find({ merchantId, status: "completed", ...dateFilter })
-      .populate("userId", "firstName lastName email phone profile customUserId country")
+      .populate(
+        "userId",
+        "firstName lastName email phone profile customUserId country"
+      )
       .populate("digitalCardId", "cardCode availablePoints tier createdAt")
       .populate("merchantId", "businessName shopName firstName")
       .lean();
 
-
-
     const sales = await query;
-
 
     if (!sales.length) {
       console.log("ℹ No sales found for this merchant and period");
@@ -472,9 +505,38 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
     }
 
     /* -----------------------------
+       🔍 Apply SEARCH (JS level)
+    ------------------------------*/
+    let filteredSales = sales;
+
+    if (search) {
+      filteredSales = sales.filter((tx: any) => {
+        const user = tx.userId || {};
+        const card = tx.digitalCardId || {};
+        const fullName = `${user.firstName || ""} ${user.lastName || ""}`.toLowerCase();
+
+        return (
+          fullName.includes(search) ||
+          user.email?.toLowerCase().includes(search) ||
+          user.phone?.toLowerCase().includes(search) ||
+          user.customUserId?.toLowerCase().includes(search) ||
+          user.country?.toLowerCase().includes(search) ||
+          card.cardCode?.toLowerCase().includes(search)
+        );
+      });
+    }
+
+    /* -----------------------------
        2️⃣ Ratings
     ------------------------------*/
-    const userIds = [...new Set(sales.map((tx: any) => tx.userId?._id?.toString()).filter(Boolean))];
+    const userIds = [
+      ...new Set(
+        filteredSales
+          .map((tx: any) => tx.userId?._id?.toString())
+          .filter(Boolean)
+      ),
+    ];
+
     console.log("📌 Unique user IDs from sales:", userIds);
 
     const ratings = await Rating.find({
@@ -489,13 +551,12 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
       ratingMap[r.userId.toString()] = r;
     });
 
-
     /* -----------------------------
        3️⃣ Aggregate customer data
     ------------------------------*/
     const userMap: Record<string, any> = {};
 
-    sales.forEach((tx: any) => {
+    filteredSales.forEach((tx: any) => {
       const user = tx.userId;
       if (!user?._id) return;
 
@@ -537,8 +598,6 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
       userMap[userId].finalBilled += tx.discountedBill || 0;
     });
 
- 
-
     /* -----------------------------
        4️⃣ Manual Pagination (CUSTOMER level)
     ------------------------------*/
@@ -551,7 +610,6 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
     /* -----------------------------
        5️⃣ Response
     ------------------------------*/
-
     return res.status(200).json({
       success: true,
       data: paginatedCustomers,
@@ -563,6 +621,7 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
+    console.error("❌ Error in getMerchantCustomersList:", error);
 
     return res.status(500).json({
       success: false,

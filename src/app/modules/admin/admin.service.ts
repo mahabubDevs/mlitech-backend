@@ -75,7 +75,7 @@ const getAllCustomers = async (query: Record<string, unknown>) => {
   );
 
   const allCusomtersQuery = new QueryBuilder(baseQuery, query)
-    .search(["firstName", "lastName", "email", "phone"])
+    .search(["firstName", "lastName", "email", "phone", "customUserId", "address", "subscription"])
     .filter()
     .paginate()
     .sort();
@@ -94,10 +94,13 @@ const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
   const { address, service, radius, favorite, ...rest } = query;
   const { location: userLocation, _id: userId } = user;
 
-  let baseQuery = User.find({ role: USER_ROLES.MERCENT });
+  let baseQuery = User.find({ role: USER_ROLES.MERCENT, verified: true });
+
+
+  // let baseQuery = User.find({ role: USER_ROLES.MERCENT });
 
   const allMerchantsQuery = new QueryBuilder(baseQuery, rest)
-    .search(["firstName", "lastName", "email", "phone"])
+    .search(["firstName", "lastName", "email", "phone", "businessName", "service", "address","customUserId"])
     .filter()
     .sort()
     .paginate();

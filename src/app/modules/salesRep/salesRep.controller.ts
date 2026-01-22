@@ -61,6 +61,9 @@ const validateToken = catchAsync(async (req: Request, res: Response) => {
     message: "Token validated  successfully",
   });
 });
+
+
+
 const activateAccount = catchAsync(async (req: Request, res: Response) => {
   await SalesRepService.activateAccount(req.params.id);
 
@@ -70,6 +73,9 @@ const activateAccount = catchAsync(async (req: Request, res: Response) => {
     message: "Account activated successfully",
   });
 });
+
+
+
 const deactivateAccount = catchAsync(async (req: Request, res: Response) => {
   await SalesRepService.deactivateAccount(req.params.id);
 

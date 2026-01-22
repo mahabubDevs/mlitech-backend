@@ -65,11 +65,11 @@ const createChangePasswordZodSchema = z
         required_error: 'Current Password is required',
       }),
       newPassword: z
-        .string({ required_error: 'New Password is required' })
-        .regex(
-          passwordRegex,
-          'Password must be at least 8 characters, include uppercase, lowercase, number, and special character'
-        ),
+        .string({ required_error: 'New Password is required' }),
+        // .regex(
+        //   passwordRegex,
+        //   'Password must be at least 8 characters, include uppercase, lowercase, number, and special character'
+        // ),
       confirmPassword: z.string({
         required_error: 'Confirm Password is required',
       }),

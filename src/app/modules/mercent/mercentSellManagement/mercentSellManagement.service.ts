@@ -416,11 +416,14 @@ const requestApproval = async ({
 
   // Emit via socket if needed
   const io = (global as any).io;
-  if (io) {
-    io.emit(`getApplyRequest::${digitalCard.userId}`, formattedData);
-    console.log("================💠 Emitted requestApproval via socket =====================", digitalCard.userId);
-    
-  }
+
+    // 🔥 Approval only if loyalty points are redeemed
+    if (io && pointRedeemed > 0) {
+      io.emit(`getApplyRequest::${digitalCard.userId}`, formattedData);
+      console.log("💠 Loyalty points approval request sent");
+    }
+
+
 
   return formattedData;
 };

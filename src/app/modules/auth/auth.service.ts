@@ -19,7 +19,7 @@ import generateOTP from '../../../util/generateOTP';
 import { ResetToken } from '../resetToken/resetToken.model';
 import { User } from '../user/user.model';
 import { IUser } from '../user/user.interface';
-import { sendOtp } from '../../../shared/twilioService';
+import { sendOtp } from '../../../config/veevoTechOtp';
 import { SUBSCRIPTION_STATUS, USER_ROLES, USER_STATUS } from '../../../enums/user';
 import { OAuth2Client } from 'google-auth-library';
 import { createUniqueReferralId } from '../../../util/generateRefferalId';

@@ -14,6 +14,7 @@ import { sendNotification } from "../../../helpers/notificationsHelper";
 import { NotificationType } from "../notification/notification.model";
 import Referral from "../referral/referral.model";
 import PointTransaction from "../pointTransaction/pointTransaction.model";
+import { sendPushNotification } from "../../../helpers/sendPushNotification";
 
 const createSalesRepData = async (user: JwtPayload, packageId: string) => {
 
@@ -302,6 +303,32 @@ const activateAccount = async (id: string) => {
     { new: true, upsert: true }
   );
 
+
+  // 4️⃣ Update user subscription
+  const user = await User.findByIdAndUpdate(
+    salesRep.customerId,
+    {
+      subscription: SUBSCRIPTION_STATUS.ACTIVE,
+      isUserWaiting: false
+    },
+    { new: true, upsert: true, select: "fcmToken firstName lastName" }
+  );
+
+ // 7️⃣ Send push notification
+  if (user?.fcmToken) {
+    console.log("Sending push notification to:", user.fcmToken);
+    await sendPushNotification(
+      user.fcmToken,
+      "Welcome to the app",
+      "You have successfully subscribed to our app. We are excited to have you on board!"
+    );
+    console.log("Push notification sent");
+  } else {
+    console.log("No FCM token found, skipping notification");
+  }
+
+
+  
   await sendNotification({
     userIds: [salesRep.customerId.toString()],
     title: "Welcome to the app",

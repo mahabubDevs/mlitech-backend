@@ -251,7 +251,18 @@ const userSchema = new Schema<IUser, UserModal>(
     hasViewedReferral: {
       type: Boolean,
       default: false,
-    }
+    },
+    notificationSettings: { 
+      type: Object,
+      default: {
+        promotionalEmails: true,
+        appNotifications: true,
+        smsNotifications: true,
+        referralNotifications: true,
+        subscriptionNotifications: true,
+        pushNotifications: true,
+      },
+    },
 
   },
   {

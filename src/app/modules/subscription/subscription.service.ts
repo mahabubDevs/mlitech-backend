@@ -162,7 +162,7 @@ const session = await stripe.checkout.sessions.create({
   line_items: [{ price: stripePriceId, quantity: 1 }],
   success_url: `https://miltech-business-dashboard-api.vercel.app/success?session_id={CHECKOUT_SESSION_ID}`,
   cancel_url: `https://miltech-business-dashboard-api.vercel.app/failed`,
-  client_reference_id: userId,
+  client_reference_id: userId.toString(),
   metadata: { packageId: pkg._id.toString(), pointsUsed: userPoints },
 });
 
