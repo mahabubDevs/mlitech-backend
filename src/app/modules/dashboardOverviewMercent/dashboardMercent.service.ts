@@ -219,6 +219,9 @@ const getReportForMerchantDashboard = async (
       startDate.setMonth(today.getMonth() - 3);
       startDate.setHours(0, 0, 0, 0);
       break;
+    case "all":
+      startDate = new Date(0); // Epoch time
+      break;
     default:
       startDate = new Date();
       startDate.setDate(today.getDate() - 6);

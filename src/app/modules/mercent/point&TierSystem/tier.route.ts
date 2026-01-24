@@ -2,13 +2,14 @@ import { Router } from "express";
 import { TierController } from "./tier.controller";
 import { USER_ROLES } from "../../../../enums/user";
 import auth from "../../../middlewares/auth";
+import { canAccessMerchantProfile } from "../../../middlewares/accessMerchentProfile";
 
 
 
 const router = Router();
 
 router.route("/")
-  .get(auth(), TierController.getTier)
+  .get(auth(),canAccessMerchantProfile,  TierController.getTier)
   .post(auth(USER_ROLES.MERCENT), TierController.createTier);
 
 router.route("/:id")

@@ -81,18 +81,23 @@ const updateTier = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getTier = catchAsync(async (req: Request, res: Response) => {
+  const user = req.user as any;
+
+  // ✅ Decide which ID to use for filtering
+  const filterId = user.isSubMerchant ? user.merchantId : user._id;
+
   // Build the query
   const queryBuilder = new QueryBuilder(
-    Tier.find(), // base model query
+    Tier.find(),
     {
       ...req.query,
-      admin: (req.user as any)?._id, // add adminId if logged in
+      admin: filterId, // 🔥 only change applied here
     }
   );
 
   // Apply query builder features
   queryBuilder
-    .search(['name', 'description']) // searchable fields in Tier
+    .search(["name", "description"])
     .filter()
     .sort()
     .paginate()
@@ -110,9 +115,10 @@ const getTier = catchAsync(async (req: Request, res: Response) => {
     success: true,
     message: "Tiers retrieved successfully",
     data: tiers,
-     pagination,
+    pagination,
   });
 });
+
 
 const getSingleTier = catchAsync(async (req: Request, res: Response) => {
   const result = await TierService.getSingleTierFromDB(req.params.id);

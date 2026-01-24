@@ -248,25 +248,42 @@ const getUserFullTransactions = catchAsync(async (req: Request, res: Response) =
 
 const getMerchantSales = async (req: Request, res: Response) => {
   try {
-    const merchant = req.user as { _id: string; role?: string };
+    // -----------------------------
+    // 0️⃣ Merchant / Sub-Merchant Check
+    // -----------------------------
+    const user = req.user as {
+      _id: string;
+      role?: string;
+      isSubMerchant?: boolean;
+      merchantId?: string;
+    };
 
-    if (!merchant?._id || !Types.ObjectId.isValid(merchant._id)) {
+    if (!user?._id || !Types.ObjectId.isValid(user._id)) {
       return res.status(401).json({
         success: false,
         message: "Unauthorized merchant",
       });
     }
 
-    const merchantId = merchant._id;
+    // Decide which ID to use for filtering
+    const merchantId = user.isSubMerchant ? user.merchantId : user._id;
+    console.log("🔹 Filter by merchant ID:", merchantId);
 
-    /* -----------------------------
-       0️⃣ Date filter (UTC)
-    ------------------------------*/
+    // -----------------------------
+    // 1️⃣ Date filter (UTC) based on period OR month
+    // -----------------------------
     const period = req.query.period as string;
+    const monthParam = req.query.month as string; // 1-12
     const now = new Date();
     let dateFilter: any = {};
 
-    if (period === "day") {
+    if (monthParam) {
+      const month = Number(monthParam) - 1; // JS month 0-11
+      const year = now.getFullYear();
+      const startOfMonth = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+      const endOfMonth = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
+      dateFilter = { createdAt: { $gte: startOfMonth, $lte: endOfMonth } };
+    } else if (period === "day") {
       const startOfDayUTC = new Date(
         Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
       );
@@ -287,14 +304,14 @@ const getMerchantSales = async (req: Request, res: Response) => {
       dateFilter = { createdAt: { $gte: startOfMonthUTC } };
     }
 
-    /* -----------------------------
-       🔍 Search keyword
-    ------------------------------*/
-    const search = (req.query.search as string)?.toLowerCase() || "";
+       // -----------------------------
+    // 2️⃣ Search keyword → searchTerm
+    // -----------------------------
+    const searchTerm = (req.query.searchTerm as string)?.toLowerCase() || "";
 
-    /* -----------------------------
-       1️⃣ Fetch sales
-    ------------------------------*/
+    // -----------------------------
+    // 3️⃣ Fetch sales
+    // -----------------------------
     const sales = await Sell.find({ merchantId, ...dateFilter })
       .populate(
         "userId",
@@ -307,39 +324,33 @@ const getMerchantSales = async (req: Request, res: Response) => {
       return res.status(200).json({
         success: true,
         data: [],
-        pagination: {
-          page: 1,
-          limit: 0,
-          total: 0,
-          totalPage: 0,
-        },
+        pagination: { page: 1, limit: 0, total: 0, totalPage: 0 },
         message: "No sales found for this period",
       });
     }
 
-    /* -----------------------------
-       2️⃣ Apply SEARCH (JS level)
-    ------------------------------*/
+    // -----------------------------
+    // 4️⃣ Apply SEARCH (JS level)
+    // -----------------------------
     let filteredSales = sales;
-
-    if (search) {
+    if (searchTerm) {
       filteredSales = sales.filter((tx: any) => {
         const user = tx.userId || {};
         const card = tx.digitalCardId || {};
-
         return (
-          user.firstName?.toLowerCase().includes(search) ||
-          user.lastName?.toLowerCase().includes(search) ||
-          user.email?.toLowerCase().includes(search) ||
-          user.phone?.toLowerCase().includes(search) ||
-          card.cardCode?.toLowerCase().includes(search)
+          user.firstName?.toLowerCase().includes(searchTerm) ||
+          user.lastName?.toLowerCase().includes(searchTerm) ||
+          user.email?.toLowerCase().includes(searchTerm) ||
+          user.phone?.toLowerCase().includes(searchTerm) ||
+          card.cardCode?.toLowerCase().includes(searchTerm)
         );
       });
     }
 
-    /* -----------------------------
-       3️⃣ Aggregate user data
-    ------------------------------*/
+
+    // -----------------------------
+    // 5️⃣ Aggregate user data
+    // -----------------------------
     interface IUserSummary {
       _id: string;
       name: string;
@@ -357,13 +368,11 @@ const getMerchantSales = async (req: Request, res: Response) => {
     }
 
     const userMap: Record<string, IUserSummary> = {};
-
     filteredSales.forEach((tx: any) => {
       const user = tx.userId;
       if (!user || !user._id) return;
 
       const userId = user._id.toString();
-
       if (!userMap[userId]) {
         userMap[userId] = {
           _id: userId,
@@ -394,14 +403,13 @@ const getMerchantSales = async (req: Request, res: Response) => {
       }
     });
 
-    /* -----------------------------
-       4️⃣ Pagination
-    ------------------------------*/
+    // -----------------------------
+    // 6️⃣ Pagination
+    // -----------------------------
     const customers = Object.values(userMap);
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
     const skip = (page - 1) * limit;
-
     const paginatedCustomers = customers.slice(skip, skip + limit);
 
     return res.status(200).json({
@@ -416,10 +424,7 @@ const getMerchantSales = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("❌ Error in getMerchantSales:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Server Error",
-    });
+    return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -427,23 +432,27 @@ const getMerchantSales = async (req: Request, res: Response) => {
 
 
 
+
 const getMerchantCustomersList = async (req: Request, res: Response) => {
   try {
-    const merchant = req.user as { _id: string };
+    const user = req.user as any;
 
-    if (!merchant?._id || !Types.ObjectId.isValid(merchant._id)) {
+    // ✅ Decide which ID to use for filtering
+    const filterId = user.isSubMerchant ? user.merchantId : user._id;
+
+    if (!filterId || !Types.ObjectId.isValid(filterId)) {
       return res.status(401).json({
         success: false,
         message: "Unauthorized merchant",
       });
     }
 
-    const merchantId = merchant._id;
+    const merchantId = filterId;
 
     /* -----------------------------
        0️⃣ Date filter based on period (UTC)
     ------------------------------*/
-    const period = req.query.period as string; // "day", "week", "month"
+    const period = req.query.period as string;
     const now = new Date();
     let dateFilter: any = {};
 
@@ -479,7 +488,11 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
     /* -----------------------------
        1️⃣ Fetch all completed sells
     ------------------------------*/
-    let query = Sell.find({ merchantId, status: "completed", ...dateFilter })
+    const sales = await Sell.find({
+      merchantId,
+      status: "completed",
+      ...dateFilter,
+    })
       .populate(
         "userId",
         "firstName lastName email phone profile customUserId country"
@@ -488,10 +501,7 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
       .populate("merchantId", "businessName shopName firstName")
       .lean();
 
-    const sales = await query;
-
     if (!sales.length) {
-      console.log("ℹ No sales found for this merchant and period");
       return res.status(200).json({
         success: true,
         data: [],
@@ -507,24 +517,41 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
     /* -----------------------------
        🔍 Apply SEARCH (JS level)
     ------------------------------*/
-    let filteredSales = sales;
+/* -----------------------------
+   🔍 Apply SEARCH (JS level)
+   Only by customer ID, name, or country
+------------------------------*/
+// Remove any previous `const search` declaration
+const searchTerm = ((req.query.search as string) || (req.query.searchTerm as string) || "")
+  .toLowerCase()
+  .trim();
 
-    if (search) {
-      filteredSales = sales.filter((tx: any) => {
-        const user = tx.userId || {};
-        const card = tx.digitalCardId || {};
-        const fullName = `${user.firstName || ""} ${user.lastName || ""}`.toLowerCase();
+let filteredSales = sales;
 
-        return (
-          fullName.includes(search) ||
-          user.email?.toLowerCase().includes(search) ||
-          user.phone?.toLowerCase().includes(search) ||
-          user.customUserId?.toLowerCase().includes(search) ||
-          user.country?.toLowerCase().includes(search) ||
-          card.cardCode?.toLowerCase().includes(search)
-        );
-      });
-    }
+if (searchTerm) {
+  console.log("🔍 Search keyword:", searchTerm);
+
+  filteredSales = sales.filter((tx: any) => {
+    const user = tx.userId || {};
+    const fullName = `${user.firstName || ""} ${user.lastName || ""}`.toLowerCase();
+    const customId = (user.customUserId || "").toLowerCase();
+    const country = (user.country || "").toLowerCase();
+
+    console.log("🧾 Checking user:", {
+      fullName,
+      customId,
+      country,
+    });
+
+    return (
+      fullName.includes(searchTerm) ||    // search by name
+      customId.includes(searchTerm) ||    // search by customer ID
+      country.includes(searchTerm)        // search by country/location
+    );
+  });
+}
+
+
 
     /* -----------------------------
        2️⃣ Ratings
@@ -536,8 +563,6 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
           .filter(Boolean)
       ),
     ];
-
-    console.log("📌 Unique user IDs from sales:", userIds);
 
     const ratings = await Rating.find({
       merchantId,
@@ -599,7 +624,7 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
     });
 
     /* -----------------------------
-       4️⃣ Manual Pagination (CUSTOMER level)
+       4️⃣ Manual Pagination
     ------------------------------*/
     const customers = Object.values(userMap);
     const page = Number(req.query.page) || 1;
@@ -622,13 +647,13 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("❌ Error in getMerchantCustomersList:", error);
-
     return res.status(500).json({
       success: false,
       message: "Server Error",
     });
   }
 };
+
 
 
 

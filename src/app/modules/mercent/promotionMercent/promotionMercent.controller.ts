@@ -90,8 +90,9 @@ const getAllPromotions = catchAsync(async (req: Request, res: Response) => {
 const getAllPromotionsOfAMerchant = catchAsync(
   async (req: Request, res: Response) => {
     const user = req.user as JwtPayload;
+    const filterId = user.isSubMerchant ? user.merchantId : user._id;
     const result = await PromotionService.getAllPromotionsOfAMerchant(
-      user._id,
+      filterId,
       req.query
     );
     sendResponse(res, {

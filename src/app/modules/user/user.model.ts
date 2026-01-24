@@ -264,6 +264,16 @@ const userSchema = new Schema<IUser, UserModal>(
       },
     },
 
+    // 🔹 Add these fields
+    isRootMerchant: {
+      type: Boolean,
+      default: false,
+    },
+    isSubMerchant: {
+      type: Boolean,
+      default: false,
+    },
+    
   },
   {
     timestamps: true,

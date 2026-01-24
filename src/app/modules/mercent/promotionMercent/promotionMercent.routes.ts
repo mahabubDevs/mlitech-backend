@@ -8,6 +8,7 @@ import { USER_ROLES } from "../../../../enums/user";
 
 import { PromotionValidations } from "./promotionMercent.validation";
 import validateRequest from "../../../middlewares/validateRequest";
+import { canAccessMerchantProfile } from "../../../middlewares/accessMerchentProfile";
 
 const router = Router();
 
@@ -23,7 +24,7 @@ router.get(
 router.get("/merchants/:id", auth(), PromotionController.getDetailsOfMerchant);
 router.get(
   "/merchants",
-  auth(USER_ROLES.MERCENT),
+  auth(USER_ROLES.MERCENT, USER_ROLES.VIEW_MERCENT), canAccessMerchantProfile,
   PromotionController.getAllPromotionsOfAMerchant
 );
 router.get(

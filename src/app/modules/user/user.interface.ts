@@ -170,6 +170,11 @@ export interface IUser {
     subscriptionNotifications: boolean;
     pushNotifications: boolean;
   };
+
+
+  // 🔹 Add these fields
+  isRootMerchant?: boolean;
+  isSubMerchant?: boolean;
 }
 
 export type UserModal = {

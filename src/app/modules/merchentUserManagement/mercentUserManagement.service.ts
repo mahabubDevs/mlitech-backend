@@ -10,7 +10,7 @@ import { generateCustomUserId } from "../user/user.utils";
 
 
 const ALLOWED_MERCHANT_ROLES = [
-  USER_ROLES.MERCENT,
+  USER_ROLES.ADMIN_MERCENT,
   USER_ROLES.VIEW_MERCENT,
 ];
 
@@ -18,32 +18,37 @@ const createUserToDB = async (
   payload: Partial<IUser>,
   loggedInUser: any
 ) => {
-  // 🔒 Ownership
+  // 🔐 Only Merchant can create merchant staff
+  if (loggedInUser.role !== USER_ROLES.MERCENT) {
+    throw new ApiError(403, "Only merchant can create merchant users");
+  }
+
+  // 🔒 Ownership (সবসময় merchant-এর under)
   payload.createdBy = loggedInUser._id;
-  payload.merchantId = loggedInUser.id;
+  payload.merchantId = loggedInUser._id; // 🔴 FIXED
+  payload.isSubMerchant = true;          // 🔴 IMPORTANT FLAG
 
   // 🔒 Role validation
   if (payload.role) {
     if (!ALLOWED_MERCHANT_ROLES.includes(payload.role as USER_ROLES)) {
       throw new ApiError(
         400,
-        "Merchant can only create MERCENT or VIEW_MERCENT users"
+        "Merchant can only create ADMIN_MERCENT or VIEW_MERCENT users"
       );
     }
   } else {
     payload.role = USER_ROLES.VIEW_MERCENT;
   }
 
-  // 🔒 Status default
+  // 🔒 Default values
   payload.status = USER_STATUS.ACTIVE;
-
-  // 🔒 Verify automatically true
   payload.verified = true;
 
+  // ❌ Staff user কখনো root merchant হবে না
+  payload.isRootMerchant = false;
+
   // ✅ Generate customUserId
-  let roleForId = payload.role;
-  if (payload.role === USER_ROLES.VIEW_MERCENT) roleForId = USER_ROLES.MERCENT;
-  payload.customUserId = await generateCustomUserId(roleForId);
+  payload.customUserId = await generateCustomUserId(USER_ROLES.MERCENT);
 
   // ✅ Generate referenceId
   if (!payload.referenceId) {
@@ -51,9 +56,9 @@ const createUserToDB = async (
   }
 
   const user = await User.create(payload);
-  console.log("Created user:", user);
   return user.toObject();
 };
+
 
 
 // ---------------- Get Users By Merchant ----------------

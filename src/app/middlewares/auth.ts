@@ -42,7 +42,9 @@ const auth = (...roles: string[]) => async (req: Request, res: Response, next: N
         req.user = {
             _id: user._id,
             role: user.role,
-            email: user.email
+            email: user.email,
+            isSubMerchant: user.isSubMerchant,
+            merchantId: user.merchantId,
         };
 
         // ✅ Role-based access

@@ -2,6 +2,7 @@ import express from "express";
 import auth from "../../../middlewares/auth";
 import { USER_ROLES } from "../../../../enums/user";
 import mercentSellManagementController from "./mercentSellManagement.controller";
+import { canAccessMerchantProfile } from "../../../middlewares/accessMerchentProfile";
 
 
 const router = express.Router();
@@ -48,19 +49,19 @@ router.get(
 
 router.get(
   "/merchant",
-  auth(USER_ROLES.MERCENT,USER_ROLES.VIEW_MERCENT),
+  auth(USER_ROLES.MERCENT,USER_ROLES.VIEW_MERCENT),canAccessMerchantProfile,
   mercentSellManagementController.getMerchantSales
 );
 
 router.get(
   "/customer",
-  auth(USER_ROLES.MERCENT, USER_ROLES.VIEW_MERCENT,USER_ROLES.USER),
+  auth(USER_ROLES.MERCENT, USER_ROLES.VIEW_MERCENT,USER_ROLES.USER), canAccessMerchantProfile,
   mercentSellManagementController.getMerchantCustomersList
 );
 
 router.get(
   "/customer/export",
-  auth(USER_ROLES.MERCENT, USER_ROLES.VIEW_MERCENT, USER_ROLES.USER),
+  auth(USER_ROLES.MERCENT,),
   mercentSellManagementController.exportMerchantCustomersExcel
 );
 // router.post(
