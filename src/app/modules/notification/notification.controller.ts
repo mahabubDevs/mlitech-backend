@@ -6,9 +6,13 @@ import { NotificationService } from "./notification.service";
 import { JwtPayload } from "jsonwebtoken";
 
 const getMyNotification = catchAsync(async (req: Request, res: Response) => {
-  const user = req.user;
+  const user = req.user as any;
+
+  // ✅ Decide which ID to use for filtering
+  const filterId = user.isSubMerchant ? user.merchantId : user._id;
+
   const result = await NotificationService.getUserNotificationFromDB(
-    user as JwtPayload,
+    filterId,
     req.query
   );
 
@@ -20,6 +24,7 @@ const getMyNotification = catchAsync(async (req: Request, res: Response) => {
     pagination: result.pagination,
   });
 });
+
 
 const readMyNotifications = catchAsync(async (req: Request, res: Response) => {
   const user = req.user;

@@ -68,7 +68,7 @@ const promotionSchema = new Schema(
   { timestamps: true }
 );
 
-export const Promotion = model<IPromotion>(
+export const PromotionAdmin = model<IPromotion>(
   "AdminPromotionMercent",
   promotionSchema
 );

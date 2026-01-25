@@ -29,7 +29,7 @@ const getUserFavorites = async (userId: string) => {
     .populate({
       path: "merchantId", // Favorite model এ যেই ফিল্ডে userId reference আছে
       model: "User",      // User model থেকে populate করবে
-      select: "name email role" // শুধু দরকারি field দেখাবে
+      select: "firstName email role businessName" // শুধু দরকারি field দেখাবে
     })
     .sort({ createdAt: -1 });
 };

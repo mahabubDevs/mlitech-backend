@@ -34,12 +34,12 @@ export const canAccessMerchantProfile = async (req: Request, res: Response, next
 
     // If no params -> token-only route
     // Example: dashboard / tiers list
-    console.log('[ACCESS LOG] No userId param, access allowed based on token only', {
-      _id: reqUser._id.toString(),
-      role: reqUser.role,
-      isSubMerchant: reqUser.isSubMerchant,
-      merchantId: reqUser.merchantId?.toString(),
-    });
+    // console.log('[ACCESS LOG] No userId param, access allowed based on token only', {
+    //   _id: reqUser._id.toString(),
+    //   role: reqUser.role,
+    //   isSubMerchant: reqUser.isSubMerchant,
+    //   merchantId: reqUser.merchantId?.toString(),
+    // });
 
     next(); // allow access
   } catch (err) {

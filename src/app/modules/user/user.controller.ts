@@ -182,8 +182,14 @@ const getUserSummaryCounts = catchAsync(async (req: Request, res: Response) => {
 
   // 4️⃣ Total promotions
   const digitalCards = await DigitalCard.find({ userId }).select("promotions").lean();
-  const totalPromotions = digitalCards.reduce((sum, card) => sum + card.promotions.length, 0);
+  const totalPromotions =  digitalCards.reduce((sum, card) => {
+    const available = (card.promotions || []).filter(
+      (p: any) => p.status !== "used"
+    ).length;
+    return sum + available;
+  }, 0);
 
+  
   // 5️⃣ Minimal response
   res.status(StatusCodes.OK).json({
     success: true,

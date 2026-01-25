@@ -12,13 +12,13 @@ const router = Router();
 
 router.get(
   "/merchant-dashboard-report",
-  auth(USER_ROLES.MERCENT,USER_ROLES.VIEW_MERCENT),canAccessMerchantProfile,
+  auth(USER_ROLES.MERCENT,USER_ROLES.VIEW_MERCENT,USER_ROLES.ADMIN_MERCENT),canAccessMerchantProfile,
   DashboardMercentController.getMerchantReport
 );
 
 router.get(
   "/weekly-sell-report",
-  auth(USER_ROLES.MERCENT,USER_ROLES.VIEW_MERCENT),canAccessMerchantProfile,
+  auth(USER_ROLES.MERCENT,USER_ROLES.VIEW_MERCENT,USER_ROLES.ADMIN_MERCENT),canAccessMerchantProfile,
   DashboardMercentController.getWeeklySellReport
 );
 
@@ -29,7 +29,7 @@ router.get(
 );
 router.get(
   "/customer-chart",
-  auth(USER_ROLES.MERCENT,USER_ROLES.VIEW_MERCENT),canAccessMerchantProfile,
+  auth(USER_ROLES.MERCENT,USER_ROLES.VIEW_MERCENT,USER_ROLES.ADMIN_MERCENT),canAccessMerchantProfile,
   DashboardMercentController.getCustomerChart
 );
 router.get(

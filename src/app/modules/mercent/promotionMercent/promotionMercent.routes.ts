@@ -24,7 +24,7 @@ router.get(
 router.get("/merchants/:id", auth(), PromotionController.getDetailsOfMerchant);
 router.get(
   "/merchants",
-  auth(USER_ROLES.MERCENT, USER_ROLES.VIEW_MERCENT), canAccessMerchantProfile,
+  auth(USER_ROLES.MERCENT, USER_ROLES.VIEW_MERCENT, USER_ROLES.ADMIN_MERCENT), canAccessMerchantProfile,
   PromotionController.getAllPromotionsOfAMerchant
 );
 router.get(
@@ -36,7 +36,7 @@ router.get(
 
 router.post(
   "/",
-  auth(USER_ROLES.MERCENT),
+  auth(USER_ROLES.MERCENT, USER_ROLES.ADMIN_MERCENT),canAccessMerchantProfile,
   fileUploadHandler(),
   PromotionController.createPromotion
 );
@@ -60,7 +60,7 @@ router.get("/:id", auth(), PromotionController.getSinglePromotion);
 
 router.patch(
   "/:id",
-  auth(USER_ROLES.MERCENT),
+  auth(USER_ROLES.MERCENT,USER_ROLES.ADMIN_MERCENT),canAccessMerchantProfile,
   fileUploadHandler(),
   PromotionController.updatePromotion
 );

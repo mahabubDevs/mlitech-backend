@@ -4,14 +4,15 @@ import { Router } from "express";
 import auth from "../../../middlewares/auth";
 import { USER_ROLES } from "../../../../enums/user";
 import { DigitalCardController } from "./digitalCard.controller";
+import { canAccessMerchantProfile } from "../../../middlewares/accessMerchentProfile";
 
 const router = Router();
 
 // router.post("/add", auth(), DigitalCardController.addPromotion);
-router.post("/add", auth(), DigitalCardController.addPromotion);
+router.post("/add", auth(USER_ROLES.USER), DigitalCardController.addPromotion);
 
-router.get("/my-promotions", auth(), DigitalCardController.getUserAddedPromotions);
-router.get("/my-digital-cards", auth(), DigitalCardController.getUserDigitalCards);
+router.get("/my-promotions", auth(USER_ROLES.USER), DigitalCardController.getUserAddedPromotions);
+router.get("/my-digital-cards", auth(USER_ROLES.USER), DigitalCardController.getUserDigitalCards);
 router.get(
   "/digital-card/:digitalCardId",
   auth(),
@@ -28,7 +29,7 @@ router.get(
 
 router.get(
   "/find",
-  auth(USER_ROLES.MERCENT),
+  auth(USER_ROLES.MERCENT, USER_ROLES.ADMIN_MERCENT),canAccessMerchantProfile,
   DigitalCardController.getMerchantDigitalCard
 );
 

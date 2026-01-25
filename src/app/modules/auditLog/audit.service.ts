@@ -94,8 +94,8 @@ const getLogsByUserId = async (
     actionType: log.actionType,
     details: log.details,
     email: log.email,       // ✅ mail এখানে directly আছে
-    
-    createdAt: log.createdAt
+    createdAt: log.createdAt,
+    // createdAt: log.createdAt
   }));
 
   return {

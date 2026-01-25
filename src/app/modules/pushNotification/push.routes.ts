@@ -14,7 +14,7 @@ router.post("/admin/notify", auth(USER_ROLES.ADMIN,USER_ROLES.SUPER_ADMIN), Push
 // Merchant send promotion push
 router.post(
   "/merchant/notify",
-  auth(USER_ROLES.MERCENT),
+  auth(USER_ROLES.MERCENT,USER_ROLES.ADMIN_MERCENT),
   fileUploadHandler(), // multer for image
   PushController.sendMerchantPromotion
 )

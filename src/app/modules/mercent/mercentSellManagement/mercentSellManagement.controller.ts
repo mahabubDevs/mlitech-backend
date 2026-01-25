@@ -33,17 +33,20 @@ const checkout = catchAsync(async (req: Request, res: Response) => {
   // -----------------------------
   const user = req.user as IUser;
 
-  // Only allow merchant
-  if (user.role !== "MERCENT") {
+  // Only allow merchant or sub-merchant
+  if (user.role !== "MERCENT" && !user.isSubMerchant) {
     return sendResponse(res, {
       statusCode: StatusCodes.FORBIDDEN,
       success: false,
-      message: "Only merchant can perform checkout",
+      message: "Only merchant or merchant staff can perform checkout",
     });
   }
 
-  // Safely extract _id
-  const merchantId = user._id?.toString();
+  // -----------------------------
+  // Resolve real merchant ID
+  // -----------------------------
+  const merchantId = user.isSubMerchant ? user.merchantId : user._id;
+
   if (!merchantId) {
     return sendResponse(res, {
       statusCode: StatusCodes.BAD_REQUEST,
@@ -52,9 +55,11 @@ const checkout = catchAsync(async (req: Request, res: Response) => {
     });
   }
 
+  // -----------------------------
   // Call service
+  // -----------------------------
   const result = await SellService.checkout(
-    merchantId,
+    merchantId.toString(),  // always the real merchant
     digitalCardCode,
     totalBill,
     promotionId,
@@ -72,6 +77,7 @@ const checkout = catchAsync(async (req: Request, res: Response) => {
 
 
 
+
 const requestApproval = catchAsync(async (req: Request, res: Response) => {
   const {
     digitalCardCode,
@@ -79,9 +85,13 @@ const requestApproval = catchAsync(async (req: Request, res: Response) => {
     totalBill = 0,
     pointRedeemed = 0,
   } = req.body;
-  const merchant = req.user as IUser;
 
-  if (!merchant._id) {
+  const user = req.user as IUser;
+
+  // ✅ Determine merchant ID based on user role
+  const merchantId = user.isSubMerchant ? user.merchantId : user._id;
+
+  if (!merchantId) {
     return sendResponse(res, {
       statusCode: StatusCodes.BAD_REQUEST,
       success: false,
@@ -98,9 +108,9 @@ const requestApproval = catchAsync(async (req: Request, res: Response) => {
     });
   }
 
-  // Updated: Pass both digitalCardCode and promotionId
+  // ✅ Pass resolved merchantId to service
   const result = await SellService.requestApproval({
-    merchantId: merchant._id.toString(),
+    merchantId: merchantId.toString(), // always the real merchant
     digitalCardCode,
     promotionId,
     totalBill,
@@ -114,6 +124,7 @@ const requestApproval = catchAsync(async (req: Request, res: Response) => {
     data: result,
   });
 });
+
 
 
 // User → Get Pending Requests
@@ -655,6 +666,148 @@ if (searchTerm) {
 };
 
 
+const getRecentMerchantCustomersList = async (req: Request, res: Response) => {
+  try {
+    const user = req.user as any;
+
+    // ✅ Merchant / Sub-merchant filter
+    const filterId = user.isSubMerchant ? user.merchantId : user._id;
+
+    if (!filterId || !Types.ObjectId.isValid(filterId)) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized merchant",
+      });
+    }
+
+    const merchantId = new Types.ObjectId(filterId);
+
+    /* -----------------------------
+       🔍 Search (name / customUserId / country)
+    ------------------------------*/
+    const searchTerm = ((req.query.searchTerm as string) || "")
+      .toLowerCase()
+      .trim();
+
+    /* -----------------------------
+       📊 Aggregation for NEW MEMBERS
+    ------------------------------*/
+    const pipeline: any[] = [
+      {
+        $match: {
+          merchantId,
+          status: "completed",
+        },
+      },
+      {
+        // group by customer
+        $group: {
+          _id: "$userId",
+          firstPurchaseAt: { $min: "$createdAt" },
+          totalTransactions: { $sum: 1 },
+          totalPointsEarned: { $sum: "$pointsEarned" },
+          totalPointsRedeemed: { $sum: "$pointRedeemed" },
+          totalBilled: { $sum: "$totalBill" },
+          finalBilled: { $sum: "$discountedBill" },
+        },
+      },
+      {
+        // newest member first
+        $sort: { firstPurchaseAt: -1 },
+      },
+      {
+        // user join
+        $lookup: {
+          from: "users",
+          localField: "_id",
+          foreignField: "_id",
+          as: "user",
+        },
+      },
+      { $unwind: "$user" },
+      {
+        // optional search
+        $match: searchTerm
+          ? {
+              $or: [
+                {
+                  "user.firstName": {
+                    $regex: searchTerm,
+                    $options: "i",
+                  },
+                },
+                {
+                  "user.lastName": {
+                    $regex: searchTerm,
+                    $options: "i",
+                  },
+                },
+                {
+                  "user.customUserId": {
+                    $regex: searchTerm,
+                    $options: "i",
+                  },
+                },
+                {
+                  "user.country": {
+                    $regex: searchTerm,
+                    $options: "i",
+                  },
+                },
+              ],
+            }
+          : {},
+      },
+    ];
+
+    const customers = await Sell.aggregate(pipeline);
+
+    /* -----------------------------
+       📄 Pagination
+    ------------------------------*/
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const paginated = customers.slice(skip, skip + limit);
+
+    /* -----------------------------
+       ✅ Response
+    ------------------------------*/
+    return res.status(200).json({
+      success: true,
+      data: paginated.map((c: any) => ({
+        _id: c._id,
+        name: `${c.user.firstName} ${c.user.lastName || ""}`.trim(),
+        email: c.user.email,
+        phone: c.user.phone,
+        country: c.user.country,
+        customUserId: c.user.customUserId,
+        firstPurchaseAt: c.firstPurchaseAt, // ⭐ new member indicator
+        totalTransactions: c.totalTransactions,
+        totalPointsEarned: c.totalPointsEarned,
+        totalPointsRedeemed: c.totalPointsRedeemed,
+        totalBilled: c.totalBilled,
+        finalBilled: c.finalBilled,
+      })),
+      pagination: {
+        page,
+        limit,
+        total: customers.length,
+        totalPage: Math.ceil(customers.length / limit),
+      },
+    });
+  } catch (error) {
+    console.error("❌ Error in getNewMerchantCustomersList:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
+  }
+};
+
+
+
 
 
 const exportMerchantCustomersExcel = catchAsync(
@@ -816,6 +969,7 @@ export default {
   getPointsHistory,
   getMerchantSales,
   getMerchantCustomersList,
+  getRecentMerchantCustomersList,
   getUserFullTransactions,
   exportMerchantCustomersExcel
   // finalizeCheckout

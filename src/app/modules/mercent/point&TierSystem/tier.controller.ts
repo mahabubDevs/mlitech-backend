@@ -17,28 +17,35 @@ import { AuditService } from "../../auditLog/audit.service";
 
 
 const createTier = catchAsync(async (req: Request, res: Response) => {
+  const user = req.user as any;
+
+  // ✅ Decide which ID to use
+  const filterId = user.isSubMerchant ? user.merchantId : user._id;
+
   const validatedBody = await createTierSchema.parseAsync({
     ...req.body,
     pointsThreshold: Number(req.body.pointsThreshold),
     minTotalSpend: Number(req.body.minTotalSpend),
-    isActive: req.body.isActive !== undefined ? Boolean(req.body.isActive) : undefined,
+    isActive:
+      req.body.isActive !== undefined
+        ? Boolean(req.body.isActive)
+        : undefined,
   });
 
   const payload: Partial<ITier> = {
     ...validatedBody,
-    admin: (req.user as any)?._id,
+    admin: filterId,
     isActive: validatedBody.isActive ?? true,
   };
 
   const result = await TierService.createTierToDB(payload);
 
-    // ✅ Audit Log creation
+  // ✅ Audit Log
   await AuditService.createLog(
-    (req.user as any)?._id,           // userId
-    "CREATE_TIER",                    // actionType
-    `Tier "${result.name}" created`    // details
+    user._id,
+    "CREATE_TIER",
+    `Tier "${result.name}" created`
   );
-
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,
@@ -47,6 +54,7 @@ const createTier = catchAsync(async (req: Request, res: Response) => {
     data: result,
   });
 });
+
 
 const updateTier = catchAsync(async (req: Request, res: Response) => {
   const body = req.body.data ? JSON.parse(req.body.data) : req.body;

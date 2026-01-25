@@ -6,7 +6,7 @@ import { Rating } from "../../customer/rating/rating.model";
 import { User } from "../../user/user.model";
 import { Tier } from "../point&TierSystem/tier.model";
 import { IPromotion } from "./promotionMercent.interface";
-import { Promotion } from "./promotionMercent.model";
+import { PromotionAdmin } from "./promotionMercent.model";
 ;
 import { Types } from "mongoose";
 import { Sell } from "../../mercent/mercentSellManagement/mercentSellManagement.model";
@@ -28,7 +28,7 @@ const createPromotionToDB = async (
     payload.cardId = generatePromotionCode(6);
   }
 
-  const promotion = new Promotion(payload);
+  const promotion = new PromotionAdmin(payload);
   return promotion.save();
 };
 
@@ -36,7 +36,7 @@ const updatePromotionToDB = async (
   id: string,
   payload: Partial<IPromotion>
 ): Promise<IPromotion | null> => {
-  return Promotion.findByIdAndUpdate(id, payload, {
+  return PromotionAdmin.findByIdAndUpdate(id, payload, {
     new: true,
     runValidators: true,
   });
@@ -46,7 +46,7 @@ const getAllPromotionsFromDB = async (
   query: any = {}
 ): Promise<{ promotions: IPromotion[]; pagination: any }> => {
   const queryBuilder = new QueryBuilder(
-    Promotion.find({}).populate("merchantId", "website"),
+    PromotionAdmin.find({}).populate("merchantId", "website"),
     query
   );
 
@@ -65,7 +65,7 @@ const getAllPromotionsOfAMerchant = async (
   query: any = {}
 ): Promise<{ promotions: IPromotion[]; pagination: any }> => {
   const queryBuilder = new QueryBuilder(
-    Promotion.find({ merchantId }).populate("merchantId", "website"),
+    PromotionAdmin.find({ merchantId }).populate("merchantId", "website"),
     query
   );
 
@@ -128,17 +128,17 @@ const getUserSegment = async (userId: string) => {
 const getSinglePromotionFromDB = async (
   id: string
 ): Promise<IPromotion | null> => {
-  return Promotion.findById(id);
+  return PromotionAdmin.findById(id);
 };
 
 const deletePromotionFromDB = async (
   id: string
 ): Promise<IPromotion | null> => {
-  return Promotion.findByIdAndDelete(id);
+  return PromotionAdmin.findByIdAndDelete(id);
 };
 
 const togglePromotionInDB = async (id: string): Promise<IPromotion | null> => {
-  const promotion = await Promotion.findById(id);
+  const promotion = await PromotionAdmin.findById(id);
   if (!promotion) return null;
 
   // Toggle status
@@ -212,7 +212,7 @@ const getDetailsOfMerchant = async (merchantId: string) => {
     .select("firstName location profile photo about website address")
     .lean();
 
-  const promotions = await Promotion.find({ merchantId })
+  const promotions = await PromotionAdmin.find({ merchantId })
     .select("cardId name discountPercentage startDate endDate image status")
     .lean();
 
@@ -312,7 +312,7 @@ const getPromotionsByUserCategory = async (categoryName: string) => {
   const merchantIds = merchants.map((m) => new Types.ObjectId(m._id));
 
   // 2. Find all promotions from these merchants
-  const promotions = await Promotion.find({
+  const promotions = await PromotionAdmin.find({
     merchantId: { $in: merchantIds },
   }).sort({ createdAt: -1 }); // newest first
 
