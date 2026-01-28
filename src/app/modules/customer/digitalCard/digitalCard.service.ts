@@ -189,6 +189,7 @@ const getUserAddedPromotions = async (
               status: "$promotions.status",
               usedAt: "$promotions.usedAt",
               promotion: "$promotion",
+              promoCode: "$promotions.promoCode",
               merchantBusinessName: "$merchant.businessName",
             },
           },
