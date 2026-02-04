@@ -28,6 +28,9 @@ export const createPromotionSchema = z.object({
     .nonempty("At least one day must be selected")
     .optional(), // optional field, default will be ["all"]
   image: z.string().optional(),
+  grossValue: z.number({
+    invalid_type_error: "Gross value must be a number",
+  }),
 });
 
 // Update Promotion Schema (partial)

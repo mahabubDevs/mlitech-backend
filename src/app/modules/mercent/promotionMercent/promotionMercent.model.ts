@@ -64,6 +64,10 @@ const promotionSchema = new Schema(
     ref: "User",   // merchant = user with merchant role
     required: true
   },
+  grossValue: {
+    type: Number,
+    required: true    
+  },
   },
   { timestamps: true }
 );

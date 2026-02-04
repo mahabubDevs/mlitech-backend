@@ -26,9 +26,10 @@ const createPromotion = catchAsync(async (req: Request, res: Response) => {
     startDate,
     availableDays,
     endDate,
+    grossValue,
   } = bodyData;
 
-  if (!name || !customerSegment || !promotionType) {
+  if (!name || !customerSegment || !promotionType || !grossValue) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Required fields missing");
   }
 
@@ -61,6 +62,7 @@ const createPromotion = catchAsync(async (req: Request, res: Response) => {
     availableDays,
     image: imageUrl,
     merchantId, // ✅ ALWAYS merchant ID
+    grossValue: Number(grossValue),
   };
 
   const result = await PromotionService.createPromotionToDB(payload);
@@ -239,6 +241,7 @@ const updatePromotion = catchAsync(async (req: Request, res: Response) => {
         ? bodyData.availableDays
         : [bodyData.availableDays],
     }),
+    ...(bodyData.grossValue && { grossValue: Number(bodyData.grossValue) }),
   };
 
   // ✅ Fix Image URL Format (same as create)

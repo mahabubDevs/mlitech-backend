@@ -335,26 +335,40 @@ const getMerchantDigitalCardWithPromotions = async (
   merchantId: string,
   code: string // can be digital card code OR promoCode
 ) => {
+  console.log("=================================================");
+  console.log("🚀 getMerchantDigitalCardWithPromotions START");
+  console.log("🔹 Input merchantId:", merchantId);
+  console.log("🔹 Input code:", code);
+  console.log("=================================================");
+
   let searchedByPromoCode = false;
   let digitalCard: any = null;
 
-  console.log("🔹 Start search for code:", code, "merchantId:", merchantId);
+  /* ------------------------------------------------
+     1️⃣ Search by DigitalCard.cardCode
+  ------------------------------------------------ */
+  console.log("🔍 Step 1: Searching DigitalCard by cardCode...");
 
-  // 1️⃣ Try search by DigitalCard.cardCode
   digitalCard = await DigitalCard.findOne({
     merchantId,
     cardCode: code,
   }).populate({
     path: "promotions.promotionId",
     select:
-      "name discountPercentage promotionType image startDate endDate status cardId",
+      "name discountPercentage promotionType image startDate endDate status cardId grossValue",
   });
 
-  console.log("Checked by digital card code, found:", !!digitalCard);
+  console.log(
+    "📌 Result of cardCode search:",
+    digitalCard ? "FOUND ✅" : "NOT FOUND ❌"
+  );
 
+  /* ------------------------------------------------
+     2️⃣ If not found, search by promotions.promoCode
+  ------------------------------------------------ */
   if (!digitalCard) {
-    // 2️⃣ Try search by promoCode inside promotions array
     searchedByPromoCode = true;
+    console.log("🔍 Step 2: Searching by promoCode inside DigitalCard.promotions");
 
     digitalCard = await DigitalCard.findOne({
       merchantId,
@@ -364,76 +378,144 @@ const getMerchantDigitalCardWithPromotions = async (
     }).populate({
       path: "promotions.promotionId",
       select:
-        "name discountPercentage promotionType image startDate endDate status cardId merchantId",
+        "name discountPercentage promotionType image startDate endDate status cardId merchantId grossValue",
     });
 
-    console.log("Checked by promoCode inside DigitalCard, found:", !!digitalCard);
+    console.log(
+      "📌 Result of promoCode search:",
+      digitalCard ? "FOUND ✅" : "NOT FOUND ❌"
+    );
 
     if (!digitalCard) {
-      console.log("❌ No DigitalCard found for promoCode:", code);
+      console.log("❌ ERROR: No DigitalCard found for promoCode:", code);
+      console.log("=================================================");
       return null;
     }
 
-    // 🔹 Now verify promotion ownership (promotion belongs to this merchant)
-    const validPromotionIds = digitalCard.promotions
-      .filter((p: any) => p.promoCode === code)
-      .map((p: any) => p.promotionId._id);
+    /* ------------------------------------------------
+       2️⃣.1 Verify promotion ownership
+    ------------------------------------------------ */
+    console.log("🔐 Step 2.1: Verifying promotion ownership");
 
-    // Check in Promotion collection
+    const validPromotionIds = digitalCard.promotions
+      .filter((p: any) => {
+        const match = p.promoCode === code;
+        console.log(
+          "   ↳ Checking promoCode:",
+          p.promoCode,
+          "match:",
+          match
+        );
+        return match;
+      })
+      .map((p: any) => p.promotionId?._id)
+      .filter(Boolean);
+
+    console.log("📌 Valid Promotion IDs from card:", validPromotionIds);
+
     const promotion = await Promotion.findOne({
       _id: { $in: validPromotionIds },
       merchantId,
     });
 
+    console.log(
+      "📌 Promotion ownership check:",
+      promotion ? "VALID ✅" : "INVALID ❌"
+    );
+
     if (!promotion) {
-      console.log("❌ Promotion does not belong to this merchant");
+      console.log("❌ ERROR: Promotion does not belong to this merchant");
+      console.log("=================================================");
       return null;
     }
   }
 
+  /* ------------------------------------------------
+     3️⃣ Final DigitalCard existence check
+  ------------------------------------------------ */
   if (!digitalCard) {
-    console.log("❌ No DigitalCard found at all for code:", code);
+    console.log("❌ ERROR: DigitalCard not found by any method");
+    console.log("=================================================");
     return null;
   }
 
-  // 3️⃣ Filter only valid promotions
+  console.log("✅ DigitalCard found:", digitalCard.cardCode);
+
+  /* ------------------------------------------------
+     4️⃣ Filter only valid promotions
+  ------------------------------------------------ */
+  console.log("🔍 Step 3: Filtering valid promotions");
+
   const validPromotions = digitalCard.promotions
-    .map((item: any) => {
-      if (
-        item.promotionId &&
-        (item.status === "pending" || item.status === "unused") &&
-        !item.usedAt
-      ) {
-        const today = new Date();
-        const startDate = new Date(item.promotionId.startDate);
-        const endDate = new Date(item.promotionId.endDate);
+    .map((item: any, index: number) => {
+      console.log(`➡️ Checking promotion [${index}]`);
 
-        if (today < startDate || today > endDate) return null;
-
-        if (searchedByPromoCode && item.promoCode !== code) return null;
-
-        console.log("✅ Promotion to be returned:", {
-          cardId: item.promotionId.cardId,
-          name: item.promotionId.name,
-          status: item.status,
-          promoCode: item.promoCode,
-        });
-
-        return {
-          status: item.status,
-          usedAt: item.usedAt,
-          promoCode: item.promoCode,
-          ...item.promotionId.toObject(),
-        };
+      if (!item.promotionId) {
+        console.log("   ❌ promotionId missing");
+        return null;
       }
-      return null;
+
+      if (!(item.status === "pending" || item.status === "unused")) {
+        console.log("   ❌ Invalid status:", item.status);
+        return null;
+      }
+
+      if (item.usedAt) {
+        console.log("   ❌ Already used at:", item.usedAt);
+        return null;
+      }
+
+      const today = new Date();
+      const startDate = new Date(item.promotionId.startDate);
+      const endDate = new Date(item.promotionId.endDate);
+
+      console.log("   📅 Date check:", {
+        today,
+        startDate,
+        endDate,
+      });
+
+      if (today < startDate || today > endDate) {
+        console.log("   ❌ Promotion expired or not started yet");
+        return null;
+      }
+
+      if (searchedByPromoCode && item.promoCode !== code) {
+        console.log("   ❌ promoCode mismatch:", item.promoCode);
+        return null;
+      }
+
+      console.log("   ✅ Promotion VALID:", {
+        promoCode: item.promoCode,
+        cardId: item.promotionId.cardId,
+        name: item.promotionId.name,
+      });
+
+      return {
+        status: item.status,
+        usedAt: item.usedAt,
+        promoCode: item.promoCode,
+        ...item.promotionId.toObject(),
+      };
     })
     .filter(Boolean);
 
+  console.log("📌 Total valid promotions:", validPromotions.length);
+
   if (validPromotions.length === 0) {
-    console.log("❌ No valid promotions found for digital card:", digitalCard.cardCode);
+    console.log(
+      "❌ ERROR: No valid promotions found for DigitalCard:",
+      digitalCard.cardCode
+    );
+    console.log("=================================================");
     return null;
   }
+
+  /* ------------------------------------------------
+     5️⃣ Final response
+  ------------------------------------------------ */
+  console.log("✅ SUCCESS: Returning DigitalCard with promotions");
+  console.log("=================================================");
 
   return {
     digitalCard: {
@@ -442,6 +524,7 @@ const getMerchantDigitalCardWithPromotions = async (
     },
   };
 };
+
 
 
 

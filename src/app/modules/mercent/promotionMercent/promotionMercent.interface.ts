@@ -12,4 +12,5 @@ export interface IPromotion {
   status?: "active" | "inactive" | "expired"; // Promotion status
   createdBy?: string; // optional user id who created the promotion
   merchantId: string; // Merchant (user with merchant role) who owns the promotion
+  grossValue: number; // Gross value for the promotion
 }

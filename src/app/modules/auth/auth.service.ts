@@ -308,6 +308,9 @@ const verifyOtpToDB = async (payload: { identifier: string, oneTimeCode: number 
     config.jwt.jwt_expire_in!
   );
 
+  user.latestToken = accessToken;
+  await user.save();
+
   // 5️⃣ Generate reset token (for password reset)
   const resetToken = cryptoToken();
   await ResetToken.create({

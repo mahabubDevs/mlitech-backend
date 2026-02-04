@@ -81,12 +81,14 @@ const checkout = catchAsync(async (req: Request, res: Response) => {
 const requestApproval = catchAsync(async (req: Request, res: Response) => {
   const {
     digitalCardCode,
-    promotionId,
+    promotionId = [],
     totalBill = 0,
     pointRedeemed = 0,
   } = req.body;
 
   const user = req.user as IUser;
+
+  console.log("Request Approval body:", req.body);
 
   // ✅ Determine merchant ID based on user role
   const merchantId = user.isSubMerchant ? user.merchantId : user._id;
