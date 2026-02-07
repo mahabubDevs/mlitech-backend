@@ -229,6 +229,10 @@ await digitalCard.save();
     (discountedBill - pointDiscount).toFixed(4)
   );
 
+  if(finalBill < 0) {
+    throw new Error("Final bill cannot be negative");
+  }
+
   // ===============================
   // ⭐ Tier & Earn Point Calculation
   // ===============================
@@ -586,6 +590,10 @@ const requestApproval = async ({
   const finalBill = parseFloat(
     (discountedBill - pointDiscount).toFixed(4)
   );
+
+  if(finalBill < 0) {
+    throw new Error("Final bill cannot be negative");
+  }
 
   // ===============================
   // ⭐ Earn Point Calculation (UPDATED LOGIC)

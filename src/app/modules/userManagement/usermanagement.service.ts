@@ -121,7 +121,7 @@ const createMerchantToDB = async (payload: any) => {
 // Service
 const getAllUsersFromDB = async (requestingUserRole: string, query: Record<string, any>) => {
   // অনুমোদিত roles
-  const allowedRoles = ["ADMIN", "ADMIN_SEL", "ADMIN_REP", "SUPER_ADMIN", "MANAGER"];
+  const allowedRoles = ["ADMIN", "ADMIN_SELL", "ADMIN_REP", "SUPER_ADMIN", "MANAGER", "VIEW_ADMIN"];
 
   if (!allowedRoles.includes(requestingUserRole)) {
     throw new ApiError(403, "Access denied");

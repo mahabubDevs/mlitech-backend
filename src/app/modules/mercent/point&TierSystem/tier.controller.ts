@@ -159,10 +159,44 @@ const deleteTier = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+
+const getTierByUserId = catchAsync(async (req: Request, res: Response) => {
+  const { userId } = req.params;
+
+  // Build query with provided userId
+  const queryBuilder = new QueryBuilder(
+    Tier.find(),
+    {
+      ...req.query,
+      admin: userId, // 🔥 filter by given userId
+    }
+  );
+
+  queryBuilder
+    .search(["name", "description"])
+    .filter()
+    .sort()
+    .paginate()
+    .fields();
+
+  const tiers = await queryBuilder.modelQuery;
+  const pagination = await queryBuilder.getPaginationInfo();
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: "User tiers retrieved successfully",
+    data: tiers,
+    pagination,
+  });
+});
+
+
 export const TierController = {
   createTier,
   updateTier,
   getTier,
   getSingleTier,
   deleteTier,
+  getTierByUserId
 };

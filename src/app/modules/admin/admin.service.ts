@@ -100,7 +100,7 @@ const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
   // let baseQuery = User.find({ role: USER_ROLES.MERCENT });
 
   const allMerchantsQuery = new QueryBuilder(baseQuery, rest)
-    .search(["firstName", "lastName", "email", "phone", "businessName", "service", "address","customUserId","location"])
+    .search(["firstName", "lastName", "email", "phone", "businessName", "service", "address","customUserId","location","country","city"])
     .filter()
     .sort()
     .paginate();

@@ -16,5 +16,8 @@ router.route("/:id")
   .get(auth(USER_ROLES.VIEW_MERCENT,USER_ROLES.MERCENT,USER_ROLES.USER), TierController.getSingleTier)
   .patch(auth(USER_ROLES.MERCENT,USER_ROLES.ADMIN_MERCENT),canAccessMerchantProfile, TierController.updateTier)
   .delete(auth(USER_ROLES.MERCENT,USER_ROLES.ADMIN_MERCENT),canAccessMerchantProfile, TierController.deleteTier);
+router.route("/:userId")
+  .get(auth(), canAccessMerchantProfile, TierController.getTierByUserId);
+
 
 export const TierRoutes = router;
