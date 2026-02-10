@@ -144,39 +144,65 @@ const sendNotificationToAllUsers = async (
 
 
 
+
+
 const sendMerchantPromotion = async (payload: any, merchantId: string) => {
   const { message, image, target, filters } = payload;
 
-  console.log("📌 Merchant ID:", merchantId);
-  console.log("📌 Payload received:", payload);
+  console.log("=================================================");
+  console.log("🚀 sendMerchantPromotion START");
+  console.log("🧾 Merchant ID:", merchantId);
+  console.log("🧾 Payload received:", JSON.stringify(payload, null, 2));
+  console.log("=================================================");
 
   const cards = await DigitalCard.find({ merchantId })
     .populate("userId", "fcmToken location totalPurchases totalSpend purchases")
     .select("userId availablePoints")
     .lean();
 
-  console.log(`📌 Customers fetched from DB: ${cards.length}`);
+  console.log(`📌 Total customers fetched from DB: ${cards.length}`);
 
-  const tokens = cards
-    .filter((c: any) => {
+  let skippedNoToken = 0;
+  let skippedPoints = 0;
+  let skippedSegment = 0;
+  let skippedRadius = 0;
+  let eligibleUsers = 0;
+
+  const eligibleUsersData = cards
+    .filter((c: any, index: number) => {
       const user = c.userId;
-      if (!user?.fcmToken) return false;
 
-      // Points filter
+      console.log("-------------------------------------------------");
+      console.log(`👤 Checking customer #${index + 1}`);
+      console.log("User ID:", user?._id);
+      console.log("Available Points:", c.availablePoints);
+
+      // ❌ No FCM token
+      if (!user?.fcmToken) {
+        skippedNoToken++;
+        console.log("❌ Skipped: No FCM token");
+        return false;
+      }
+
+      // ❌ Points filter
       if (target?.type === "points" && filters?.minPoints !== undefined) {
         if ((c.availablePoints ?? 0) < filters.minPoints) {
-          console.log(`❌ User ${user._id} skipped due to points: ${c.availablePoints}`);
+          skippedPoints++;
+          console.log(
+            `❌ Skipped: Points too low (${c.availablePoints} < ${filters.minPoints})`
+          );
           return false;
         }
       }
 
-      // Segment check
+      // 🧠 Segment calculation
       let segment = "all_customer";
       const totalPurchases = user.totalPurchases || 0;
       const purchases = user.purchases || [];
       const last6MonthsPurchases = purchases.filter(
         (p: any) =>
-          new Date(p.createdAt) >= new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000)
+          new Date(p.createdAt) >=
+          new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000)
       );
       const totalSpend = user.totalSpend || 0;
       const avgSpend = 1000;
@@ -184,7 +210,8 @@ const sendMerchantPromotion = async (payload: any, merchantId: string) => {
       if (
         totalPurchases === 0 ||
         (totalPurchases === 1 &&
-          purchases[0]?.createdAt > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
+          purchases[0]?.createdAt >
+            new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
       ) {
         segment = "new_customer";
       } else if (totalPurchases >= 2 && last6MonthsPurchases.length < 5) {
@@ -195,54 +222,124 @@ const sendMerchantPromotion = async (payload: any, merchantId: string) => {
         segment = "vip_customer";
       }
 
-      // ✅ Fix: allow all_customer to include everyone
-      if (filters?.segment && filters.segment !== "all_customer" && filters.segment !== segment) {
-        console.log(`❌ User ${user._id} skipped due to segment mismatch: ${segment}`);
+      console.log("📊 Calculated Segment:", segment);
+
+      // ❌ Segment filter
+      if (
+        filters?.segment &&
+        filters.segment !== "all_customer" &&
+        filters.segment !== segment
+      ) {
+        skippedSegment++;
+        console.log(
+          `❌ Skipped: Segment mismatch (required=${filters.segment}, actual=${segment})`
+        );
         return false;
       }
 
-      // Radius filter
+      // 📍 Radius filter
       if (filters?.radius && filters.merchantLocation && user.location?.coordinates) {
         const [userLng, userLat] = user.location.coordinates;
         const [merchLng, merchLat] = filters.merchantLocation.coordinates;
-        const distance = getDistanceFromLatLonInKm(userLat, userLng, merchLat, merchLng);
+
+        const distance = getDistanceFromLatLonInKm(
+          userLat,
+          userLng,
+          merchLat,
+          merchLng
+        );
+
+        console.log(`📍 Distance from merchant: ${distance.toFixed(2)} km`);
+
         if (distance > filters.radius) {
-          console.log(`❌ User ${user._id} skipped due to radius: ${distance.toFixed(2)} km`);
+          skippedRadius++;
+          console.log(
+            `❌ Skipped: Outside radius (${distance.toFixed(2)} > ${filters.radius})`
+          );
           return false;
         }
-        console.log(`✅ User ${user._id} within radius: ${distance.toFixed(2)} km`);
       }
 
+      eligibleUsers++;
+      console.log("✅ Eligible for promotion");
       return true;
     })
-    .map((c: any) => c.userId.fcmToken)
-    .filter((t: string | undefined): t is string => !!t);
+    .map((c: any) => ({
+      userId: c.userId._id,
+      token: c.userId.fcmToken,
+    }))
+    .filter((u: any) => !!u.token);
 
+  const tokens = eligibleUsersData.map((u) => u.token);
+  const userIds = eligibleUsersData.map((u) => u.userId);
+
+  console.log("=================================================");
+  console.log("📌 FILTER SUMMARY");
+  console.log("❌ No FCM token:", skippedNoToken);
+  console.log("❌ Points filter failed:", skippedPoints);
+  console.log("❌ Segment mismatch:", skippedSegment);
+  console.log("❌ Radius exceeded:", skippedRadius);
+  console.log("✅ Eligible users:", eligibleUsers);
   console.log("📌 Final tokens to send:", tokens.length);
+  console.log("=================================================");
 
   if (tokens.length === 0) {
+    console.log("⚠️ No customers matched. Push not sent.");
     return { sentCount: 0, failedCount: 0, message: "No customers matched" };
   }
 
+  // 🔔 Firebase Push (only send, no DB store here)
+  console.log("🚀 Sending notification to Firebase...");
+
   const firebaseMessage = {
-    notification: { title: "Promotion", body: message, image },
-    data: { type: "promotion", merchantId: merchantId.toString() },
+    notification: {
+      title: "Promotion",
+      body: message,
+      image,
+    },
+    data: {
+      type: "promotion",
+      merchantId: merchantId.toString(),
+    },
     tokens,
   };
 
   const response = await admin.messaging().sendEachForMulticast(firebaseMessage);
 
-  await Push.create({
-    title: "Promotion",
-    body: message,
-    state: "PROMOTION",
-    createdBy: merchantId,
-    sentCount: response.successCount,
-    failedCount: response.failureCount,
+  console.log("📬 Firebase response:", {
+    successCount: response.successCount,
+    failureCount: response.failureCount,
   });
 
-  return { sentCount: response.successCount, failedCount: response.failureCount };
+  // 🧾 Normal Notification ONLY (DB + Socket)
+  console.log("🧾 Saving notifications in Notification collection...");
+
+  await sendNotification({
+    userIds,
+    title: "Promotion",
+    body: message,
+    type: NotificationType.PROMOTION,
+    metadata: {
+      merchantId,
+    },
+    attachments: image ? [image] : [],
+    channel: {
+      socket: true,
+      push: false, // push already done via Firebase
+    },
+  });
+
+  console.log("✅ Notification saved & socket emitted");
+  console.log("🏁 sendMerchantPromotion END");
+  console.log("=================================================");
+
+  return {
+    sentCount: response.successCount,
+    failedCount: response.failureCount,
+  };
 };
+
+
 
 // Helper functions
 function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
