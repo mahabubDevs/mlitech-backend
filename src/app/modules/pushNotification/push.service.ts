@@ -46,6 +46,7 @@ const sendNotificationToAllUsers = async (
     console.log(`[Notification] Users fetched: ${users.length}`);
 
     const tokens: string[] = [];
+    console.log("[Notification] Processing user tokens...", users);
     const userIds: Types.ObjectId[] = [];
 
     users.forEach((u) => {

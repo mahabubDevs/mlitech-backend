@@ -101,14 +101,14 @@ const getDistanceInKm = (lat1: number, lon1: number, lat2: number, lon2: number)
 
 
 const getUserSegment = async (userId: string) => {
-  const purchases = await Sell.find({ userId, status: "completed" }).sort({ createdAt: -1 });
+  const purchases = await Sell.find({ userId, status: "completed" }).sort({ createdAt: -1 }).lean();
 
   const totalPurchases = purchases.length;
   const last6MonthsPurchases = purchases.filter(
-    p => new Date(p.createdAt) > new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000)
+    (p: any) => new Date(p.createdAt) > new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000)
   );
 
-  const totalSpend = purchases.reduce((sum, p) => sum + p.totalBill, 0);
+  const totalSpend = purchases.reduce((sum, p: any) => sum + p.totalBill, 0);
   const avgSpend = 1000;
 
   let segment: string;
@@ -299,14 +299,14 @@ const getDetailsOfMerchant = async (merchantId: string, userId?: string) => {
 
 
 const getUserTierOfMerchant = async (userId: string, merchantId: string) => {
-  // 1. Get user's digital card (points)
+  // 1. Get user's digital card
   const digitalCard = await DigitalCard.findOne({
     userId,
     merchantId,
-  }).select("availablePoints");
+  }).select("lifeTimeEarnPoints");
 
-  // Error throw বাদ দিয়ে default 0 points
-  const availablePoints = digitalCard?.availablePoints ?? 0;
+  // Use lifetimeEarnPoints
+  const availablePoints = digitalCard?.lifeTimeEarnPoints ?? 0;
 
   // 2. Calculate total spent for this merchant
   const spendAgg = await Sell.aggregate([
@@ -335,14 +335,14 @@ const getUserTierOfMerchant = async (userId: string, merchantId: string) => {
 
   if (!tiers.length) {
     return {
-      availablePoints,
+      availablePoints,  // lifetime points shown here
       totalSpend,
       tierName: "No tiers defined",
       rewardText: "N/A",
     };
   }
 
-  // 4. Determine user's tier based on both conditions
+  // 4. Determine user's tier based on lifetime points and spend
   let userTier: any = null;
 
   for (const tier of tiers) {
@@ -350,16 +350,16 @@ const getUserTierOfMerchant = async (userId: string, merchantId: string) => {
     const meetsSpend = totalSpend >= tier.minTotalSpend;
 
     if (meetsPoints && meetsSpend) {
-      userTier = tier; // keep looping to get the highest eligible tier
+      userTier = tier; // keep highest eligible tier
     }
   }
 
   return {
-  availablePoints,
-  totalSpend,
-  tierName: userTier?.name ?? "No tier yet",
-  rewardText: userTier?.reward ?? "No reward",
-};
+    availablePoints,  // lifetime points
+    totalSpend,
+    tierName: userTier?.name ?? "No tier yet",
+    rewardText: userTier?.reward ?? "No reward",
+  };
 };
 
 

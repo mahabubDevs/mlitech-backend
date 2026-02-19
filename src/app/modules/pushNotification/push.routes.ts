@@ -23,3 +23,5 @@ router.post(
 // router.get("/all", auth(USER_ROLES.ADMIN), PushController.getAllPushes);
 
 export const PushRoutes = router;
+
+

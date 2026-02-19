@@ -35,27 +35,32 @@ const getMyReferredUser = async (userId: string) => {
         { $unwind: "$user" },
 
         // Sum points earned from this referral
-        {
-            $lookup: {
-                from: "pointtransactions",
-                let: { referralId: "$_id", userId: "$user._id" },
-                pipeline: [
-                    {
-                        $match: {
-                            $expr: {
-                                $and: [
-                                    { $eq: ["$referral", "$$referralId"] },
-                                    { $eq: ["$user", "$$userId"] },
-                                    { $eq: ["$type", "EARN"] },
-                                ],
-                            },
-                        },
-                    },
-                    { $group: { _id: null, totalPoints: { $sum: "$points" } } },
-                ],
-                as: "points",
+       {
+        $lookup: {
+            from: "pointtransactions",
+            let: { referralId: "$_id" },
+            pipeline: [
+            {
+                $match: {
+                $expr: {
+                    $and: [
+                    { $eq: ["$referral", "$$referralId"] },
+                    { $eq: ["$type", "EARN"] }
+                    ]
+                }
+                }
             },
-        },
+            {
+                $group: {
+                _id: null,
+                totalPoints: { $sum: "$points" }
+                }
+            }
+            ],
+            as: "points"
+        }
+        }
+        ,
         {
             $addFields: {
                 pointsEarned: { $ifNull: [{ $arrayElemAt: ["$points.totalPoints", 0] }, 0] },

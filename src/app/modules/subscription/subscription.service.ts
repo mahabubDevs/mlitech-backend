@@ -227,30 +227,67 @@ const activateSubscriptionInDB = async (
       const referralPoints = Math.round(subscriptionPrice * 0.2);
       console.log("🎁 Calculated Referral Points (20%):", referralPoints);
 
-      if (referralPoints > 0) {
+     if (referralPoints > 0) {
 
-        const updatedReferrer = await User.findByIdAndUpdate(
-          referrerId,
-          {
-            $inc: { points: referralPoints },
-            $push: { referralBonusGivenFor: userId }
-          },
-          { new: true }
-        );
+      const updatedReferrer = await User.findByIdAndUpdate(
+        referrerId,
+        {
+          $inc: { points: referralPoints },
+          $push: { referralBonusGivenFor: userId }
+        },
+        { new: true }
+      );
 
-        console.log("💎 Referral Points Added Successfully");
-        console.log("👑 Updated Referrer Points:", updatedReferrer?.points);
+      console.log("💎 Referral Points Added Successfully");
+      console.log("👑 Updated Referrer Points:", updatedReferrer?.points);
 
-        await sendNotification({
-          userIds: [referrerId.toString()],
-          title: "Referral Bonus Earned 🎉",
-          body: `You earned ${referralPoints} points from your referral's subscription.`,
-          type: NotificationType.REFERRAL
-        });
+      // ======================================================
+      // 🧾 CREATE POINT TRANSACTION (NEWLY ADDED)
+      // ======================================================
 
-        console.log("📩 Referral Notification Sent");
+      console.log("========== REFERRAL DEBUG START ==========");
 
+      console.log("Referrer ID:", referrerId?.toString());
+      console.log("Referred User ID:", userId?.toString());
+
+      const referralRecord = await Referral.findOne({
+        referrer: referrerId,
+        referredUser: userId   // ✅ fixed field name
+      });
+
+      console.log("Referral Record Found?:", !!referralRecord);
+
+      if (!referralRecord) {
+        console.log("❌ Referral record NOT FOUND in DB");
       } else {
+        console.log("✅ Referral Record ID:", referralRecord._id.toString());
+      }
+
+      await PointTransaction.create({
+        user: referrerId,
+        type: "EARN",
+        source: "REFERRAL",
+        referral: referralRecord?._id,
+        points: referralPoints,
+        note: `Earned ${referralPoints} points from referral subscription (${userId})`
+      });
+
+      console.log("🧾 Referral Point Transaction Created");
+      console.log("Referral ID Saved:", referralRecord?._id || "NULL");
+      console.log("========== REFERRAL DEBUG END ==========");
+
+      // ======================================================
+
+      await sendNotification({
+        userIds: [referrerId.toString()],
+        title: "Referral Bonus Earned ",
+        body: `You earned ${referralPoints} points from your referral's subscription.`,
+        type: NotificationType.REFERRAL
+      });
+
+      console.log("📩 Referral Notification Sent");
+    }
+ else {
         console.log("⚠️ Referral Points <= 0. Bonus Skipped.");
       }
 

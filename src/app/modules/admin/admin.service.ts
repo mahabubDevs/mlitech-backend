@@ -276,7 +276,7 @@ const getNearbyMerchants = async (query: IQuery, userId: string) => {
     });
   }
 
-  pipeline.push(
+    pipeline.push(
     {
       $lookup: {
         from: "ratings",
@@ -291,14 +291,31 @@ const getNearbyMerchants = async (query: IQuery, userId: string) => {
         avgRating: {
           $cond: [
             { $gt: [{ $size: "$ratings" }, 0] },
-            { $avg: "$ratings.rating" },
+            { $round: [{ $avg: "$ratings.rating" }, 1] },
             0,
+          ],
+        },
+      },
+    },
+    {
+      $addFields: {
+        address: {
+          $concat: [
+            { $ifNull: ["$address", ""] },
+            " (",
+            {
+              $toString: {
+                $round: [{ $divide: ["$distance", 1000] }, 2],
+              },
+            },
+            " km)"
           ],
         },
       },
     },
     { $sort: { distance: 1 } }
   );
+
 
   const merchants = await User.aggregate(pipeline);
   return merchants;

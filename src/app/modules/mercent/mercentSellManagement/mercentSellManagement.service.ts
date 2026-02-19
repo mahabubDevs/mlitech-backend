@@ -7,7 +7,7 @@ import { NotificationType } from "../../notification/notification.model";
 import { sendNotification } from "../../../../helpers/notificationsHelper";
 import { Tier } from "../point&TierSystem/tier.model";
 import { Rating } from "../../customer/rating/rating.model";
-
+import { subMonths } from "date-fns"; 
 // -----------------------------
 
 
@@ -261,6 +261,16 @@ const checkout = async (
   // ===============================
   const discountedBill = parseFloat((totalBill - totalDiscount).toFixed(4));
   const pointDiscount = parseFloat((pointRedeemed * POINT_REDEEM_RATE).toFixed(4));
+
+
+  const sixMonthsAgo = subMonths(new Date(), 6);
+
+  if (digitalCard.updatedAt < sixMonthsAgo && pointRedeemed > 0) {
+    throw new Error(
+      "Your points are blocked due to inactivity in the last 6 months."
+    );
+  }
+
   const finalBill = parseFloat((discountedBill - pointDiscount).toFixed(4));
 
   if (finalBill < 0) {
@@ -661,6 +671,28 @@ const requestApproval = async ({
     (pointRedeemed * POINT_REDEEM_RATE).toFixed(4)
   );
 
+
+  // 🔹 Check Digital Card Activity (6 months rule)
+const sixMonthsAgo = subMonths(new Date(), 6);
+
+if (digitalCard.updatedAt < sixMonthsAgo && pointRedeemed > 0) {
+  throw new Error(
+    "Your points are blocked due to inactivity in the last 6 months."
+  );
+}
+
+
+
+// // 5 মিনিট আগে
+// const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000); // 5 min * 60 sec * 1000 ms
+
+// if (digitalCard.updatedAt < fiveMinutesAgo && pointRedeemed > 0) {
+//   throw new Error(
+//     "Your points are blocked due to inactivity in the last 5 minutes."
+//   );
+// }
+
+
   const finalBill = parseFloat(
     (discountedBill - pointDiscount).toFixed(4)
   );
@@ -1028,87 +1060,67 @@ const getPointsHistory = async (
   const result: any[] = [];
 
   for (const tx of history) {
-    const merchant = tx.merchantId as
-      | {
-        _id?: Types.ObjectId;
-        businessName?: string;
-        shopName?: string;
-        firstName?: string;
-        profile?: string;
-      }
-      | undefined;
+    const merchant = tx.merchantId as any;
 
     const merchantName =
-      merchant?.businessName ||
-      merchant?.shopName ||
-      merchant?.firstName ||
-      "";
+      merchant?.businessName || merchant?.shopName || merchant?.firstName || "";
 
-    // ⭐ find rating (only number)
     const ratingDoc = await Rating.findOne({
       userId: tx.userId,
       merchantId: merchant?._id,
-      promotionId: tx.promotionIds?.[0],
+      promotionId: tx.promotionIds?.[0], // আমরা প্রথম promotion দিয়ে rating check করছি
       digitalCardId: tx.digitalCardId,
-    })
-      .select("rating")
-      .lean();
+    }).select("rating").lean();
 
-    const ratingValue: number | null = ratingDoc
-      ? ratingDoc.rating
-      : 0;
+    const ratingValue = ratingDoc ? ratingDoc.rating : 0;
 
-    // ✅ Earn Points
-    if (
-      (typeSanitized === "all" || typeSanitized === "earn") &&
-      ((tx.pointsEarned as number) ?? 0) > 0
-    ) {
-      result.push({
-        id: tx._id,
-        digitalCardId: tx.digitalCardId,
-        isEarn: true,
-        type: "earn",
-        points: tx.pointsEarned,
-        totalBill: tx.totalBill,
-        discountedBill: tx.discountedBill,
-        date: tx.createdAt,
-        promotionIds: tx.promotionIds,
+    // যদি promotionIds empty না থাকে
+    const promotions = tx.promotionIds && tx.promotionIds.length > 0 ? tx.promotionIds : [null];
 
-        merchant: merchantName,
-        merchantProfile: merchant?.profile,
-        merchantId: merchant?._id,
+    for (const promoId of promotions) {
+      // ✅ Earn Points
+      if ((typeSanitized === "all" || typeSanitized === "earn") && ((tx.pointsEarned as number) ?? 0) > 0) {
+        result.push({
+          id: tx._id,
+          digitalCardId: tx.digitalCardId,
+          isEarn: true,
+          type: "earn",
+          points: tx.pointsEarned,
+          totalBill: tx.totalBill,
+          discountedBill: tx.discountedBill,
+          date: tx.createdAt,
+          promotionIds: promoId, // single entry
+          merchant: merchantName,
+          merchantProfile: merchant?.profile,
+          merchantId: merchant?._id,
+          rating: ratingValue,
+        });
+      }
 
-        rating: ratingValue, // ✅ number | null
-      });
-    }
-
-    // ✅ Used Points
-    if (
-      (typeSanitized === "all" || typeSanitized === "use") &&
-      ((tx.pointRedeemed as number) ?? 0) > 0
-    ) {
-      result.push({
-        id: tx._id,
-        digitalCardId: tx.digitalCardId,
-        isEarn: false,
-        type: "use",
-        points: tx.pointRedeemed,
-        totalBill: tx.totalBill,
-        discountedBill: tx.discountedBill,
-        date: tx.createdAt,
-        promotionIds: tx.promotionIds,
-
-        merchant: merchantName,
-        merchantProfile: merchant?.profile,
-        merchantId: merchant?._id,
-
-        rating: ratingValue, // ✅ number | null
-      });
+      // ✅ Used Points
+      if ((typeSanitized === "all" || typeSanitized === "use") && ((tx.pointRedeemed as number) ?? 0) > 0) {
+        result.push({
+          id: tx._id,
+          digitalCardId: tx.digitalCardId,
+          isEarn: false,
+          type: "use",
+          points: tx.pointRedeemed,
+          totalBill: tx.totalBill,
+          discountedBill: tx.discountedBill,
+          date: tx.createdAt,
+          promotionIds: promoId, // single entry
+          merchant: merchantName,
+          merchantProfile: merchant?.profile,
+          merchantId: merchant?._id,
+          rating: ratingValue,
+        });
+      }
     }
   }
 
   return result;
 };
+
 
 
 
