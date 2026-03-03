@@ -277,6 +277,12 @@ const userSchema = new Schema<IUser, UserModal>(
       type: Boolean,
       default: false,
     },
+    previousPasswords: [
+      {
+        hash: String,
+        changedAt: Date
+      }
+    ],
     
   },
   {

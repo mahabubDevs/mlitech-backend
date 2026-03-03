@@ -279,7 +279,10 @@ const getMerchantSales = async (req: Request, res: Response) => {
       merchantId?: string;
     };
 
+    console.log("👤 User Info:", user);
+
     if (!user?._id || !Types.ObjectId.isValid(user._id)) {
+      console.log("❌ Unauthorized merchant access attempt");
       return res.status(401).json({
         success: false,
         message: "Unauthorized merchant",
@@ -287,6 +290,7 @@ const getMerchantSales = async (req: Request, res: Response) => {
     }
 
     const merchantId = user.isSubMerchant ? user.merchantId : user._id;
+    console.log("🛒 Merchant ID:", merchantId);
 
     // -----------------------------
     // 1️⃣ Date Filter (UTC)
@@ -295,41 +299,37 @@ const getMerchantSales = async (req: Request, res: Response) => {
     const monthParam = req.query.month as string;
     const now = new Date();
     let dateFilter: any = {};
+    const currentYear = now.getUTCFullYear();
 
-    if (monthParam) {
+    // Monthly filter (Present Year Only)
+    if (monthParam && Number(monthParam) >= 1 && Number(monthParam) <= 12) {
       const month = Number(monthParam) - 1;
-      const year = now.getUTCFullYear();
-      const startOfMonth = new Date(Date.UTC(year, month, 1, 0, 0, 0));
-      const endOfMonth = new Date(
-        Date.UTC(year, month + 1, 0, 23, 59, 59, 999)
-      );
+      const startOfMonth = new Date(Date.UTC(currentYear, month, 1, 0, 0, 0));
+      const endOfMonth = new Date(Date.UTC(currentYear, month + 1, 0, 23, 59, 59, 999));
       dateFilter.createdAt = { $gte: startOfMonth, $lte: endOfMonth };
     } else if (period === "day") {
-      const startOfDay = new Date(
-        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
-      );
+      const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
       dateFilter.createdAt = { $gte: startOfDay };
     } else if (period === "week") {
-      const startOfWeek = new Date(
-        Date.UTC(
-          now.getUTCFullYear(),
-          now.getUTCMonth(),
-          now.getUTCDate() - now.getUTCDay()
-        )
-      );
+      const startOfWeek = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - now.getUTCDay()));
       dateFilter.createdAt = { $gte: startOfWeek };
     } else if (period === "month") {
-      const startOfMonth = new Date(
-        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
-      );
+      const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
       dateFilter.createdAt = { $gte: startOfMonth };
     }
 
     // -----------------------------
+    // 1️⃣a Debug: Show Date Filter
+    // -----------------------------
+    console.log("🗓️ Date Filter Applied:", dateFilter);
+    console.log("🛠️ Month Param:", monthParam);
+    console.log("🛠️ Period Param:", period);
+
+    // -----------------------------
     // 2️⃣ Search Term
     // -----------------------------
-    const searchTerm =
-      (req.query.searchTerm as string)?.toLowerCase() || "";
+    const searchTerm = (req.query.searchTerm as string)?.toLowerCase() || "";
+    console.log("🔍 Search Term:", searchTerm);
 
     // -----------------------------
     // 3️⃣ Pagination
@@ -337,22 +337,40 @@ const getMerchantSales = async (req: Request, res: Response) => {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
     const skip = (page - 1) * limit;
+    console.log("📄 Pagination - Page:", page, "Limit:", limit, "Skip:", skip);
 
     // -----------------------------
     // 4️⃣ Fetch Sales
     // -----------------------------
     let sales = await Sell.find({ merchantId, ...dateFilter })
-      .populate(
-        "userId",
-        "firstName lastName email phone profile customUserId"
-      )
+      .populate("userId", "firstName lastName email phone profile customUserId")
       .populate("digitalCardId", "cardCode")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
       .lean();
 
+    console.log("💰 Fetched Sales Count:", sales.length);
+
+    // Log each sale basic info
+    sales.forEach((tx: any, i: number) => {
+      console.log(`🧾 Sale #${i + 1}:`, {
+        _id: tx._id,
+        user: tx.userId ? `${tx.userId.firstName} ${tx.userId.lastName}` : null,
+        email: tx.userId?.email,
+        phone: tx.userId?.phone,
+        cardCode: tx.digitalCardId?.cardCode,
+        pointsEarned: tx.pointsEarned,
+        pointsRedeemed: tx.pointRedeemed,
+        totalBill: tx.totalBill,
+        discountedBill: tx.discountedBill,
+        status: tx.status,
+        createdAt: tx.createdAt,
+      });
+    });
+
     if (!sales || sales.length === 0) {
+      console.log("⚠️ No sales found for this period");
       return res.status(200).json({
         success: true,
         data: [],
@@ -376,21 +394,23 @@ const getMerchantSales = async (req: Request, res: Response) => {
           c.cardCode?.toLowerCase().includes(searchTerm)
         );
       });
+      console.log("🔍 After Search Filter Count:", sales.length);
     }
 
     const total = await Sell.countDocuments({ merchantId, ...dateFilter });
+    console.log("📊 Total Documents Matching Filter:", total);
 
     // -----------------------------
-    // 6️⃣ Prepare Transaction Response (Aggregated field names maintained)
+    // 6️⃣ Prepare Transaction Response
     // -----------------------------
     const transactionData = sales.map((tx: any) => ({
-      _id: tx.userId?._id,  // user ID for consistency with previous aggregated format
+      _id: tx.userId?._id,
       name: `${tx.userId?.firstName || ""} ${tx.userId?.lastName || ""}`.trim(),
       email: tx.userId?.email,
       phone: tx.userId?.phone,
       profile: tx.userId?.profile,
       customUserId: tx.userId?.customUserId,
-      totalTransactions: 1, // each transaction = 1
+      totalTransactions: 1,
       totalPointsEarned: tx.pointsEarned || 0,
       totalPointsRedeemed: tx.pointRedeemed || 0,
       totalBilled: tx.totalBill || 0,
@@ -399,6 +419,8 @@ const getMerchantSales = async (req: Request, res: Response) => {
       status: tx.status || "",
       createdAt: tx.createdAt,
     }));
+
+    console.log("✅ Prepared Transaction Data Count:", transactionData.length);
 
     // -----------------------------
     // 7️⃣ Response
@@ -413,12 +435,12 @@ const getMerchantSales = async (req: Request, res: Response) => {
         totalPage: Math.ceil(total / limit),
       },
     });
+
   } catch (error) {
     console.error("❌ Error in getMerchantSales:", error);
     return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
-
 
 
 

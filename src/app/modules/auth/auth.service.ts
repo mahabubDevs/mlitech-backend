@@ -52,6 +52,11 @@ const  loginUserFromDB = async (payload: ILoginData) => {
     throw new ApiError(StatusCodes.BAD_REQUEST, 'Please verify your account before login');
   }
 
+  // Check user active or not
+  if (user.status !== USER_STATUS.ACTIVE) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'Your account is not active. Please contact support.');
+  }
+
   // 3️⃣ Check password match
   if (password && !(await User.isMatchPassword(password, user.password))) {
     throw new ApiError(StatusCodes.BAD_REQUEST, 'Password is incorrect!');
@@ -92,6 +97,7 @@ const  loginUserFromDB = async (payload: ILoginData) => {
         user: {
           pages: user.pages || [],
           subscription: user.subscription,
+          businessName: user.businessName || "",
           isUserWaiting: user.isUserWaiting,
           location: user.location ?? {
             type: 'Point',
@@ -369,53 +375,98 @@ const verifyOtpToDB = async (payload: { identifier: string, oneTimeCode: number 
 
 //forget password
 const resetPasswordToDB = async (token: string, payload: IAuthResetPassword) => {
-
   const { newPassword, confirmPassword } = payload;
-  console.log("Resetting password with token:", token);
+  console.log("[Step 0] Resetting password with token:", token);
 
-  //isExist token
+  // 1️⃣ Check if token exists
   const isExistToken = await ResetToken.isExistToken(token);
+  console.log("[Step 1] Token exists:", !!isExistToken);
   if (!isExistToken) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'You are not authorized');
   }
 
-  //user permission check
-  const isExistUser = await User.findById(isExistToken.user).select('+authentication');
+  // 2️⃣ Get user with authentication
+  const isExistUser = await User.findById(isExistToken.user)
+    .select('+password +previousPasswords +authentication');
+  console.log("[Step 2] Found user:", isExistUser?._id);
+
   if (!isExistUser?.authentication?.isResetPassword) {
-    throw new ApiError(StatusCodes.UNAUTHORIZED, "You don't have permission to change the password. Please click again to 'Forgot Password'");
+    throw new ApiError(StatusCodes.UNAUTHORIZED, 
+      "You don't have permission to change the password. Please click again to 'Forgot Password'");
   }
 
-  //validity check
+  // 3️⃣ Check token validity
   const isValid = await ResetToken.isExpireToken(token);
+  console.log("[Step 3] Token valid:", isValid);
   if (!isValid) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, 'Token expired, Please click again to the forget password');
+    throw new ApiError(StatusCodes.BAD_REQUEST, 
+      'Token expired, Please click again to the forget password');
   }
 
-  //check password
+  // 4️⃣ Check new password matches confirm password
+  console.log("[Step 4] New Password:", newPassword, "Confirm Password:", confirmPassword);
   if (newPassword !== confirmPassword) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, "New password and Confirm password doesn't match!");
+    throw new ApiError(StatusCodes.BAD_REQUEST, 
+      "New password and Confirm password doesn't match!");
   }
 
-  const isSamePassword = await bcrypt.compare(newPassword, isExistUser.password || '');
-  if (isSamePassword) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, 'Please provide a different password from the previous one');
+  // 5️⃣ Check previousPasswords array
+  console.log("[Step 5] Checking previousPasswords for reuse...");
+  if (isExistUser.previousPasswords?.length) {
+    for (const prev of isExistUser.previousPasswords) {
+      const match = await bcrypt.compare(newPassword, prev.hash);
+      console.log("    Comparing with previous hash:", prev.hash, "Match:", match);
+      if (match) {
+        throw new ApiError(StatusCodes.BAD_REQUEST, 'You cannot reuse an old password!');
+      }
+    }
   }
 
+  // 6️⃣ Hash new password
   const hashPassword = await bcrypt.hash(newPassword, Number(config.bcrypt_salt_rounds));
+  console.log("[Step 6] Hashed new password:", hashPassword);
 
+  // 7️⃣ Push old password to previousPasswords
+  isExistUser.previousPasswords = isExistUser.previousPasswords || [];
+  if (isExistUser.password) {
+    isExistUser.previousPasswords.push({
+      hash: isExistUser.password,
+      changedAt: new Date()
+    });
+    console.log("[Step 7] Old password pushed to previousPasswords:", isExistUser.password);
+  }
+
+
+   // 6️⃣ Check current password to prevent reuse
+  if (isExistUser.password) {
+    const isSameAsCurrent = await bcrypt.compare(newPassword, isExistUser.password);
+    console.log("[Step 6] Compare with current password:", isSameAsCurrent);
+    if (isSameAsCurrent) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, 
+        'Please provide a different password from the previous one');
+    }
+  }
+
+  // 8️⃣ Update user password and reset authentication
   const updateData = {
     password: hashPassword,
+
     authentication: {
       isResetPassword: false,
-    }
+    },
+    previousPasswords: isExistUser.previousPasswords
   };
+  console.log("[Step 8] Updating user password with new hash");
 
   await User.findOneAndUpdate(
     { _id: isExistToken.user },
     updateData,
     { new: true }
   );
+
+  console.log("[Step 9] Password reset completed for user:", isExistUser._id);
 };
+
 
 const changePasswordToDB = async (user: JwtPayload, payload: IChangePassword) => {
 
@@ -446,11 +497,35 @@ const changePasswordToDB = async (user: JwtPayload, payload: IChangePassword) =>
     throw new ApiError(StatusCodes.BAD_REQUEST, "Password and Confirm password doesn't matched");
   }
 
+   console.log("[Step 5] Checking previousPasswords for reuse...");
+  if (isExistUser.previousPasswords?.length) {
+    for (const prev of isExistUser.previousPasswords) {
+      const match = await bcrypt.compare(newPassword, prev.hash);
+      console.log("    Comparing with previous hash:", prev.hash, "Match:", match);
+      if (match) {
+        throw new ApiError(StatusCodes.BAD_REQUEST, 'You cannot reuse an old password!');
+      }
+    }
+  }
+
   //hash password
   const hashPassword = await bcrypt.hash(newPassword, Number(config.bcrypt_salt_rounds));
 
+
+    // 7️⃣ Push old password to previousPasswords
+  isExistUser.previousPasswords = isExistUser.previousPasswords || [];
+  if (isExistUser.password) {
+    isExistUser.previousPasswords.push({
+      hash: isExistUser.password,
+      changedAt: new Date()
+    });
+    console.log("[Step 7] Old password pushed to previousPasswords:", isExistUser.password);
+  }
+
+
   const updateData = {
     password: hashPassword,
+    previousPasswords: isExistUser.previousPasswords,
   };
 
   await User.findOneAndUpdate({ _id: user._id }, updateData, { new: true });

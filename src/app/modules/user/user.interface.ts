@@ -171,6 +171,10 @@ export interface IUser {
     subscriptionNotifications: boolean;
     pushNotifications: boolean;
   };
+  previousPasswords?: {
+    hash: string;
+    changedAt: Date;
+  }[];
 
 
   // 🔹 Add these fields
