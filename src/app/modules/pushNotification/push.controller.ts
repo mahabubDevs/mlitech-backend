@@ -32,7 +32,7 @@ const sendMerchantPromotion = catchAsync(async (req: Request, res: Response) => 
   console.log("📌 Request Body:", req.body);
   console.log("📌 Uploaded Files:", req.files);
 
-  // Parse payload JSON
+  // Parse JSON data
   const payloadData = req.body.data ? JSON.parse(req.body.data) : {};
 
   // Image: uploaded file overrides body link
@@ -41,25 +41,46 @@ const sendMerchantPromotion = catchAsync(async (req: Request, res: Response) => 
       ? (req.files as any).image[0].path
       : payloadData.image;
 
-  // Merchant location from logged-in user
-  const merchantLocation = merchant.location || { type: "Point", coordinates: [0, 0] };
+  // 🔥 FRONTEND LAT/LNG (instead of merchant profile location)
+  let merchantLocation = null;
 
-  // Prepare final payload for PushService
+  if (
+    payloadData.lat !== undefined &&
+    payloadData.lng !== undefined
+  ) {
+    merchantLocation = {
+      type: "Point",
+      coordinates: [
+        Number(payloadData.lng),
+        Number(payloadData.lat),
+      ], // GeoJSON format [lng, lat]
+    };
+  }
+
   const payload = {
     message: payloadData.message,
     image,
     target: { type: "points" },
     filters: {
-      minPoints: payloadData.minPoints ?? 0,
+      minPoints:
+        payloadData.minPoints !== undefined
+          ? Number(payloadData.minPoints)
+          : 0,
       segment: payloadData.segment ?? "all_customer",
-      radius: payloadData.radius ?? Infinity,
-      merchantLocation
-    }
+      radius:
+        payloadData.radius !== undefined
+          ? Number(payloadData.radius)
+          : Infinity,
+      merchantLocation,
+    },
   };
 
   console.log("📌 Final Payload for PushService:", payload);
 
-  const result = await PushService.sendMerchantPromotion(payload, merchantId);
+  const result = await PushService.sendMerchantPromotion(
+    payload,
+    merchantId
+  );
 
   console.log("✅ Notification Result:", result);
 
@@ -70,7 +91,6 @@ const sendMerchantPromotion = catchAsync(async (req: Request, res: Response) => 
     data: result,
   });
 });
-
 
 
 // const getAllPushes = catchAsync(async (req: Request, res: Response) => {

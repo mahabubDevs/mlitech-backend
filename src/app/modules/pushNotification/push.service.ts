@@ -9,6 +9,7 @@ import { DigitalCard } from "../customer/digitalCard/digitalCard.model";
 import { Types } from "mongoose";
 import { sendNotification } from "../../../helpers/notificationsHelper";
 import { NotificationType } from "../notification/notification.model";
+import { Sell } from "../mercent/mercentSellManagement/mercentSellManagement.model";
 
 
 // Send push (existing)
@@ -115,15 +116,48 @@ const sendMerchantPromotion = async (payload: any, merchantId: string) => {
   console.log("=================================================");
   console.log("🚀 sendMerchantPromotion START");
   console.log("🧾 Merchant ID:", merchantId);
-  console.log("🧾 Payload received:", JSON.stringify(payload, null, 2));
   console.log("=================================================");
 
+  /* ============================================================
+     1️⃣ FETCH DIGITAL CARD USERS
+  ============================================================ */
+
   const cards = await DigitalCard.find({ merchantId })
-    .populate("userId", "fcmToken location totalPurchases totalSpend purchases")
+    .populate("userId", "fcmToken location createdAt isVIP")
     .select("userId availablePoints")
     .lean();
 
-  console.log(`📌 Total customers fetched from DB: ${cards.length}`);
+  console.log(`📌 Total customers fetched: ${cards.length}`);
+
+  const userIds = cards.map((c: any) => c.userId?._id).filter(Boolean);
+
+  /* ============================================================
+     2️⃣ FETCH ALL SELLS FOR THIS MERCHANT (IMPORTANT)
+  ============================================================ */
+
+  const sells = await Sell.find({
+    merchantId,
+    userId: { $in: userIds },
+    status: "completed",
+  }).lean();
+
+  console.log(`📊 Total completed sells found: ${sells.length}`);
+
+  /* ============================================================
+     3️⃣ GROUP SELLS BY USER
+  ============================================================ */
+
+  const sellMap: Record<string, any[]> = {};
+
+  sells.forEach((sell: any) => {
+    const uid = sell.userId.toString();
+    if (!sellMap[uid]) sellMap[uid] = [];
+    sellMap[uid].push(sell);
+  });
+
+  /* ============================================================
+     4️⃣ FILTER USERS
+  ============================================================ */
 
   let skippedNoToken = 0;
   let skippedPoints = 0;
@@ -131,128 +165,157 @@ const sendMerchantPromotion = async (payload: any, merchantId: string) => {
   let skippedRadius = 0;
   let eligibleUsers = 0;
 
+  const now = new Date();
+  const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const last90Days = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+  const last6Months = new Date(now.getTime() - 6 * 30 * 24 * 60 * 60 * 1000);
+
+  const avgSpend = 1000; // later dynamic
+
   const eligibleUsersData = cards
-    .filter((c: any, index: number) => {
+    .filter((c: any) => {
       const user = c.userId;
+      const userId = user?._id?.toString();
 
-      console.log("-------------------------------------------------");
-      console.log(`👤 Checking customer #${index + 1}`);
-      console.log("User ID:", user?._id);
-      console.log("Available Points:", c.availablePoints);
-
-      // ❌ No FCM token
       if (!user?.fcmToken) {
         skippedNoToken++;
-        console.log("❌ Skipped: No FCM token");
         return false;
       }
 
-      // ❌ Points filter
+      /* =========================
+         POINT FILTER
+      ========================== */
+
       if (target?.type === "points" && filters?.minPoints !== undefined) {
         if ((c.availablePoints ?? 0) < filters.minPoints) {
           skippedPoints++;
-          console.log(
-            `❌ Skipped: Points too low (${c.availablePoints} < ${filters.minPoints})`
-          );
           return false;
         }
       }
 
-      // 🧠 Segment calculation
-      let segment = "all_customer";
-      const totalPurchases = user.totalPurchases || 0;
-      const purchases = user.purchases || [];
-      const last6MonthsPurchases = purchases.filter(
-        (p: any) =>
-          new Date(p.createdAt) >=
-          new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000)
-      );
-      const totalSpend = user.totalSpend || 0;
-      const avgSpend = 1000;
+      /* =========================
+         SELL DATA
+      ========================== */
 
+      const userSells = sellMap[userId] || [];
+      const totalPurchases = userSells.length;
+      const totalSpend = userSells.reduce(
+        (sum, s) => sum + (s.discountedBill || 0),
+        0
+      );
+
+      const sellsLast90Days = userSells.filter(
+        (s) => new Date(s.createdAt) >= last90Days
+      );
+
+      const sellsLast6Months = userSells.filter(
+        (s) => new Date(s.createdAt) >= last6Months
+      );
+
+      /* =========================
+         SEGMENT CALCULATION
+      ========================== */
+
+      let segment = "all_customer";
+
+      // 4️⃣ VIP
       if (
-        totalPurchases === 0 ||
-        (totalPurchases === 1 &&
-          purchases[0]?.createdAt >
-            new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
+        user.isVIP === true ||
+        sellsLast6Months.length >= 20 ||
+        totalSpend >= 3 * avgSpend
       ) {
-        segment = "new_customer";
-      } else if (totalPurchases >= 2 && last6MonthsPurchases.length < 5) {
-        segment = "returning_customer";
-      } else if (last6MonthsPurchases.length >= 5 || totalSpend >= 1.5 * avgSpend) {
-        segment = "loyal_customer";
-      } else if (last6MonthsPurchases.length >= 20 || totalSpend >= 3 * avgSpend) {
         segment = "vip_customer";
       }
 
-      console.log("📊 Calculated Segment:", segment);
+      // 3️⃣ LOYAL
+      else if (
+        sellsLast6Months.length >= 5 ||
+        totalSpend >= 1.5 * avgSpend
+      ) {
+        segment = "loyal_customer";
+      }
 
-      // ❌ Segment filter
+      // 2️⃣ RETURNING
+      else if (
+        totalPurchases >= 2 &&
+        sellsLast6Months.length < 5 &&
+        sellsLast90Days.length > 0
+      ) {
+        segment = "returning_customer";
+      }
+
+      // 1️⃣ NEW
+      else if (
+        user.createdAt &&
+        new Date(user.createdAt) >= last30Days &&
+        (totalPurchases === 0 || totalPurchases === 1)
+      ) {
+        segment = "new_customer";
+      }
+
+      /* =========================
+         SEGMENT FILTER
+      ========================== */
+
       if (
         filters?.segment &&
         filters.segment !== "all_customer" &&
         filters.segment !== segment
       ) {
         skippedSegment++;
-        console.log(
-          `❌ Skipped: Segment mismatch (required=${filters.segment}, actual=${segment})`
-        );
         return false;
       }
 
-      // 📍 Radius filter
-      if (filters?.radius && filters.merchantLocation && user.location?.coordinates) {
+      /* =========================
+         RADIUS FILTER
+      ========================== */
+
+      if (
+        typeof filters?.radius === "number" &&
+        filters.radius !== Infinity &&
+        filters.merchantLocation?.coordinates &&
+        user.location?.coordinates
+      ) {
         const [userLng, userLat] = user.location.coordinates;
-        const [merchLng, merchLat] = filters.merchantLocation.coordinates;
+        const [centerLng, centerLat] =
+          filters.merchantLocation.coordinates;
 
         const distance = getDistanceFromLatLonInKm(
-          userLat,
-          userLng,
-          merchLat,
-          merchLng
+          Number(userLat),
+          Number(userLng),
+          Number(centerLat),
+          Number(centerLng)
         );
-
-        console.log(`📍 Distance from merchant: ${distance.toFixed(2)} km`);
 
         if (distance > filters.radius) {
           skippedRadius++;
-          console.log(
-            `❌ Skipped: Outside radius (${distance.toFixed(2)} > ${filters.radius})`
-          );
           return false;
         }
       }
 
       eligibleUsers++;
-      console.log("✅ Eligible for promotion");
       return true;
     })
     .map((c: any) => ({
       userId: c.userId._id,
       token: c.userId.fcmToken,
-    }))
-    .filter((u: any) => !!u.token);
+    }));
 
   const tokens = eligibleUsersData.map((u) => u.token);
-  const userIds = eligibleUsersData.map((u) => u.userId);
+  const finalUserIds = eligibleUsersData.map((u) => u.userId);
 
   console.log("=================================================");
   console.log("📌 FILTER SUMMARY");
-  console.log("❌ No FCM token:", skippedNoToken);
-  console.log("❌ Points filter failed:", skippedPoints);
-  console.log("❌ Segment mismatch:", skippedSegment);
-  console.log("❌ Radius exceeded:", skippedRadius);
-  console.log("✅ Eligible users:", eligibleUsers);
-  console.log("📌 Final tokens to send:", tokens.length);
+  console.log("❌ No FCM:", skippedNoToken);
+  console.log("❌ Points:", skippedPoints);
+  console.log("❌ Segment:", skippedSegment);
+  console.log("❌ Radius:", skippedRadius);
+  console.log("✅ Eligible:", eligibleUsers);
   console.log("=================================================");
 
   if (tokens.length === 0) {
-    console.log("⚠️ No customers matched. Push not sent.");
     return { sentCount: 0, failedCount: 0, message: "No customers matched" };
   }
-
-  // 🔔 Firebase Push (only send, no DB store here)
-  console.log("🚀 Sending notification to Firebase...");
 
   const firebaseMessage = {
     notification: {
@@ -267,34 +330,21 @@ const sendMerchantPromotion = async (payload: any, merchantId: string) => {
     tokens,
   };
 
-  const response = await admin.messaging().sendEachForMulticast(firebaseMessage);
-
-  console.log("📬 Firebase response:", {
-    successCount: response.successCount,
-    failureCount: response.failureCount,
-  });
-
-  // 🧾 Normal Notification ONLY (DB + Socket)
-  console.log("🧾 Saving notifications in Notification collection...");
+  const response =
+    await admin.messaging().sendEachForMulticast(firebaseMessage);
 
   await sendNotification({
-    userIds,
+    userIds: finalUserIds,
     title: "Promotion",
     body: message,
     type: NotificationType.PROMOTION,
-    metadata: {
-      merchantId,
-    },
+    metadata: { merchantId },
     attachments: image ? [image] : [],
     channel: {
       socket: true,
-      push: false, // push already done via Firebase
+      push: false,
     },
   });
-
-  console.log("✅ Notification saved & socket emitted");
-  console.log("🏁 sendMerchantPromotion END");
-  console.log("=================================================");
 
   return {
     sentCount: response.successCount,
