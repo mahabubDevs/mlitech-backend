@@ -342,7 +342,7 @@ const getMerchantSales = async (req: Request, res: Response) => {
     // -----------------------------
     // 4️⃣ Fetch Sales
     // -----------------------------
-    let sales = await Sell.find({ merchantId, ...dateFilter })
+    let sales = await Sell.find({ merchantId, status: "completed", ...dateFilter })
       .populate("userId", "firstName lastName email phone profile customUserId")
       .populate("digitalCardId", "cardCode")
       .sort({ createdAt: -1 })

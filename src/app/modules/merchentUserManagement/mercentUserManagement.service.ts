@@ -83,7 +83,9 @@ const createUserToDB = async (
     "country",
     "service",
     "about",
-    "website"
+    "website",
+    "photo",
+    "profile",
   ];
 
   infoFields.forEach((field) => {

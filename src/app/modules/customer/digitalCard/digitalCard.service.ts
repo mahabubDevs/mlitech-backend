@@ -294,7 +294,7 @@ const getUserDigitalCards = async (
     userId: card.userId,
     merchantId: card.merchant,
     cardCode: card.cardCode,
-    availablePoints: card.availablePoints ?? 0,
+    availablePoints: parseFloat((card.availablePoints ?? 0).toFixed(4)),
     promotions: Array.isArray(card.promotions)
       ? card.promotions
           .map((p: any) => p?.promotionId?.toString())
