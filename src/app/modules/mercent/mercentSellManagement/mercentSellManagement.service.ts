@@ -1034,7 +1034,10 @@ const getUserFullTransactions = async (
 
   const skip = (page - 1) * limit;
 
-  const query: any = { userId: new Types.ObjectId(userId) };
+  const query: any = {
+     userId: new Types.ObjectId(userId),
+      status: "completed"
+   };
   if (type === "earn") query.pointsEarned = { $gt: 0 };
   if (type === "use") query.pointRedeemed = { $gt: 0 };
 

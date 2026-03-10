@@ -23,6 +23,7 @@ const getBusinessCustomerAnalytics = catchAsync(
       subscriptionStatus,
       customerName,
       location,
+      city
     } = req.query;
 
     // Call service with effective merchant logic
@@ -36,6 +37,7 @@ const getBusinessCustomerAnalytics = catchAsync(
         subscriptionStatus: subscriptionStatus as string,
         customerName: customerName as string,
         location: location as string,
+        city: city as string
       },
       role,
       isSubMerchant,

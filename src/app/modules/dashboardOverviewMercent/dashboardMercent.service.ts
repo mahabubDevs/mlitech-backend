@@ -220,7 +220,7 @@ const getReportForMerchantDashboard = async (
       startDate.setHours(0, 0, 0, 0);
       break;
     case "all":
-      startDate = new Date(0); // Epoch time
+      startDate = new Date(0);
       break;
     default:
       startDate = new Date();
@@ -231,7 +231,7 @@ const getReportForMerchantDashboard = async (
 
   const dateFilter = { $gte: startDate, $lte: today };
 
-  // 1️⃣ Total Members (unique buyers from Sell)
+  // 1️⃣ Total Members
   const buyersQuery: any = {
     merchantId: new mongoose.Types.ObjectId(merchantId),
     userId: { $ne: null },
@@ -242,15 +242,24 @@ const getReportForMerchantDashboard = async (
   const buyers = await Sell.distinct("userId", buyersQuery);
   const totalMembers = buyers.length;
 
-  // 2️⃣ Rewards Redeemed (completed promotions)
-  const redeemedQuery: any = {
-    merchantId: new mongoose.Types.ObjectId(merchantId),
-    status: "completed",
-    createdAt: dateFilter,
-    promotionId: { $ne: null },
-  };
+  // 2️⃣ Rewards Redeemed (sum of pointRedeemed)
+  const redeemedAgg = await Sell.aggregate([
+    {
+      $match: {
+        merchantId: new mongoose.Types.ObjectId(merchantId),
+        createdAt: dateFilter,
+        status: "completed",
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        totalRedeemed: { $sum: "$pointRedeemed" },
+      },
+    },
+  ]);
 
-  const rewardsRedeemed = await Sell.countDocuments(redeemedQuery);
+  const rewardsRedeemed = redeemedAgg[0]?.totalRedeemed || 0;
 
   // 3️⃣ Total Points Issued
   const pointsAgg = await Sell.aggregate([
@@ -295,7 +304,7 @@ const getReportForMerchantDashboard = async (
     totalSales,
     totalMembers,
     totalPointsIssued,
-    rewardsRedeemed,
+    rewardsRedeemed, // now sum of pointRedeemed
   };
 };
 

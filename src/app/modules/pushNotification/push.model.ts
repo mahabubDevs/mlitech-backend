@@ -6,6 +6,7 @@ const pushSchema = new Schema(
     body: { type: String, required: true },
     state: { type: String, required: true },
     country: { type: String },
+    city: { type: String }, // নতুন ফিল্ড
     tier: { type: String },
     subscriptionType: { type: String },
     status: { type: String },

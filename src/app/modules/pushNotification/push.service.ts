@@ -10,6 +10,7 @@ import { Types } from "mongoose";
 import { sendNotification } from "../../../helpers/notificationsHelper";
 import { NotificationType } from "../notification/notification.model";
 import { Sell } from "../mercent/mercentSellManagement/mercentSellManagement.model";
+import { MerchantCustomer } from "../mercent/merchantCustomer/merchantCustomer.model";
 
 
 // Send push (existing)
@@ -19,19 +20,24 @@ const sendNotificationToAllUsers = async (
   payload: IPushPayload,
   adminId: string
 ) => {
-  const { sendType, title, body, country, tier, subscriptionType, status } = payload;
+  const { sendType, title, body, country, tier, subscriptionType, status, city } = payload;
 
   try {
     console.log("[Notification] Payload received:", payload);
     console.log("[Notification] Admin ID:", adminId);
 
     // 1️⃣ Base filter: Only users with fcmToken
-    const userFilter: any = { fcmToken: { $exists: true, $ne: null } };
+    const userFilter: any = { fcmToken: { $exists: true, $ne: null },"notificationSettings.pushNotifications": true };
 
     // 2️⃣ Role filter based on sendType
     if (sendType === "MERCENT") userFilter.role = "MERCENT";
     else if (sendType === "USER") userFilter.role = "USER";
     // if sendType is ALL, no role filter (send to all users)
+
+    // ✅ City filter only for merchant or user
+    if (city && (sendType === "MERCENT" || sendType === "USER")) {
+      userFilter.city = { $regex: `^${city}$`, $options: "i" };
+    }
 
     // 3️⃣ Optional filters (same as before)
     if (country) userFilter.country = { $regex: `^${country}$`, $options: "i" };
@@ -76,7 +82,7 @@ const sendNotificationToAllUsers = async (
       body,
       type: NotificationType.SYSTEM,
       metadata: { sentBy: adminId },
-      channel: { socket: false, push: true },
+      channel: { socket: true, push: true },
     });
     console.log("[Notification] Notification records created");
 
@@ -119,166 +125,117 @@ const sendMerchantPromotion = async (payload: any, merchantId: string) => {
   console.log("=================================================");
 
   /* ============================================================
-     1️⃣ FETCH DIGITAL CARD USERS
+     1️⃣ FETCH USERS
   ============================================================ */
 
-  const cards = await DigitalCard.find({ merchantId })
-    .populate("userId", "fcmToken location createdAt isVIP")
-    .select("userId availablePoints")
-    .lean();
+  let users: any[] = [];
 
-  console.log(`📌 Total customers fetched: ${cards.length}`);
+  const allCustomer = filters?.segment === "all_customer";
 
-  const userIds = cards.map((c: any) => c.userId?._id).filter(Boolean);
+  if (allCustomer) {
+    // All users → use DigitalCard + Sell for manual segment
+    const cards = await DigitalCard.find({ merchantId })
+      .populate("userId", "fcmToken location createdAt isVIP")
+      .select("userId availablePoints")
+      .lean();
+
+    const userIds = cards.map((c: any) => c.userId?._id).filter(Boolean);
+
+    const sells = await Sell.find({
+      merchantId,
+      userId: { $in: userIds },
+      status: "completed",
+    }).lean();
+
+    const sellMap: Record<string, any[]> = {};
+    sells.forEach((sell: any) => {
+      const uid = sell.userId.toString();
+      if (!sellMap[uid]) sellMap[uid] = [];
+      sellMap[uid].push(sell);
+    });
+
+    const now = new Date();
+    const last6Months = new Date(now.getTime() - 6 * 30 * 24 * 60 * 60 * 1000);
+    const avgSpend = 1000; // default baseline
+
+    users = cards.map((c: any) => {
+      const user = c.userId;
+      const userId = user?._id.toString();
+
+      const userSells = sellMap[userId] || [];
+      const totalSpend = userSells.reduce((sum, s) => sum + (s.discountedBill || 0), 0);
+      const last6MonthsPurchases = userSells.filter(s => new Date(s.createdAt) >= last6Months).length;
+
+      // Manual segment calculation
+      let segment = "new_customer";
+      if (last6MonthsPurchases >= 20 || totalSpend >= 3 * avgSpend) {
+        segment = "vip_customer";
+      } else if (last6MonthsPurchases >= 5 || totalSpend >= 1.5 * avgSpend) {
+        segment = "loyal_customer";
+      } else if (userSells.length >= 2 && last6MonthsPurchases < 5) {
+        segment = "returning_customer";
+      }
+
+      return {
+        userId: user._id,
+        fcmToken: user.fcmToken,
+        location: user.location,
+        availablePoints: c.availablePoints ?? 0,
+        segment,
+      };
+    });
+  } else {
+    // Specific segment → use MerchantCustomer schema
+    const merchantCustomers = await MerchantCustomer.find({
+      merchantId,
+      segment: filters.segment,
+    })
+      .populate("customerId", "fcmToken location createdAt isVIP")
+      .select("customerId points segment")
+      .lean();
+
+    users = merchantCustomers.map((mc: any) => ({
+      userId: mc.customerId._id,
+      fcmToken: mc.customerId.fcmToken,
+      location: mc.customerId.location,
+      availablePoints: mc.points ?? 0,
+      segment: mc.segment,
+    }));
+  }
 
   /* ============================================================
-     2️⃣ FETCH ALL SELLS FOR THIS MERCHANT (IMPORTANT)
-  ============================================================ */
-
-  const sells = await Sell.find({
-    merchantId,
-    userId: { $in: userIds },
-    status: "completed",
-  }).lean();
-
-  console.log(`📊 Total completed sells found: ${sells.length}`);
-
-  /* ============================================================
-     3️⃣ GROUP SELLS BY USER
-  ============================================================ */
-
-  const sellMap: Record<string, any[]> = {};
-
-  sells.forEach((sell: any) => {
-    const uid = sell.userId.toString();
-    if (!sellMap[uid]) sellMap[uid] = [];
-    sellMap[uid].push(sell);
-  });
-
-  /* ============================================================
-     4️⃣ FILTER USERS
+     2️⃣ FILTER USERS (POINTS / RADIUS / FCM)
   ============================================================ */
 
   let skippedNoToken = 0;
   let skippedPoints = 0;
-  let skippedSegment = 0;
   let skippedRadius = 0;
   let eligibleUsers = 0;
 
-  const now = new Date();
-  const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-  const last90Days = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-  const last6Months = new Date(now.getTime() - 6 * 30 * 24 * 60 * 60 * 1000);
+  const merchantLocation = filters?.merchantLocation;
 
-  const avgSpend = 1000; // later dynamic
-
-  const eligibleUsersData = cards
-    .filter((c: any) => {
-      const user = c.userId;
-      const userId = user?._id?.toString();
-
-      if (!user?.fcmToken) {
+  const eligibleUsersData = users
+    .filter(u => {
+      if (!u.fcmToken) {
         skippedNoToken++;
         return false;
       }
 
-      /* =========================
-         POINT FILTER
-      ========================== */
-
       if (target?.type === "points" && filters?.minPoints !== undefined) {
-        if ((c.availablePoints ?? 0) < filters.minPoints) {
+        if (u.availablePoints < filters.minPoints) {
           skippedPoints++;
           return false;
         }
       }
 
-      /* =========================
-         SELL DATA
-      ========================== */
-
-      const userSells = sellMap[userId] || [];
-      const totalPurchases = userSells.length;
-      const totalSpend = userSells.reduce(
-        (sum, s) => sum + (s.discountedBill || 0),
-        0
-      );
-
-      const sellsLast90Days = userSells.filter(
-        (s) => new Date(s.createdAt) >= last90Days
-      );
-
-      const sellsLast6Months = userSells.filter(
-        (s) => new Date(s.createdAt) >= last6Months
-      );
-
-      /* =========================
-         SEGMENT CALCULATION
-      ========================== */
-
-      let segment = "all_customer";
-
-      // 4️⃣ VIP
-      if (
-        user.isVIP === true ||
-        sellsLast6Months.length >= 20 ||
-        totalSpend >= 3 * avgSpend
-      ) {
-        segment = "vip_customer";
-      }
-
-      // 3️⃣ LOYAL
-      else if (
-        sellsLast6Months.length >= 5 ||
-        totalSpend >= 1.5 * avgSpend
-      ) {
-        segment = "loyal_customer";
-      }
-
-      // 2️⃣ RETURNING
-      else if (
-        totalPurchases >= 2 &&
-        sellsLast6Months.length < 5 &&
-        sellsLast90Days.length > 0
-      ) {
-        segment = "returning_customer";
-      }
-
-      // 1️⃣ NEW
-      else if (
-        user.createdAt &&
-        new Date(user.createdAt) >= last30Days &&
-        (totalPurchases === 0 || totalPurchases === 1)
-      ) {
-        segment = "new_customer";
-      }
-
-      /* =========================
-         SEGMENT FILTER
-      ========================== */
-
-      if (
-        filters?.segment &&
-        filters.segment !== "all_customer" &&
-        filters.segment !== segment
-      ) {
-        skippedSegment++;
-        return false;
-      }
-
-      /* =========================
-         RADIUS FILTER
-      ========================== */
-
       if (
         typeof filters?.radius === "number" &&
         filters.radius !== Infinity &&
-        filters.merchantLocation?.coordinates &&
-        user.location?.coordinates
+        merchantLocation?.coordinates &&
+        u.location?.coordinates
       ) {
-        const [userLng, userLat] = user.location.coordinates;
-        const [centerLng, centerLat] =
-          filters.merchantLocation.coordinates;
+        const [userLng, userLat] = u.location.coordinates;
+        const [centerLng, centerLat] = merchantLocation.coordinates;
 
         const distance = getDistanceFromLatLonInKm(
           Number(userLat),
@@ -296,19 +253,18 @@ const sendMerchantPromotion = async (payload: any, merchantId: string) => {
       eligibleUsers++;
       return true;
     })
-    .map((c: any) => ({
-      userId: c.userId._id,
-      token: c.userId.fcmToken,
+    .map(u => ({
+      userId: u.userId,
+      token: u.fcmToken,
     }));
 
-  const tokens = eligibleUsersData.map((u) => u.token);
-  const finalUserIds = eligibleUsersData.map((u) => u.userId);
+  const tokens = eligibleUsersData.map(u => u.token);
+  const finalUserIds = eligibleUsersData.map(u => u.userId);
 
   console.log("=================================================");
   console.log("📌 FILTER SUMMARY");
   console.log("❌ No FCM:", skippedNoToken);
   console.log("❌ Points:", skippedPoints);
-  console.log("❌ Segment:", skippedSegment);
   console.log("❌ Radius:", skippedRadius);
   console.log("✅ Eligible:", eligibleUsers);
   console.log("=================================================");
@@ -317,6 +273,9 @@ const sendMerchantPromotion = async (payload: any, merchantId: string) => {
     return { sentCount: 0, failedCount: 0, message: "No customers matched" };
   }
 
+  /* ============================================================
+     3️⃣ SEND NOTIFICATION
+  ============================================================ */
   const firebaseMessage = {
     notification: {
       title: "Promotion",
@@ -330,8 +289,7 @@ const sendMerchantPromotion = async (payload: any, merchantId: string) => {
     tokens,
   };
 
-  const response =
-    await admin.messaging().sendEachForMulticast(firebaseMessage);
+  const response = await admin.messaging().sendEachForMulticast(firebaseMessage);
 
   await sendNotification({
     userIds: finalUserIds,

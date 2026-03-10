@@ -28,6 +28,7 @@ interface AnalyticsFilters {
   subscriptionStatus?: string;
   customerName?: string;
   location?: string;
+  city?: string; // নতুন ফিল্ড
 }
 
 const getBusinessCustomerAnalytics = async (
@@ -85,6 +86,13 @@ const getBusinessCustomerAnalytics = async (
     };
   }
 
+  if (filters?.city) {
+  matchCustomer["customer.city"] = {
+    $regex: filters.city,
+    $options: "i",
+  };
+}
+
 
   const customerMatchStage: PipelineStage[] = Object.keys(matchCustomer).length
     ? [{ $match: matchCustomer }]
@@ -105,6 +113,7 @@ const getBusinessCustomerAnalytics = async (
         customerName: "$customer.firstName",
         subscriptionStatus: "$customer.subscription",
         location: "$customer.address",
+        city: "$customer.city",
         date: "$createdAt",
         revenue: "$discountedBill",
         pointsAccumulated: "$pointsEarned",

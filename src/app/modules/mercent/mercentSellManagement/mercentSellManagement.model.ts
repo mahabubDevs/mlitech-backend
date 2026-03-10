@@ -91,27 +91,61 @@ sellSchema.post("save", async function (doc) {
   // 2️⃣ Recalculate segment
   if (updatedCustomer) {
     const { totalOrders, totalSpend } = updatedCustomer;
+
+    // Timeframes
+    const sixMonthsAgo = new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000);
+    const twelveMonthsAgo = new Date(Date.now() - 12 * 30 * 24 * 60 * 60 * 1000);
+
+    // Last 6 months purchases
     const last6MonthsPurchases = await model("Sell").find({
       merchantId: doc.merchantId,
       userId: doc.userId,
       status: "completed",
-      createdAt: { $gte: new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000) }
+      createdAt: { $gte: sixMonthsAgo },
     }).countDocuments();
 
-    const avgSpend = 1000; // Default average spend
+    // Last 12 months spend
+    const last12MonthsSpend = await model("Sell").find({
+      merchantId: doc.merchantId,
+      userId: doc.userId,
+      status: "completed",
+      createdAt: { $gte: twelveMonthsAgo },
+    }).then(sells => sells.reduce((sum, s) => sum + s.totalBill, 0));
+
+    const avgSpend = 10000; // Default average spend
 
     let segment: "new_customer" | "returning_customer" | "loyal_customer" | "vip_customer" | "all_customer";
 
-    if (totalOrders === 0 || (totalOrders === 1 && last6MonthsPurchases === 1)) {
-      segment = "new_customer";
-    } else if (totalOrders >= 2 && last6MonthsPurchases < 5) {
-      segment = "returning_customer";
-    } else if (last6MonthsPurchases >= 20 || totalSpend >= 3 * avgSpend) {
+    // ----------------------
+    // 1️⃣ VIP Customer
+    // ----------------------
+    if (last6MonthsPurchases >= 20 || last12MonthsSpend >= 3 * avgSpend) {
       segment = "vip_customer";
-    } else if (last6MonthsPurchases >= 5 || totalSpend >= 1.5 * avgSpend) {
+    }
+
+    // ----------------------
+    // 2️⃣ Loyal Customer
+    // ----------------------
+    else if (
+      last6MonthsPurchases >= 5 ||
+      totalOrders >= 3 || // Approximate 3 consecutive months of activity
+      totalSpend >= 1.5 * avgSpend
+    ) {
       segment = "loyal_customer";
-    } else {
-      segment = "new_customer"; // fallback
+    }
+
+    // ----------------------
+    // 3️⃣ Returning Customer
+    // ----------------------
+    else if (totalOrders >= 2 && last6MonthsPurchases < 5) {
+      segment = "returning_customer";
+    }
+
+    // ----------------------
+    // 4️⃣ New Customer
+    // ----------------------
+    else {
+      segment = "new_customer";
     }
 
     updatedCustomer.segment = segment;

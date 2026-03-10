@@ -15,6 +15,7 @@ import { NotificationType } from "../notification/notification.model";
 import Referral from "../referral/referral.model";
 import PointTransaction from "../pointTransaction/pointTransaction.model";
 import { sendPushNotification } from "../../../helpers/sendPushNotification";
+import { IPackage } from "../package/package.interface";
 
 const createSalesRepData = async (user: JwtPayload, packageId: string) => {
 
@@ -259,142 +260,149 @@ const validateToken = async (userId: string, token: string) => {
 
 };
 
+
+
+const getDurationInDays = (duration: IPackage['duration']): number => {
+  switch (duration) {
+    case '1 month':
+      return 30;
+    case '4 months':
+      return 120;
+    case '8 months':
+      return 240;
+    case '1 year':
+      return 365;
+    default:
+      return 30; // fallback
+  }
+};
+
 const activateAccount = async (id: string) => {
-
+  // 1️⃣ SalesRep খুঁজে আনা
   const salesRep = await SalesRep.findById(id);
-  if (!salesRep) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "Sales rep not found");
-  }
-  const packageData = await Package.findById(salesRep.packageId).select("price");
+  if (!salesRep) throw new ApiError(StatusCodes.NOT_FOUND, "Sales rep not found");
 
-  if (!packageData) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "Package not found");
-  }
+  // 2️⃣ Package খুঁজে আনা
+  const packageData = await Package.findById(salesRep.packageId).select("price durationInDays");
+  if (!packageData) throw new ApiError(StatusCodes.NOT_FOUND, "Package not found");
+
+  // 3️⃣ Subscription Data তৈরি করা
   const subscriptionData: Partial<ISubscription> = {
     user: new Types.ObjectId(salesRep.customerId),
     package: new Types.ObjectId(salesRep.packageId),
-    price: packageData?.price,
+    price: packageData.price,
     customerId: salesRep.customerId.toString(),
-    subscriptionId: new Date().toISOString(),
+    subscriptionId: "SALESREP_" + new Date().toISOString(),
     remaining: 0,
     currentPeriodStart: new Date().toISOString(),
     currentPeriodEnd: (() => {
       const d = new Date();
-      d.setDate(d.getDate() + 30);
+      const duration = getDurationInDays(packageData.duration) || 30; // package অনুযায়ী দিন
+      d.setDate(d.getDate() + duration);
       return d.toISOString();
     })(),
     trxId: "N/A",
     status: "active",
     source: "salesRep",
   };
-  await Subscription.create({ ...subscriptionData });
-  await User.findByIdAndUpdate(
+
+  // 4️⃣ Subscription সেভ করা
+  const subscription = await Subscription.create(subscriptionData);
+
+  // 5️⃣ User এর subscription status আপডেট
+  const user = await User.findByIdAndUpdate(
     salesRep.customerId,
     {
       subscription: SUBSCRIPTION_STATUS.ACTIVE,
-      isUserWaiting: false
+      isUserWaiting: false,
     },
-    { new: true, upsert: true }
+    { new: true, upsert: true, select: "fcmToken firstName lastName points referredInfo" }
   );
 
+  // 6️⃣ SalesRep এর subscription status আপডেট
   await SalesRep.findByIdAndUpdate(
     id,
     { subscriptionStatus: SUBSCRIPTION_STATUS.ACTIVE, subscriptionStatusChangedDate: new Date() },
     { new: true, upsert: true }
   );
 
-
-  // 4️⃣ Update user subscription
-  const user = await User.findByIdAndUpdate(
-    salesRep.customerId,
-    {
-      subscription: SUBSCRIPTION_STATUS.ACTIVE,
-      isUserWaiting: false
-    },
-    { new: true, upsert: true, select: "fcmToken firstName lastName" }
-  );
-
- // 7️⃣ Send push notification
+  // 7️⃣ Welcome Notifications পাঠানো
   if (user?.fcmToken) {
-    console.log("Sending push notification to:", user.fcmToken);
     await sendPushNotification(
       user.fcmToken,
       "Welcome to the app",
       "You have successfully subscribed to our app. We are excited to have you on board!"
     );
-    console.log("Push notification sent");
-  } else {
-    console.log("No FCM token found, skipping notification");
   }
 
-
-  
   await sendNotification({
     userIds: [salesRep.customerId.toString()],
     title: "Welcome to the app",
     body: "You have successfully subscribed to our app. We are excited to have you on board!",
-    type: NotificationType.WELCOME
-  })
-  io.emit(`salesActivation::${salesRep.customerId.toString()}`, {
-    status: "active"
+    type: NotificationType.WELCOME,
   });
 
+  // 8️⃣ Real-time Event Emit করা
+  io.emit(`salesActivation::${salesRep.customerId.toString()}`, { status: "active" });
+
+  // 9️⃣ Referral Bonus Logic (20%)
   const referralResult = await Referral.findOne({
-    referredUser: salesRep.customerId
-  })
-  if (referralResult && !referralResult.completed) {
-    console.log("🚀 Processing referral for user: new", salesRep.customerId);
-    const referredUser = await User.findById(salesRep.customerId).select("firstName lastName");
-    const referrerUser = await User.findById(referralResult.referrer).select("firstName lastName");
+    referredUser: salesRep.customerId,
+    completed: false,
+  });
 
-    const referredUserName = `${referredUser?.firstName || ""} ${referredUser?.lastName || ""}`.trim();
-    const referrerUserName = `${referrerUser?.firstName || ""} ${referrerUser?.lastName || ""}`.trim();
+  if (referralResult) {
+    const referrerId = referralResult.referrer;
+    console.log("🚀 Processing referral for salesRep user:", salesRep.customerId);
 
-    // Create point transactions
-    await PointTransaction.create({
-      user: salesRep.customerId,
-      type: "EARN",
-      source: "REFERRAL",
-      referral: referralResult._id,
-      points: 0,
-      note: "Referral points",
-    });
-    await PointTransaction.create({
-      user: referralResult.referrer,
-      type: "EARN",
-      source: "REFERRAL",
-      referral: referralResult._id,
-      points: 0,
-      note: "Referral points",
-    });
+    const subscriptionPrice = subscriptionData.price || 0;
+    const referralPoints = Math.round(subscriptionPrice * 0.2);
 
-    // Update points
-    // await User.findByIdAndUpdate(referralResult.referrer, { $inc: { points: 0 } }, { new: true });
-    // await User.findByIdAndUpdate(salesRep.customerId, { $inc: { points: 0 } }, { new: true });
+    if (referralPoints > 0) {
+      // Referrer এর points যোগ করা
+      await User.findByIdAndUpdate(referrerId, {
+        $inc: { points: referralPoints },
+        $push: { referralBonusGivenFor: salesRep.customerId },
+      });
 
-    // Send notifications with names
-    await sendNotification({
-      userIds: [referralResult.referrer.toString()],
-      title: "Referral points",
-      body: `${referredUserName} has joined using your referral code`,
-      type: NotificationType.REFERRAL,
-    });
-    await sendNotification({
-      userIds: [salesRep.customerId.toString()],
-      title: "Referral points",
-      body: `You have joined using referral code of ${referrerUserName}`,
-      type: NotificationType.REFERRAL,
-    });
+      // Point Transaction তৈরি
+      await PointTransaction.create({
+        user: referrerId,
+        type: "EARN",
+        source: "REFERRAL",
+        referral: referralResult._id,
+        points: referralPoints,
+        note: `Earned ${referralPoints} points from referral subscription (${salesRep.customerId})`,
+      });
 
-    referralResult.completed = true;
-    await referralResult.save();
+      // Referral Notification পাঠানো
+      const referredUser = await User.findById(salesRep.customerId).select("firstName lastName");
+      const referrerUser = await User.findById(referrerId).select("firstName lastName");
 
+      const referredUserName = `${referredUser?.firstName || ""} ${referredUser?.lastName || ""}`.trim();
+      const referrerUserName = `${referrerUser?.firstName || ""} ${referrerUser?.lastName || ""}`.trim();
 
-  };
+      await sendNotification({
+        userIds: [referrerId.toString()],
+        title: "Referral Bonus Earned",
+        body: `${referredUserName} has joined using your referral code. You earned ${referralPoints} points!`,
+        type: NotificationType.REFERRAL,
+      });
 
+      await sendNotification({
+        userIds: [salesRep.customerId.toString()],
+        title: "Referral Applied",
+        body: `You have joined using referral code of ${referrerUserName}.`,
+        type: NotificationType.REFERRAL,
+      });
 
+      referralResult.completed = true;
+      await referralResult.save();
+    }
+  }
 
-}
+  return subscription;
+};
 
 const deactivateAccount = async (id: string) => {
   const salesRep = await SalesRep.findByIdAndUpdate(id, {

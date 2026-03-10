@@ -537,20 +537,20 @@ const getCombinePromotionsForUser = catchAsync(async (req: Request, res: Respons
   const digitalCards = await DigitalCard.find({ userId }).select("promotions");
   const existingPromotionIds = new Set(
     digitalCards.flatMap(card =>
-      card.promotions.map(p => p.promotionId?.toString()).filter(Boolean)
+      card.promotions.map(p => (p.promotionId?._id || p.promotionId)?.toString())
     )
   );
 
   promotions = promotions.filter(promo => {
     const isAllCustomer = promo.customerSegment === "all_customer";
 
-    if (isAllCustomer) return true; // ✅ always include
-
     const startDate = new Date(promo.startDate);
     const endDate = new Date(promo.endDate);
     const days = promo.availableDays || [];
+
     const isValidDate = today >= startDate && today <= endDate;
     const isValidDay = days.includes("all") || days.includes(todayDay);
+
     const isNotInUserCard = !existingPromotionIds.has(promo._id.toString());
 
     console.log(

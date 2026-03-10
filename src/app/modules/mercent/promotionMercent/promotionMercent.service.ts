@@ -109,7 +109,8 @@ const getUserSegment = async (userId: string) => {
   );
 
   const totalSpend = purchases.reduce((sum, p: any) => sum + p.totalBill, 0);
-  const avgSpend = 1000;
+
+  const avgSpend = 10000;
 
   let segment: string;
   if (totalPurchases === 0 || (totalPurchases === 1 && purchases[0].createdAt > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))) {
@@ -127,10 +128,11 @@ const getUserSegment = async (userId: string) => {
   return segment; // ✅ শুধু string
 };
 
-const getUserSegmentUpdate = async (userId: string, merchantId: string) => {
-  const customer = await MerchantCustomer.findOne({ userId, merchantId }).select("segment");
-  return customer?.segment || "new_customer"; // default
-};
+// const getUserSegmentUpdate = async (userId: string, merchantId: string) => {
+//   const customer = await MerchantCustomer.findOne({ userId, merchantId }).select("segment");
+//   console.log("Customer segment from DB:", customer?.segment);
+//   return customer?.segment || "new_customer"; // default
+// };
 
 const getSinglePromotionFromDB = async (
   id: string
@@ -521,7 +523,7 @@ export const PromotionService = {
   getUserSegment,
   getAllPromotionsOfAMerchant,
   sendNotificationToCustomer,
-  getUserSegmentUpdate,
+  // getUserSegmentUpdate,
 };
 
 

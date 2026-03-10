@@ -11,14 +11,14 @@ const createVerifyEmailZodSchema = z.object({
 const createLoginZodSchema = z.object({
   body: z.object({
     identifier: z
-      .string({ required_error: 'Email or phone is required' })
-      .refine((val) => {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        const phoneRegex = /^\+[1-9]\d{6,14}$/; // any country code
-        return emailRegex.test(val) || phoneRegex.test(val);
-      }, { message: "Must be a valid email or international phone number (+countryCode)" }),
-    password: z.string({ required_error: 'Password is required' })
-  })
+      .string({ required_error: "Email or phone is required" })
+      .min(1, "Email or phone is required"),
+
+    password: z
+      .string({ required_error: "Password is required" })
+      .min(1, "Password is required"),
+    
+  }),
 });
 
 

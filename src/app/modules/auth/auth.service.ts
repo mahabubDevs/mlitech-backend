@@ -30,94 +30,166 @@ import { NotificationType } from '../notification/notification.model';
 
 
 
+const DEVICE_ROLE_MAP: Record<string, USER_ROLES[]> = {
+  merchant: [
+    USER_ROLES.MERCENT,
+    USER_ROLES.VIEW_MERCENT,
+    USER_ROLES.ADMIN_MERCENT,
+  ],
+  admin: [
+    USER_ROLES.ADMIN,
+    USER_ROLES.SUPER_ADMIN,
+    USER_ROLES.ADMIN_REP,
+    USER_ROLES.ADMIN_SELL,
+    USER_ROLES.VIEW_ADMIN,
+  ],
+  user: [
+    USER_ROLES.USER
+  ],
+};
 
-
-
-
-//login
-const  loginUserFromDB = async (payload: ILoginData) => {
-  const { identifier, password } = payload;
+const loginUserFromDB = async (payload: ILoginData & { device: string }) => {
+  const { identifier, password, device } = payload;
 
   // 1️⃣ Find user by email or phone
   const user: any = await User.findOne({
     $or: [{ email: identifier }, { phone: identifier }],
   }).select('+password');
 
-  if (!user) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, "User doesn't exist!");
+  if (!user) throw new ApiError(StatusCodes.BAD_REQUEST, "User doesn't exist!");
+  if (!user.verified) throw new ApiError(StatusCodes.BAD_REQUEST, 'Please verify your account before login');
+  if (user.status !== USER_STATUS.ACTIVE) throw new ApiError(StatusCodes.BAD_REQUEST, 'Your account is not active. Please contact support.');
+  if (password && !(await User.isMatchPassword(password, user.password))) throw new ApiError(StatusCodes.BAD_REQUEST, 'Password is incorrect!');
+
+  // 2️⃣ Device-based role validation
+  const allowedRoles = DEVICE_ROLE_MAP[device.toLowerCase()];
+  if (!allowedRoles) throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid device type");
+
+  if (!allowedRoles.includes(user.role)) {
+    throw new ApiError(
+      StatusCodes.FORBIDDEN,
+      `Your role '${user.role}' is not allowed to login from a ${device} device`
+    );
   }
 
-  // 2️⃣ Check verified
-  if (!user.verified) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, 'Please verify your account before login');
-  }
+  // 3️⃣ Create tokens
+  const accessToken = jwtHelper.createToken(
+    { id: user._id, role: user.role, email: user.email },
+    config.jwt.jwt_secret as Secret,
+    config.jwt.jwt_expire_in as string
+  );
 
-  // Check user active or not
-  if (user.status !== USER_STATUS.ACTIVE) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, 'Your account is not active. Please contact support.');
-  }
+  const refreshToken = jwtHelper.createToken(
+    { id: user._id, role: user.role, email: user.email },
+    config.jwt.jwtRefreshSecret as Secret,
+    config.jwt.jwtRefreshExpiresIn as string
+  );
 
-  // 3️⃣ Check password match
-  if (password && !(await User.isMatchPassword(password, user.password))) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, 'Password is incorrect!');
-  }
+  await User.findByIdAndUpdate(user._id, { latestToken: accessToken });
 
-
-  // if (user.role === USER_ROLES.USER && user.subscription !== SUBSCRIPTION_STATUS.ACTIVE) {
-  //   throw new ApiError(StatusCodes.BAD_REQUEST, "You are not subscribed");
-  // }
-  // 4️⃣ Status check
-  switch (user.status) {
-    case USER_STATUS.ACTIVE:
-
-
-
-
-      // create tokens
-      const accessToken = jwtHelper.createToken(
-        { id: user._id, role: user.role, email: user.email },
-        config.jwt.jwt_secret as Secret,
-        config.jwt.jwt_expire_in as string
-      );
-
-      const refreshToken = jwtHelper.createToken(
-        { id: user._id, role: user.role, email: user.email },
-        config.jwt.jwtRefreshSecret as Secret,
-        config.jwt.jwtRefreshExpiresIn as string
-      );
-
-      // ✅ Save latest token to DB
-    await User.findByIdAndUpdate(user._id, { latestToken: accessToken });
-
-      return {
-        success: true,
-        message: "Login successful",
-        accessToken,
-        refreshToken,
-        user: {
-          pages: user.pages || [],
-          subscription: user.subscription,
-          businessName: user.businessName || "",
-          isUserWaiting: user.isUserWaiting,
-          location: user.location ?? {
-            type: 'Point',
-            coordinates: [0, 0],
-          },
-
-
-        }
-      };
-
-    case USER_STATUS.ARCHIVE:
-      throw new ApiError(StatusCodes.BAD_REQUEST, "Your account is archived. Please verify your account first");
-
-    case USER_STATUS.BLOCK:
-      throw new ApiError(StatusCodes.FORBIDDEN, "You are blocked. Contact admin.");
-
-    default:
-      throw new ApiError(StatusCodes.BAD_REQUEST, "Please verify your account for admin approval");
-  }
+  return {
+    success: true,
+    message: "Login successful",
+    accessToken,
+    refreshToken,
+    user: {
+      role: user.role,
+      pages: user.pages || [],
+      subscription: user.subscription,
+      businessName: user.businessName || "",
+      isUserWaiting: user.isUserWaiting,
+      location: user.location ?? { type: 'Point', coordinates: [0, 0] },
+    }
+  };
 };
+
+
+
+// //login
+// const  loginUserFromDB = async (payload: ILoginData) => {
+//   const { identifier, password } = payload;
+
+//   // 1️⃣ Find user by email or phone
+//   const user: any = await User.findOne({
+//     $or: [{ email: identifier }, { phone: identifier }],
+//   }).select('+password');
+
+//   if (!user) {
+//     throw new ApiError(StatusCodes.BAD_REQUEST, "User doesn't exist!");
+//   }
+
+//   // 2️⃣ Check verified
+//   if (!user.verified) {
+//     throw new ApiError(StatusCodes.BAD_REQUEST, 'Please verify your account before login');
+//   }
+
+//   // Check user active or not
+//   if (user.status !== USER_STATUS.ACTIVE) {
+//     throw new ApiError(StatusCodes.BAD_REQUEST, 'Your account is not active. Please contact support.');
+//   }
+
+//   // 3️⃣ Check password match
+//   if (password && !(await User.isMatchPassword(password, user.password))) {
+//     throw new ApiError(StatusCodes.BAD_REQUEST, 'Password is incorrect!');
+//   }
+
+
+//   // if (user.role === USER_ROLES.USER && user.subscription !== SUBSCRIPTION_STATUS.ACTIVE) {
+//   //   throw new ApiError(StatusCodes.BAD_REQUEST, "You are not subscribed");
+//   // }
+//   // 4️⃣ Status check
+//   switch (user.status) {
+//     case USER_STATUS.ACTIVE:
+
+
+
+
+//       // create tokens
+//       const accessToken = jwtHelper.createToken(
+//         { id: user._id, role: user.role, email: user.email },
+//         config.jwt.jwt_secret as Secret,
+//         config.jwt.jwt_expire_in as string
+//       );
+
+//       const refreshToken = jwtHelper.createToken(
+//         { id: user._id, role: user.role, email: user.email },
+//         config.jwt.jwtRefreshSecret as Secret,
+//         config.jwt.jwtRefreshExpiresIn as string
+//       );
+
+//       // ✅ Save latest token to DB
+//     await User.findByIdAndUpdate(user._id, { latestToken: accessToken });
+
+//       return {
+//         success: true,
+//         message: "Login successful",
+//         accessToken,
+//         refreshToken,
+//         user: {
+//           role: user.role,
+//           pages: user.pages || [],
+//           subscription: user.subscription,
+//           businessName: user.businessName || "",
+//           isUserWaiting: user.isUserWaiting,
+//           location: user.location ?? {
+//             type: 'Point',
+//             coordinates: [0, 0],
+//           },
+
+
+//         }
+//       };
+
+//     case USER_STATUS.ARCHIVE:
+//       throw new ApiError(StatusCodes.BAD_REQUEST, "Your account is archived. Please verify your account first");
+
+//     case USER_STATUS.BLOCK:
+//       throw new ApiError(StatusCodes.FORBIDDEN, "You are blocked. Contact admin.");
+
+//     default:
+//       throw new ApiError(StatusCodes.BAD_REQUEST, "Please verify your account for admin approval");
+//   }
+// };
 
 //forget password
 const forgetPasswordToDB = async (identifier: string) => {
