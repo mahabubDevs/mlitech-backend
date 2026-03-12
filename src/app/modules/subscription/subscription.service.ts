@@ -142,7 +142,8 @@ const activateSubscriptionInDB = async (
     console.log("⚠️ Subscription already exists in DB:", existingSub._id);
 
     await User.findByIdAndUpdate(userId, {
-      subscription: "active"
+      subscription: "active",
+      paymentStatus: "paid"
     });
 
     console.log("✅ User subscription status updated to active (duplicate case)");
@@ -176,7 +177,8 @@ const activateSubscriptionInDB = async (
 
   // 👤 Update user profile
   await User.findByIdAndUpdate(userId, {
-    subscription: "active"
+    subscription: "active",
+    paymentStatus: "paid"
   });
 
   console.log("✅ User subscription field updated to active");

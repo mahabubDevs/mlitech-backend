@@ -96,6 +96,55 @@ const exportBusinessCustomerAnalytics = catchAsync(
 
 
 
+// const getMerchantAnalytics = catchAsync(async (req: Request, res: Response) => {
+//   const {
+//     startDate,
+//     endDate,
+//     page = "1",
+//     limit = "10",
+//     subscriptionStatus,
+//     merchantName,
+//     location,
+//     paymentStatus,
+//     city,
+//     customerName,
+//   } = req.query;
+
+//   console.log("Query received:", req.query); // <-- log incoming query
+
+//   const userRole = (req.user as any)?.role;
+//   console.log("User role:", userRole);
+
+//   const result = await AnalyticsService.getMerchantAnalytics(
+//     startDate as string,
+//     endDate as string,
+//     Number(page),
+//     Number(limit),
+//     {
+//       subscriptionStatus: subscriptionStatus as string,
+//       merchantName: merchantName as string,
+//       location: location as string,
+//       paymentStatus: paymentStatus as string,
+//       city: city as string,
+//       customerName: customerName as string,
+//     },
+//     userRole
+//   );
+
+//   console.log("Analytics result:", result); // <-- log full result
+
+//   sendResponse(res, {
+//     success: true,
+//     statusCode: StatusCodes.OK,
+//     message: "Merchant analytics fetched successfully",
+//     data: result.data,
+//     pagination: result.pagination,
+//   });
+// });
+
+
+
+
 const getMerchantAnalytics = catchAsync(async (req: Request, res: Response) => {
   const {
     startDate,
@@ -103,13 +152,26 @@ const getMerchantAnalytics = catchAsync(async (req: Request, res: Response) => {
     page = "1",
     limit = "10",
     subscriptionStatus,
-    merchantName,
+    customerName,
     location,
+    paymentStatus,
+    city
   } = req.query;
 
-  // Get the logged-in user's role from req.user
-  const userRole = (req.user as any)?.role; // Make sure your auth middleware sets req.user
-  console.log("Controller - User Role:", userRole);
+  console.log("Controller - Received query:", {
+    startDate,
+    endDate,
+    subscriptionStatus,
+    customerName,
+    location,
+    paymentStatus,
+    city
+  });
+
+  const userRole = (req.user as any)?.role;
+  const merchantId = (req.user as any)?._id;
+
+  console.log("Controller - User role:", userRole, "Merchant ID:", merchantId);
 
   const result = await AnalyticsService.getMerchantAnalytics(
     startDate as string,
@@ -118,33 +180,32 @@ const getMerchantAnalytics = catchAsync(async (req: Request, res: Response) => {
     Number(limit),
     {
       subscriptionStatus: subscriptionStatus as string,
-      merchantName: merchantName as string,
+      customerName: customerName as string,
       location: location as string,
+      paymentStatus: paymentStatus as string,
+      city: city as string
     },
-    userRole // Pass role to service
+    userRole,
+    // merchantId
   );
 
   console.log(
-    "Records Fetched:",
-    result.data.records.length,
-    "Total Records Count:",
-    result.pagination.total
-  );
-  console.log(
-    "Monthly Data Count:",
-    result.data.monthlyData.length,
-    "Revenue fields are masked for VIEW_ADMIN:",
-    userRole === "VIEW_ADMIN"
+    "Controller - Records Fetched:", result.data.records.length,
+    "Total Records Count:", result.pagination.total
   );
 
   sendResponse(res, {
     success: true,
     statusCode: StatusCodes.OK,
-    message: "Merchant analytics fetched successfully",
+    message: "Merchant customer analytics fetched successfully",
     data: result.data,
     pagination: result.pagination,
   });
 });
+
+
+
+
 
 const getCustomerAnalytics = catchAsync(async (req: Request, res: Response) => {
   const {
@@ -437,41 +498,48 @@ const exportCustomerMonthlyData = catchAsync(
   async (req: Request, res: Response) => {
     const { startDate, endDate } = req.query;
 
-    console.log("🚀 Customer Monthly export request:", { startDate, endDate });
+    console.log("🚀 Customer Records export request:", { startDate, endDate });
 
-    // ---------------- Fetch monthlyData ----------------
+    // -------- Fetch Records --------
     const result = await AnalyticsService.getCustomerAnalytics(
       startDate as string,
       endDate as string,
-      1, // page ignored
-      0, // limit 0 = all data
+      1,
+      0, // limit 0 = all records
       {}
     );
 
-    const monthlyData = result.data.monthlyData;
+    const records = result.data.records;
 
-    console.log("🔹 Monthly records count:", monthlyData.length);
-    console.log("🔸 Sample records:", monthlyData.slice(0, 5));
+    console.log("🔹 Records count:", records.length);
+    console.log("🔸 Sample records:", records.slice(0, 5));
 
-    // ---------------- Excel Columns ----------------
+    // -------- Excel Columns --------
     const columns = [
-      { header: "Year", key: "year" },
-      { header: "Month", key: "monthName" },
+      { header: "User ID", key: "userId" },
+      { header: "Custom ID", key: "customUserId" },
+      { header: "Customer Name", key: "customerName" },
+      { header: "Location", key: "location" },
+      { header: "Subscription Status", key: "subscriptionStatus" },
+      { header: "Payment Status", key: "paymentStatus" },
       { header: "Points Accumulated", key: "pointsAccumulated" },
       { header: "Points Redeemed", key: "pointsRedeemed" },
+      { header: "Revenue", key: "totalRevenue" },
+      { header: "Date", key: "date" },
     ];
 
-    // ---------------- Generate Excel ----------------
+    // -------- Generate Excel --------
     const buffer = await generateExcelBuffer({
-      sheetName: "Customer Monthly Data",
+      sheetName: "Customer Records",
       columns,
-      rows: monthlyData,
+      rows: records,
     });
 
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=customer-monthly-data.xlsx`
+      `attachment; filename=customer-records.xlsx`
     );
+
     res.setHeader(
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
