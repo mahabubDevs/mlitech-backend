@@ -48,6 +48,44 @@ const createTier = catchAsync(async (req: Request, res: Response) => {
   });
   console.log("🟢 Validated Body:", validatedBody);
 
+
+ // -----------------------------
+  // Allowed Tier Names
+  // -----------------------------
+  const ALLOWED_TIERS = [
+    "Gold Basic",
+    "Gold Plus",
+    "Platinum",
+    "Platinum Plus",
+    "Diamond",
+  ];
+
+  // ❌ Invalid Tier Name
+  if (!ALLOWED_TIERS.includes(validatedBody.name)) {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      "Invalid tier name. Allowed tiers: Gold Basic, Gold Plus, Platinum, Platinum Plus, Diamond"
+    );
+  }
+
+  // -----------------------------
+  // Prevent Duplicate Tier Name
+  // -----------------------------
+  const existingTier = await Tier.findOne({
+    admin: filterId,
+    name: validatedBody.name,
+  });
+
+  if (existingTier) {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      `Tier "${validatedBody.name}" already exists for this merchant`
+    );
+  }
+
+
+
+
   const payload: Partial<ITier> = {
     ...validatedBody,
     admin: filterId,
