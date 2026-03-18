@@ -851,9 +851,8 @@ const getMerchantDigitalCardWithPromotions = async (
       }
 
 
-
-      // 📅 Day validation
-      const dayMap: any = {
+// ✅ Start date not started yet → invalid
+        const dayMap: any = {
         0: "sun",
         1: "mon",
         2: "tue",
@@ -866,14 +865,16 @@ const getMerchantDigitalCardWithPromotions = async (
       const todayDay = dayMap[today.getDay()];
       const availableDays = item.promotionId.availableDays || [];
 
-      console.log("   📆 Today:", todayDay);
-      console.log("   📆 Promotion availableDays:", availableDays);
+      // Treat empty array or ["all"] as always valid
+      const isValidToday =
+        availableDays.length === 0 || availableDays.includes("all") || availableDays.includes(todayDay);
 
-      if (!availableDays.includes("all") && !availableDays.includes(todayDay)) {
-        console.log("   ❌ Promotion not valid for today");
+      if (!isValidToday) {
+        console.log("❌ Promotion not valid for today");
         return null;
+      } else {
+        console.log("✅ Promotion valid for today");
       }
-
       // ⛔ PromoCode mismatch when searching by promoCode
       if (searchedByPromoCode && item.promoCode !== code) {
         console.log("   ❌ promoCode mismatch:", item.promoCode);
