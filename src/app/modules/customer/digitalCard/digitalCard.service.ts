@@ -238,46 +238,27 @@ const addPromotionToDigitalCard = async (userId: string, promotionId: string) =>
   const merchantId = promotion.merchantId;
   const promotionObjectId = new Types.ObjectId(promotionId);
 
-  // Find existing card
-  let digitalCard = await DigitalCard.findOne({
-    userId: new Types.ObjectId(userId),
-    merchantId: new Types.ObjectId(merchantId),
-  });
+  // Always get or create card from single source
+  const digitalCard = await createOrGetDigitalCard(userId, merchantId.toString());
 
-  // Generate promo code helper
-  const generatePromoCode = () => `PC-${Math.floor(100000 + Math.random() * 900000)}`;
+  const generatePromoCode = () =>
+    `PC-${Math.floor(100000 + Math.random() * 900000)}`;
 
-  // If card doesn't exist → create with promotion
-  if (!digitalCard) {
-    digitalCard = await DigitalCard.create({
-      userId: new Types.ObjectId(userId),
-      merchantId: new Types.ObjectId(merchantId),
-      cardCode: generateCardCode(),
-      promotions: [{
-        promotionId: promotionObjectId,
-        status: "pending",
-        usedAt: null,
-        promoCode: generatePromoCode(),
-      }],
+  // Check duplicate promotion
+  const alreadyAdded = digitalCard.promotions.some(
+    (p) => p.promotionId?.toString() === promotionObjectId.toString()
+  );
+
+  if (!alreadyAdded) {
+    digitalCard.promotions.push({
+      promotionId: promotionObjectId,
+      status: "pending",
+      usedAt: null,
+      promoCode: generatePromoCode(),
     });
-  } else {
-    // Add promotion if not already added
-    const alreadyAdded = digitalCard.promotions.some(
-      (p) => p.promotionId?.toString() === promotionObjectId.toString()
-    );
-
-    if (!alreadyAdded) {
-      digitalCard.promotions.push({
-        promotionId: promotionObjectId,
-        status: "pending",
-        usedAt: null,
-        promoCode: generatePromoCode(),
-      });
-      await digitalCard.save();
-    }
+    await digitalCard.save();
   }
 
-  // Populate for response
   await digitalCard.populate({
     path: "promotions.promotionId",
     model: "PromotionMercent",
@@ -869,6 +850,30 @@ const getMerchantDigitalCardWithPromotions = async (
         return null;
       }
 
+
+
+      // 📅 Day validation
+      const dayMap: any = {
+        0: "sun",
+        1: "mon",
+        2: "tue",
+        3: "wed",
+        4: "thu",
+        5: "fri",
+        6: "sat",
+      };
+
+      const todayDay = dayMap[today.getDay()];
+      const availableDays = item.promotionId.availableDays || [];
+
+      console.log("   📆 Today:", todayDay);
+      console.log("   📆 Promotion availableDays:", availableDays);
+
+      if (!availableDays.includes("all") && !availableDays.includes(todayDay)) {
+        console.log("   ❌ Promotion not valid for today");
+        return null;
+      }
+
       // ⛔ PromoCode mismatch when searching by promoCode
       if (searchedByPromoCode && item.promoCode !== code) {
         console.log("   ❌ promoCode mismatch:", item.promoCode);
@@ -930,17 +935,13 @@ const createOrGetDigitalCard = async (userId: string, merchantId: string) => {
     merchantId: new Types.ObjectId(merchantId),
   });
 
-  if (digitalCard) {
-    // Card আগে থেকেই আছে → নতুন create হবে না
-    return digitalCard;
-  }
+  if (digitalCard) return digitalCard;
 
-  // Card নেই → এখন নতুন তৈরি করো
   digitalCard = await DigitalCard.create({
-    userId,
-    merchantId,
+    userId: new Types.ObjectId(userId),
+    merchantId: new Types.ObjectId(merchantId),
     cardCode: generateCardCode(),
-    promotions: [], // null বা undefined থাকবে না
+    promotions: [],
   });
 
   return digitalCard;

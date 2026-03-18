@@ -21,22 +21,22 @@ router.get(
 );
 router.patch(
   "/:id/acknowledge",
-  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.ADMIN_SELL, USER_ROLES.ADMIN_REP),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.ADMIN_SELL,),
   SalesRepController.updateUserAcknowledgeStatus
 );
 router.post(
   "/:id/token",
-  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN,USER_ROLES.ADMIN_REP),
   SalesRepController.generateToken
 );
 router.patch(
   "/:id/activate-account",
-  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.ADMIN_SELL, USER_ROLES.ADMIN_REP),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.ADMIN_SELL),
   SalesRepController.activateAccount
 )
 router.patch(
   "/:id/deactivate-account",
-  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN,  USER_ROLES.ADMIN_REP),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN,),
   SalesRepController.deactivateAccount
 )
 router.post(

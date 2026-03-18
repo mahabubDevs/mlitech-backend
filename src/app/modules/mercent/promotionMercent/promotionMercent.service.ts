@@ -222,6 +222,7 @@ const getDetailsOfMerchant = async (merchantId: string, userId?: string) => {
   let userSegment = "all_customer";
   let boughtPromotionIds: string[] = [];
   let userRatings: Record<string, number> = {};
+  let userDigitalCard: any = null;
 
   /* ================= USER CONTEXT ================= */
   if (userId) {
@@ -295,7 +296,7 @@ const getDetailsOfMerchant = async (merchantId: string, userId?: string) => {
   console.log("✔ Total promotions found:", promotions.length);
 
   console.log("========== API END ==========");
-  return { merchant, promotions };
+  return { merchant, promotions, digitalCard: userDigitalCard };
 };
 
 

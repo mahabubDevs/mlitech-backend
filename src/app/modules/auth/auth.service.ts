@@ -48,8 +48,8 @@ const DEVICE_ROLE_MAP: Record<string, USER_ROLES[]> = {
   ],
 };
 
-const loginUserFromDB = async (payload: ILoginData & { device: string }) => {
-  const { identifier, password, device } = payload;
+const loginUserFromDB = async (  payload: ILoginData & { device: string; fcmToken?: string }) => {
+  const { identifier, password, device, fcmToken } = payload;
 
   // 1️⃣ Find user by email or phone
   const user: any = await User.findOne({
@@ -85,7 +85,7 @@ const loginUserFromDB = async (payload: ILoginData & { device: string }) => {
     config.jwt.jwtRefreshExpiresIn as string
   );
 
-  await User.findByIdAndUpdate(user._id, { latestToken: accessToken });
+  await User.findByIdAndUpdate(user._id, { latestToken: accessToken,...(fcmToken && { fcmToken })  });
 
   return {
     success: true,

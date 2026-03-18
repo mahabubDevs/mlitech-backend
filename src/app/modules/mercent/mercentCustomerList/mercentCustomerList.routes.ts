@@ -4,7 +4,7 @@ import auth from "../../../middlewares/auth";
 import { MemberController } from "./mercentCustomerList.controller";
 // import { mercentCustomerListController } from "./mercentCustomerList.controller";
 
-const router = Router(); // <-- নতুন router instance তৈরি করো
+const router = Router(); // 
 
 // all members
 router.get(
