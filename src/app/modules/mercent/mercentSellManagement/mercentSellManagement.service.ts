@@ -586,6 +586,13 @@ const requestApproval = async ({
     });
   }
 
+
+  // 🔹 Add check: totalBill >= totalGrossValue
+if (totalBill < totalGrossValue) {
+  throw new Error(
+    `Total bill (${totalBill}) is less than total promotions gross value (${totalGrossValue})`
+  );
+}
   // ===============================
   // 💰 Bill Calculation
   // ===============================
