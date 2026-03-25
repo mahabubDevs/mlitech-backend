@@ -48,7 +48,7 @@ const loginUser = catchAsync(async (req: Request, res: Response) => {
     // ✅ Login and get accessToken + refreshToken
     const result = await AuthService.loginUserFromDB(loginData);
 
-    // 🔹 Response same as before
+    // 🔹 Response same as before               
     sendResponse(res, {
         success: true,
         statusCode: StatusCodes.OK,

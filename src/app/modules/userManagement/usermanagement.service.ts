@@ -119,6 +119,25 @@ const createMerchantToDB = async (payload: any, creatorUser: any) => {
     merchantData.approveStatus = APPROVE_STATUS.APPROVED;
   }
 
+  // 🔍 Check duplicate email or phone
+if (payload.email || payload.phone) {
+  const existingUser = await User.findOne({
+    $or: [
+      { email: payload.email },
+      { phone: payload.phone }
+    ]
+  });
+
+  if (existingUser) {
+    if (existingUser.email === payload.email) {
+      throw new ApiError(400, "Email already exists");
+    }
+    if (existingUser.phone === payload.phone) {
+      throw new ApiError(400, "Phone number already exists");
+    }
+  }
+}
+
   const result = await User.create(merchantData);
   return result;
 };
@@ -127,7 +146,7 @@ const createMerchantToDB = async (payload: any, creatorUser: any) => {
 // get all users
 // Service
 const getAllUsersFromDB = async (requestingUserRole: string, query: Record<string, any>) => {
-  // অনুমোদিত roles
+ 
   const allowedRoles = ["ADMIN", "ADMIN_SELL", "ADMIN_REP", "SUPER_ADMIN", "MANAGER", "VIEW_ADMIN"];
 
   if (!allowedRoles.includes(requestingUserRole)) {

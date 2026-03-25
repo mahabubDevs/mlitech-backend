@@ -109,6 +109,26 @@ const createUserToDB = async (
     }, {} as any)
   );
 
+
+  // 🔍 Check duplicate email or phone
+  if (payload.email || payload.phone) {
+    const existingUser = await User.findOne({
+      $or: [
+        { email: payload.email },
+        { phone: payload.phone }
+      ]
+    });
+
+    if (existingUser) {
+      if (existingUser.email === payload.email) {
+        throw new ApiError(400, "Email already exists");
+      }
+      if (existingUser.phone === payload.phone) {
+        throw new ApiError(400, "Phone number already exists");
+      }
+    }
+  }
+
   const user = await User.create(payload);
   console.log("✅ User created:", user);
 
