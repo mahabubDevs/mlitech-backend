@@ -11,6 +11,7 @@ import { Types } from "mongoose";
 import { Favorite } from "../customer/favorite/favorite.model";
 import { Rating } from "../customer/rating/rating.model";
 import { sendPushNotification } from "../../../helpers/sendPushNotification";
+import { Subscription } from "../subscription/subscription.model";
 
 
 interface IQuery {
@@ -69,23 +70,70 @@ const updateUserStatus = async (id: string, status: USER_STATUS) => {
 
   return updatedUser;
 };
+
+
+
+
 const getAllCustomers = async (query: Record<string, unknown>) => {
+  // 1️⃣ User data fetch
   const baseQuery = User.find({ role: "USER" }).select(
-    "customUserId firstName lastName phone email status address referredInfo.referredBy subscription"
+    "customUserId firstName lastName phone email status address referredInfo.referredBy"
   );
 
-  const allCusomtersQuery = new QueryBuilder(baseQuery, query)
-    .search(["firstName", "lastName", "email", "phone", "customUserId", "address", "subscription"])
+  const allCustomersQuery = new QueryBuilder(baseQuery, query)
+    .search(["firstName", "lastName", "email", "phone", "customUserId", "address"])
     .filter()
     .paginate()
     .sort();
 
   const [allcustomers, pagination] = await Promise.all([
-    allCusomtersQuery.modelQuery.lean(),
-    allCusomtersQuery.getPaginationInfo(),
+    allCustomersQuery.modelQuery.lean<any[]>(),
+    allCustomersQuery.getPaginationInfo(),
   ]);
+
+  // 2️⃣ Fetch latest subscription per user
+  const userIds = allcustomers.map((u: any) => u._id.toString());
+
+  const subscriptions = await Subscription.find({
+    user: { $in: userIds },
+  })
+    .sort({ currentPeriodEnd: -1 }) // latest subscription first
+    .lean();
+
+  // 3️⃣ Map latest subscription per user
+  const subscriptionMap: Record<string, any> = {};
+  subscriptions.forEach((sub) => {
+    const userId = sub.user.toString();
+    if (!subscriptionMap[userId]) {
+      subscriptionMap[userId] = sub; // first one = latest
+    }
+  });
+
+  // 4️⃣ Merge subscription into user objects & add subscription status
+  const customersWithSubscription = allcustomers.map((user) => {
+    const subData = subscriptionMap[user._id.toString()] || null;
+    return {
+      ...user,
+      subscriptionData: subData
+        ? {
+            currentPeriodStart: subData.currentPeriodStart,
+            currentPeriodEnd: subData.currentPeriodEnd,
+            status: subData.status,
+            price: subData.price,
+            package: subData.package,
+          }
+        : null,
+      subscription: subData && subData.status === "active" ? "active" : "inActive",
+    };
+  });
+
+  console.log(
+    "Customers with latest subscription only:",
+    JSON.stringify(customersWithSubscription, null, 2)
+  );
+
   return {
-    allcustomers,
+    allcustomers: customersWithSubscription,
     pagination,
   };
 };

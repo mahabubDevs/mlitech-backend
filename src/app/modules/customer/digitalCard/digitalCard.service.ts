@@ -4,6 +4,7 @@ import { DigitalCard } from "./digitalCard.model";
 import { generateCardCode } from "./generateCardCode";
 import QueryBuilder from "../../../../util/queryBuilder";
 import { IDigitalCard } from "../../mercent/mercentCustomerList/mercentInterface";
+import { MerchantCustomer } from "../../mercent/merchantCustomer/merchantCustomer.model";
 
 // const addPromotionToDigitalCard = async (
 //   userId: string,
@@ -237,6 +238,28 @@ const addPromotionToDigitalCard = async (userId: string, promotionId: string) =>
 
   const merchantId = promotion.merchantId;
   const promotionObjectId = new Types.ObjectId(promotionId);
+
+
+
+
+  // 🔹 নতুন চেক: ইউজারের সেগমেন্ট নাও
+    const merchantCustomer = await MerchantCustomer.findOne({
+      merchantId,
+      customerId: userId,
+    });
+
+    if (!merchantCustomer) throw new Error("Customer not found for this merchant");
+
+    const userSegment = merchantCustomer.segment; // যেমন: vip_customer
+    const promoSegment = promotion.customerSegment; // যেমন: vip_customer
+    const promoType = promotion.promotionType; // যেমন: loyalty
+
+    // 🔹 Segment এবং promotionType চেক
+    if (promoSegment !== "all_customer" && promoSegment !== userSegment) {
+      throw new Error("This promotion is not applicable for your customer segment");
+    }
+
+
 
   // Always get or create card from single source
   const digitalCard = await createOrGetDigitalCard(userId, merchantId.toString());
@@ -737,7 +760,7 @@ const getMerchantDigitalCardWithPromotions = async (
   }).populate({
     path: "promotions.promotionId",
     select:
-      "name discountPercentage promotionType image startDate endDate status cardId grossValue",
+      "name discountPercentage promotionType image startDate endDate status cardId grossValue availableDays",
   });
 
   console.log(
@@ -760,7 +783,7 @@ const getMerchantDigitalCardWithPromotions = async (
     }).populate({
       path: "promotions.promotionId",
       select:
-        "name discountPercentage promotionType image startDate endDate status cardId merchantId grossValue",
+        "name discountPercentage promotionType image startDate endDate status cardId merchantId grossValue availableDays",
     });
 
     console.log(
@@ -863,7 +886,20 @@ const getMerchantDigitalCardWithPromotions = async (
       };
 
       const todayDay = dayMap[today.getDay()];
+      const todayIndex = today.getDay();
+
       const availableDays = item.promotionId.availableDays || [];
+
+
+      console.log("📅 Today Index:", todayIndex);
+      console.log("📅 Today Day:", todayDay);
+      console.log("📅 Promotion Available Days:", availableDays);
+
+
+      // Normalize (important ⚠️)
+      const normalizedDays = availableDays.map((d: string) => d.toLowerCase().trim());
+
+      console.log("📅 Normalized Days:", normalizedDays);
 
       // Treat empty array or ["all"] as always valid
       const isValidToday =
@@ -875,6 +911,11 @@ const getMerchantDigitalCardWithPromotions = async (
       } else {
         console.log("✅ Promotion valid for today");
       }
+
+
+
+
+      
       // ⛔ PromoCode mismatch when searching by promoCode
       if (searchedByPromoCode && item.promoCode !== code) {
         console.log("   ❌ promoCode mismatch:", item.promoCode);
