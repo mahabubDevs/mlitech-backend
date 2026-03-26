@@ -27,6 +27,22 @@ const generatePromotionCode = (length = 6) => {
 const createPromotionToDB = async (
   payload: Partial<IPromotion>
 ): Promise<IPromotion> => {
+  if (!payload.merchantId) {
+    throw new Error("Merchant ID is required to create promotion.");
+  }
+
+  // ✅ Check if this merchant has at least one active tier
+  const tierExists = await Tier.exists({
+    admin: new Types.ObjectId(payload.merchantId), // merchantId = admin in Tier
+    isActive: true,
+  });
+
+  if (!tierExists) {
+    throw new Error(
+      "Cannot create promotion: Merchant does not have any active tier. Please create at least one tier first."
+    );
+  }
+
   // Auto-generate cardId if not provided
   if (!payload.cardId) {
     payload.cardId = generatePromotionCode(6);
