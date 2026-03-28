@@ -140,42 +140,73 @@ const getAllCustomers = async (query: Record<string, unknown>) => {
 
 const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
   const { address, service, radius, favorite, ...rest } = query;
-  const { location: userLocation, _id: userId } = user;
+  const userId = user?._id;
 
+  // 1️⃣ Database থেকে user location fetch করো
+  const userData = await User.findById(userId).select("location").lean();
+  const userLocation = userData?.location;
+
+  console.log("📍 Client Location from DB:", userLocation);
+  console.log("📏 Radius:", radius);
+  console.log("🔍 Search Term:", query.searchTerm);
+  console.log("📌 Address Filter:", address);
+  console.log("🔧 Service Filter:", service);
+  console.log("📏 Radius Filter:", radius);
+
+  // 2️⃣ Base query
   let baseQuery = User.find({ role: USER_ROLES.MERCENT, verified: true });
 
-
-  // let baseQuery = User.find({ role: USER_ROLES.MERCENT });
-
   const allMerchantsQuery = new QueryBuilder(baseQuery, rest)
-    .search(["firstName", "lastName", "email", "phone", "businessName", "service", "address","customUserId","location","country","city"])
+    .search([
+      "firstName",
+      "lastName",
+      "email",
+      "phone",
+      "businessName",
+      "service",
+      "address",
+      "customUserId",
+      "location",
+      "country",
+      "city",
+    ])
     .filter()
     .sort()
     .paginate();
 
+  // 3️⃣ Address filter
   if (address) {
     allMerchantsQuery.modelQuery = allMerchantsQuery.modelQuery.find({
       address: { $regex: address as string, $options: "i" },
     });
   }
 
-  if (service) {
-    allMerchantsQuery.modelQuery = allMerchantsQuery.modelQuery.find({
-      service: { $regex: service as string, $options: "i" },
-    });
-  }
-
+  // 4️⃣ Service filter
+// Service filter (Array field with partial match)
+// 1️⃣ Service filter
+if (service) {
+  // service field only, case-insensitive, partial match
+  const serviceWords = (service as string).split(/\s+|,/); // split input into words
+  allMerchantsQuery.modelQuery = allMerchantsQuery.modelQuery.find({
+    $or: serviceWords.map(word => ({
+      service: { $regex: word, $options: "i" } // case-insensitive match
+    }))
+  });
+}
+  // 5️⃣ Radius filter only if userLocation exists
   if (userLocation && radius) {
     allMerchantsQuery.modelQuery = allMerchantsQuery.modelQuery.find({
       location: {
         $geoWithin: {
-          $centerSphere: [userLocation.coordinates, Number(radius) / 6378.1],
+          $centerSphere: [userLocation.coordinates, Number(radius) / 6378.1], // radius in km
         },
       },
     });
+  } else if (radius && !userLocation) {
+    console.warn("📌 Radius filter skipped: user location undefined in DB");
   }
 
-  // 3️⃣ Fetch merchants and pagination
+  // 6️⃣ Fetch merchants, pagination, favorites
   const [allmerchants, pagination, favorites] = await Promise.all([
     allMerchantsQuery.modelQuery.lean(),
     allMerchantsQuery.getPaginationInfo(),
@@ -184,26 +215,24 @@ const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
 
   const favoriteMap = new Set(favorites.map(f => f.merchantId.toString()));
 
-  // 4️⃣ Fetch average rating for all merchants at once using aggregation
+  // 7️⃣ Fetch average rating
   const merchantIds = allmerchants.map(m => m._id);
   const ratingsAgg = await Rating.aggregate([
     { $match: { merchantId: { $in: merchantIds } } },
-    {
-      $group: {
-        _id: "$merchantId",
-        avgRating: { $avg: "$rating" },
-      },
-    },
+    { $group: { _id: "$merchantId", avgRating: { $avg: "$rating" } } },
   ]);
 
   const ratingMap = new Map<string, number>();
-  ratingsAgg.forEach(r => ratingMap.set(r._id.toString(), parseFloat(r.avgRating.toFixed(1))));
+  ratingsAgg.forEach(r =>
+    ratingMap.set(r._id.toString(), parseFloat(r.avgRating.toFixed(1)))
+  );
 
-  // 5️⃣ Combine favorite and avgRating
+  // 8️⃣ Combine favorite and rating
   let merchantsWithFavorite = allmerchants.map(merchant => ({
     ...merchant,
     isFavorite: favoriteMap.has((merchant._id as any).toString()),
     rating: ratingMap.get((merchant._id as any).toString()) || 0,
+    
   }));
 
   if (favorite === "true") {
@@ -212,7 +241,6 @@ const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
 
   return { allmerchants: merchantsWithFavorite, pagination };
 };
-
 
 
 //============merchant export service ============//

@@ -397,7 +397,11 @@ const getMerchantSales = async (req: Request, res: Response) => {
       console.log("🔍 After Search Filter Count:", sales.length);
     }
 
-    const total = await Sell.countDocuments({ merchantId, ...dateFilter });
+    const total = await Sell.countDocuments({
+      merchantId,
+      status: "completed", // ✅ MUST ADD THIS
+      ...dateFilter,
+    });
     console.log("📊 Total Documents Matching Filter:", total);
 
     // -----------------------------
@@ -963,6 +967,46 @@ const exportMerchantCustomersExcel = catchAsync(
   }
 );
 
+
+const getLastPendingSell = catchAsync(async (req: Request, res: Response) => {
+  if (!req.user) {
+    return sendResponse(res, {
+      statusCode: StatusCodes.UNAUTHORIZED,
+      success: false,
+      message: "User not authenticated",
+    });
+  }
+
+  const user = req.user as IUser;
+
+  // আজকের তারিখের পূর্ব পর্যন্ত Pending Sell খুঁজবে
+  const now = new Date();
+
+  const lastPendingSell = await Sell.findOne({
+    userId: user._id,
+    status: "pending",
+    approvalExpiresAt: { $gte: now }, // শুধুমাত্র এখনও এক্সপায়ার হয়নি এমন
+  })
+    .sort({ createdAt: -1 }) // সর্বশেষ ক্রিয়েটেড অনুযায়ী
+    .populate("promotionIds"); // প্রমোশন ডিটেইল দেখার জন্য
+
+  if (!lastPendingSell) {
+    return sendResponse(res, {
+      statusCode: StatusCodes.NOT_FOUND,
+      success: false,
+      message: "No pending sell found",
+    });
+  }
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: "Last pending sell fetched successfully",
+    data: lastPendingSell,
+  });
+});
+
+
 export default {
   checkout,
   requestApproval,
@@ -974,6 +1018,7 @@ export default {
   getMerchantCustomersList,
   getRecentMerchantCustomersList,
   getUserFullTransactions,
-  exportMerchantCustomersExcel
+  exportMerchantCustomersExcel,
+  getLastPendingSell,
   // finalizeCheckout
 };

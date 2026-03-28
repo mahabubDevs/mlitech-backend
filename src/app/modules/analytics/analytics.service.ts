@@ -2007,6 +2007,7 @@ const getCashReceivableAnalytics = async ({
         totalOutstanding: { $sum: "$price" },
       },
     },
+    
 
     {
       $project: {
@@ -2019,7 +2020,7 @@ const getCashReceivableAnalytics = async ({
       },
     },
 
-    { $sort: { totalReceived: -1 } },
+     { $sort: { totalReceived: -1 } }, 
   ];
 
   let totalCount: number | undefined;

@@ -243,10 +243,21 @@ const addPromotionToDigitalCard = async (userId: string, promotionId: string) =>
 
 
   // 🔹 নতুন চেক: ইউজারের সেগমেন্ট নাও
-    const merchantCustomer = await MerchantCustomer.findOne({
+   // const → let
+    let merchantCustomer = await MerchantCustomer.findOne({
       merchantId,
       customerId: userId,
     });
+
+    // যদি entry না থাকে, create করে assign করা যাবে
+    if (!merchantCustomer) {
+      console.log(`⚡ MerchantCustomer not found. Creating new entry for user ${userId}`);
+      merchantCustomer = await MerchantCustomer.create({
+        merchantId,
+        customerId: userId,
+        segment: "new_customer", // default segment
+      });
+    }
 
     if (!merchantCustomer) throw new Error("Customer not found for this merchant");
 

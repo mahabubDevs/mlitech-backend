@@ -84,14 +84,26 @@ import { Tier } from "../app/modules/mercent/point&TierSystem/tier.model";
 
 export const downgradeInactiveTiers = async () => {
   try {
-    const sixMonthsAgo = subMonths(new Date(), 6);
 
-    console.log("Checking for inactive digital cards older than:", sixMonthsAgo);
 
-    // 🔹 Find all DigitalCards inactive for 6 months
-    const inactiveCards = await DigitalCard.find({
-      updatedAt: { $lt: sixMonthsAgo },
-    });
+const fiveMinutesAgo = subMinutes(new Date(), 5);
+
+console.log("Checking for inactive digital cards older than:", fiveMinutesAgo);
+
+const inactiveCards = await DigitalCard.find({
+  updatedAt: { $lt: fiveMinutesAgo },
+});
+
+
+
+    // const sixMonthsAgo = subMonths(new Date(), 6);
+
+    // console.log("Checking for inactive digital cards older than:", sixMonthsAgo);
+
+    // // 🔹 Find all DigitalCards inactive for 6 months
+    // const inactiveCards = await DigitalCard.find({
+    //   updatedAt: { $lt: sixMonthsAgo },
+    // });
 
     if (!inactiveCards.length) {
       console.log("No inactive digital cards found.");

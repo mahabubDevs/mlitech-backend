@@ -94,7 +94,7 @@ const getSingleMemberTier = async (merchantId: string, userId: string) => {
   const digitalCard = await DigitalCard.findOne({
     userId,
     merchantId,
-  }).select("availablePoints");
+  }).select("lifeTimeEarnPoints");
 
   if (!digitalCard) {
     throw new ApiError(
@@ -103,7 +103,7 @@ const getSingleMemberTier = async (merchantId: string, userId: string) => {
     );
   }
 
-  const availablePoints = digitalCard.availablePoints ?? 0;
+  const availablePoints = digitalCard.lifeTimeEarnPoints ?? 0;
 
   // 2. Calculate total spent for this merchant
   const spendAgg = await Sell.aggregate([

@@ -27,7 +27,9 @@ const sendNotificationToAllUsers = async (
     console.log("[Notification] Admin ID:", adminId);
 
     // 1️⃣ Base filter: Only users with fcmToken
-    const userFilter: any = { fcmToken: { $exists: true, $ne: null },"notificationSettings.pushNotifications": true };
+    const userFilter: any = { fcmToken: { $exists: true, $ne: null },
+    // "notificationSettings.pushNotifications": true 
+  };
 
     // 2️⃣ Role filter based on sendType
     if (sendType === "MERCENT") userFilter.role = "MERCENT";
