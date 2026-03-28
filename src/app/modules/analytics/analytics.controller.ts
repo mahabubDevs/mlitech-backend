@@ -656,6 +656,9 @@ const getCashReceivableAnalytics = catchAsync(async (req: Request, res: Response
     pagination: result.pagination
   })
 })
+
+
+
 const exportCashReceivableAnalytics = catchAsync(async (req: Request, res: Response) => {
   const { startDate, endDate } = req.query;
   await AnalyticsService.exportCashReceivableAnalytics(res, startDate as string, endDate as string);

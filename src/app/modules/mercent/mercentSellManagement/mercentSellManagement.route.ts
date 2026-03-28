@@ -9,6 +9,8 @@ const router = express.Router();
 
 router.post("/checkout", auth(USER_ROLES.MERCENT,USER_ROLES.ADMIN_MERCENT),canAccessMerchantProfile, mercentSellManagementController.checkout);
 
+router.get("/pending-checkouts", auth(USER_ROLES.USER), mercentSellManagementController.getLastPendingSell);
+
 // router.post(
 //   "/promotion/request-approval",
 //   auth(USER_ROLES.MERCENT),

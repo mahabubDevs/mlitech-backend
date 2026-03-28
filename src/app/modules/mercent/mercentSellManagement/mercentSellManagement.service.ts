@@ -213,6 +213,27 @@ const checkout = async (
 
   console.log("✅ DigitalCard found:", digitalCardCode, "UserID:", digitalCard.userId.toString());
 
+
+
+  // ===============================
+// 🔐 Validate User Status
+// ===============================
+  const cardUser = await User.findById(digitalCard.userId);
+
+  if (!cardUser) {
+    throw new Error("User not found");
+  }
+
+  if (cardUser.status !== "active") {
+    throw new Error("User account is inactive. Checkout not allowed.");
+  }
+
+  if (cardUser.subscription !== "active") {
+    throw new Error("User subscription is not active.");
+  }
+
+  console.log("✅ User validation passed:", cardUser._id.toString());
+
   // ===============================
   // 🔍 Validate Redeem Points
   // ===============================

@@ -19,7 +19,7 @@ export const startCronJobs = () => {
     });
 
     // 🔹 Tier Downgrade → রাত ২টা
-    cron.schedule("0 02 * * *", async () => {
+    cron.schedule("52 13 * * *", async () => {
       try {
         logger.info("[CRON] Tier downgrade job started");
         await downgradeInactiveTiers();
