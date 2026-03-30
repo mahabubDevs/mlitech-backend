@@ -398,6 +398,7 @@ const getCustomerChart = async (merchantId: string, year?: number) => {
 
   const matchStage = {
     merchantId: new mongoose.Types.ObjectId(merchantId),
+     status: "completed",
     $expr: {
       $eq: [{ $year: "$createdAt" }, currentYear],
     },

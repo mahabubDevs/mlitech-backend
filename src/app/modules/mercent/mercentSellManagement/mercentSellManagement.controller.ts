@@ -971,41 +971,52 @@ const exportMerchantCustomersExcel = catchAsync(
 const getLastPendingSell = catchAsync(async (req: Request, res: Response) => {
   if (!req.user) {
     return sendResponse(res, {
-      statusCode: StatusCodes.UNAUTHORIZED,
-      success: false,
+      statusCode: 200,
+      success: true,
       message: "User not authenticated",
+      data: "Data nai",
     });
   }
 
   const user = req.user as IUser;
-
-  // আজকের তারিখের পূর্ব পর্যন্ত Pending Sell খুঁজবে
   const now = new Date();
 
+  // আজকের তারিখের পূর্ব পর্যন্ত Pending Sell খুঁজবে
   const lastPendingSell = await Sell.findOne({
     userId: user._id,
     status: "pending",
-    approvalExpiresAt: { $gte: now }, // শুধুমাত্র এখনও এক্সপায়ার হয়নি এমন
+    approvalExpiresAt: { $gte: now }, // এখনও এক্সপায়ার হয়নি এমন
   })
-    .sort({ createdAt: -1 }) // সর্বশেষ ক্রিয়েটেড অনুযায়ী
+    .sort({ createdAt: -1 }) // সর্বশেষ ক্রিয়েটেড অনুযায়ী
     .populate("promotionIds"); // প্রমোশন ডিটেইল দেখার জন্য
 
   if (!lastPendingSell) {
     return sendResponse(res, {
-      statusCode: StatusCodes.NOT_FOUND,
-      success: false,
+      statusCode: 200,
+      success: true,
       message: "No pending sell found",
+      data: "Data nai",
     });
   }
 
+  // 🔹 Fetch digital card for this sell
+  const digitalCard = await DigitalCard.findById(lastPendingSell.digitalCardId).lean();
+
+  // ✅ Sell ID ও DigitalCard info attach করা
+  const sellDataWithId = {
+    ...lastPendingSell.toObject(),
+    sellId: lastPendingSell._id,
+    digitalCardId: digitalCard?._id,
+    digitalCardCode: digitalCard?.cardCode || "",
+  };
+
   sendResponse(res, {
-    statusCode: StatusCodes.OK,
+    statusCode: 200,
     success: true,
     message: "Last pending sell fetched successfully",
-    data: lastPendingSell,
+    data: sellDataWithId,
   });
 });
-
 
 export default {
   checkout,

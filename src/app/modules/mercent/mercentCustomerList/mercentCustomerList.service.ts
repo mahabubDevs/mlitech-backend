@@ -89,12 +89,14 @@ const getSingleMember = async (merchantId: string, userId: string) => {
     digitalCards,
   };
 };
+
+
 const getSingleMemberTier = async (merchantId: string, userId: string) => {
-  // 1. Get user's digital card (points)
+  // 1️⃣ Get user's digital card (points)
   const digitalCard = await DigitalCard.findOne({
     userId,
     merchantId,
-  }).select("lifeTimeEarnPoints");
+  }).select("availablePoints lifeTimeEarnPoints"); // lifetime points ও নেওয়া
 
   if (!digitalCard) {
     throw new ApiError(
@@ -103,9 +105,10 @@ const getSingleMemberTier = async (merchantId: string, userId: string) => {
     );
   }
 
-  const availablePoints = digitalCard.lifeTimeEarnPoints ?? 0;
+  const availablePoints = digitalCard.availablePoints ?? 0; // current points
+  const lifetimePoints = digitalCard.lifeTimeEarnPoints ?? 0; // lifetime points for tier
 
-  // 2. Calculate total spent for this merchant
+  // 2️⃣ Calculate total spent for this merchant
   const spendAgg = await Sell.aggregate([
     {
       $match: {
@@ -124,26 +127,25 @@ const getSingleMemberTier = async (merchantId: string, userId: string) => {
 
   const totalSpend = spendAgg.length ? spendAgg[0].totalSpend : 0;
 
-  // 3. Get merchant tiers
+  // 3️⃣ Get merchant tiers
   const tiers = await Tier.find({ admin: merchantId }).sort({
-    pointsThreshold: 1,
+    pointsThreshold: 1, // pointsThreshold = lifetime points needed
     minTotalSpend: 1,
   });
 
   if (!tiers.length) {
     return {
       availablePoints,
-
+      lifetimePoints,
       tierName: "No tier Found",
-
     };
   }
 
-  // 4. Determine user's tier based on both conditions
+  // 4️⃣ Determine user's tier based on lifetime points
   let userTier: any = null;
 
   for (const tier of tiers) {
-    const meetsPoints = availablePoints >= tier.pointsThreshold;
+    const meetsPoints = lifetimePoints >= tier.pointsThreshold; // lifetime points check
     const meetsSpend = totalSpend >= tier.minTotalSpend;
 
     if (meetsPoints && meetsSpend) {
@@ -152,12 +154,11 @@ const getSingleMemberTier = async (merchantId: string, userId: string) => {
   }
 
   return {
-    availablePoints,
-
+    availablePoints,       // current points
+    lifetimePoints,        // lifetime points
     tierName: userTier?.name ?? "No tier Found",
-
   };
-}
+};
 
 export const MemberService = {
   getAllMembers,

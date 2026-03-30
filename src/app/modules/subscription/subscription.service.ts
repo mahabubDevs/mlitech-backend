@@ -47,7 +47,7 @@ const createSubscriptionSession = async (userId: string, packageId: string) => {
       customerId: null,
     });
 
-    await User.findByIdAndUpdate(userId, { subscription: SUBSCRIPTION_STATUS.ACTIVE });
+    await User.findByIdAndUpdate(userId, { subscription: SUBSCRIPTION_STATUS.ACTIVE,paymentStatus: "paid", });
     console.log("✅ Free plan subscription created:", subscription._id);
     return { sessionId: null, url: null, subscription };
   }

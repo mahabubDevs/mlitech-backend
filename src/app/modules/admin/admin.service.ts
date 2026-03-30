@@ -12,6 +12,7 @@ import { Favorite } from "../customer/favorite/favorite.model";
 import { Rating } from "../customer/rating/rating.model";
 import { sendPushNotification } from "../../../helpers/sendPushNotification";
 import { Subscription } from "../subscription/subscription.model";
+import { Sell } from "../mercent/mercentSellManagement/mercentSellManagement.model";
 
 
 interface IQuery {
@@ -142,16 +143,9 @@ const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
   const { address, service, radius, favorite, ...rest } = query;
   const userId = user?._id;
 
-  // 1️⃣ Database থেকে user location fetch করো
+  // 1️⃣ Database থেকে user location fetch
   const userData = await User.findById(userId).select("location").lean();
   const userLocation = userData?.location;
-
-  console.log("📍 Client Location from DB:", userLocation);
-  console.log("📏 Radius:", radius);
-  console.log("🔍 Search Term:", query.searchTerm);
-  console.log("📌 Address Filter:", address);
-  console.log("🔧 Service Filter:", service);
-  console.log("📏 Radius Filter:", radius);
 
   // 2️⃣ Base query
   let baseQuery = User.find({ role: USER_ROLES.MERCENT, verified: true });
@@ -182,28 +176,24 @@ const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
   }
 
   // 4️⃣ Service filter
-// Service filter (Array field with partial match)
-// 1️⃣ Service filter
-if (service) {
-  // service field only, case-insensitive, partial match
-  const serviceWords = (service as string).split(/\s+|,/); // split input into words
-  allMerchantsQuery.modelQuery = allMerchantsQuery.modelQuery.find({
-    $or: serviceWords.map(word => ({
-      service: { $regex: word, $options: "i" } // case-insensitive match
-    }))
-  });
-}
-  // 5️⃣ Radius filter only if userLocation exists
+  if (service) {
+    const serviceWords = (service as string).split(/\s+|,/);
+    allMerchantsQuery.modelQuery = allMerchantsQuery.modelQuery.find({
+      $or: serviceWords.map((word) => ({
+        service: { $regex: word, $options: "i" },
+      })),
+    });
+  }
+
+  // 5️⃣ Radius filter
   if (userLocation && radius) {
     allMerchantsQuery.modelQuery = allMerchantsQuery.modelQuery.find({
       location: {
         $geoWithin: {
-          $centerSphere: [userLocation.coordinates, Number(radius) / 6378.1], // radius in km
+          $centerSphere: [userLocation.coordinates, Number(radius) / 6378.1],
         },
       },
     });
-  } else if (radius && !userLocation) {
-    console.warn("📌 Radius filter skipped: user location undefined in DB");
   }
 
   // 6️⃣ Fetch merchants, pagination, favorites
@@ -213,30 +203,72 @@ if (service) {
     Favorite.find({ userId }).select("merchantId").lean(),
   ]);
 
-  const favoriteMap = new Set(favorites.map(f => f.merchantId.toString()));
+  const favoriteMap = new Set(favorites.map((f) => f.merchantId.toString()));
+  const merchantIds = allmerchants.map((m) => m._id);
 
-  // 7️⃣ Fetch average rating
-  const merchantIds = allmerchants.map(m => m._id);
+  // 7️⃣ Fetch average rating for each merchant from user ratings
   const ratingsAgg = await Rating.aggregate([
     { $match: { merchantId: { $in: merchantIds } } },
-    { $group: { _id: "$merchantId", avgRating: { $avg: "$rating" } } },
+    {
+      $group: {
+        _id: "$merchantId",
+        avgRating: { $avg: "$rating" }, // শুধু ওই merchant কে rating দেওয়া user দের average
+        ratingCount: { $sum: 1 },       // কতজন user rating দিয়েছে
+      },
+    },
   ]);
 
-  const ratingMap = new Map<string, number>();
-  ratingsAgg.forEach(r =>
-    ratingMap.set(r._id.toString(), parseFloat(r.avgRating.toFixed(1)))
+  const ratingMap = new Map<string, { avgRating: number; ratingCount: number }>();
+  ratingsAgg.forEach((r) =>
+    ratingMap.set(r._id.toString(), {
+      avgRating: parseFloat(r.avgRating.toFixed(1)),
+      ratingCount: r.ratingCount,
+    })
   );
 
-  // 8️⃣ Combine favorite and rating
-  let merchantsWithFavorite = allmerchants.map(merchant => ({
-    ...merchant,
-    isFavorite: favoriteMap.has((merchant._id as any).toString()),
-    rating: ratingMap.get((merchant._id as any).toString()) || 0,
-    
-  }));
+  // 8️⃣ Fetch total completed sell per merchant
+  const salesAgg = await Sell.aggregate([
+    {
+      $match: {
+        merchantId: { $in: merchantIds },
+        status: "completed",
+      },
+    },
+    {
+      $group: {
+        _id: "$merchantId",
+        totalRevenue: { $sum: "$discountedBill" },
+        totalTransactions: { $sum: 1 },
+      },
+    },
+  ]);
+
+  const salesMap = new Map<string, { totalRevenue: number; totalTransactions: number }>();
+  salesAgg.forEach((s) =>
+    salesMap.set(s._id.toString(), {
+      totalRevenue: s.totalRevenue,
+      totalTransactions: s.totalTransactions,
+    })
+  );
+
+  // 9️⃣ Combine all info
+  let merchantsWithFavorite = allmerchants.map((merchant) => {
+    const merchantIdStr = (merchant._id as any).toString();
+    const salesData = salesMap.get(merchantIdStr);
+    const ratingData = ratingMap.get(merchantIdStr);
+
+    return {
+      ...merchant,
+      isFavorite: favoriteMap.has(merchantIdStr),
+      rating: ratingData?.avgRating || 0,       // user rating average
+      ratingCount: ratingData?.ratingCount || 0, // কতজন user rating দিয়েছে
+      totalRevenue: salesData?.totalRevenue || 0,
+      totalTransactions: salesData?.totalTransactions || 0,
+    };
+  });
 
   if (favorite === "true") {
-    merchantsWithFavorite = merchantsWithFavorite.filter(m => m.isFavorite);
+    merchantsWithFavorite = merchantsWithFavorite.filter((m) => m.isFavorite);
   }
 
   return { allmerchants: merchantsWithFavorite, pagination };

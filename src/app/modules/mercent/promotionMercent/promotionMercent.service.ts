@@ -251,6 +251,7 @@ const getDetailsOfMerchant = async (merchantId: string, userId?: string) => {
 
       // 🔹 Fetch user's digital card for this merchant
       const digitalCard = await DigitalCard.findOne({ userId, merchantId }).lean();
+      userDigitalCard = digitalCard;
 
       // ✅ Attach digitalCardId
       merchant.digitalCardId = digitalCard?._id.toString() || "";
@@ -279,38 +280,38 @@ const getDetailsOfMerchant = async (merchantId: string, userId?: string) => {
   }
 
   /* ================= PROMOTIONS ================= */
-  const promotions = (await Promotion.find({ merchantId })
+  const allPromotions = await Promotion.find({ merchantId })
     .select("name discountPercentage startDate endDate image status availableDays customerSegment")
-    .lean())
+    .lean();
+
+  const today = new Date();
+  const todayDay = dayMap[today.getDay()];
+
+  const promotions = allPromotions
     .map((promo) => {
-      const today = new Date();
-      const todayDay = dayMap[today.getDay()];
       const promoId = promo._id.toString();
 
       const isBought = boughtPromotionIds.includes(promoId);
 
       const isValidDate = today >= new Date(promo.startDate) && today <= new Date(promo.endDate);
       const isValidDay = promo.availableDays?.includes("all") || promo.availableDays?.includes(todayDay);
-      const isValid = promo.status === "active" && isValidDate && isValidDay;
-
+      const isActive = promo.status === "active";
       const segmentMatch =
         promo.customerSegment?.includes("all") || promo.customerSegment?.includes(userSegment);
 
-      const shouldShow = isBought || (segmentMatch && isValid);
+      const isValidPromo = isActive && isValidDate && isValidDay && (isBought || segmentMatch);
 
-      if (!isBought && !segmentMatch) return null;
+      if (!isValidPromo) return null;
 
       return {
         ...promo,
         buy: isBought,
-        show: shouldShow,
         rating: isBought ? userRatings[promoId] ?? 0 : 0,
       };
     })
     .filter(Boolean);
 
-  console.log("✔ Total promotions found:", promotions.length);
-
+  console.log("✔ Total valid promotions found:", promotions.length);
   console.log("========== API END ==========");
   return { merchant, promotions, digitalCard: userDigitalCard };
 };
