@@ -19,7 +19,8 @@ router.post(
   PushController.sendMerchantPromotion
 )
 
-// Admin get all pushes
+
+// Admin get all pushes - for admin dashboard
 // router.get("/all", auth(USER_ROLES.ADMIN), PushController.getAllPushes);
 
 export const PushRoutes = router;
