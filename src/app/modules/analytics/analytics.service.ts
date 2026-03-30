@@ -946,6 +946,7 @@ const getCustomerAnalytics = async (
   start.setHours(0, 0, 0, 0);
   end.setHours(23, 59, 59, 999);
 
+  // ── User Match Stage ─────────
   const userMatch: Record<string, any> = { createdAt: { $gte: start, $lte: end }, role: "USER" };
 
   if (filters?.subscriptionStatus) userMatch.subscription = filters.subscriptionStatus;
@@ -958,7 +959,7 @@ const getCustomerAnalytics = async (
 
   // ── Lookup Stages ─────────
   const lookupStages: PipelineStage[] = [
-    { $lookup: { from: "subscriptions", localField: "_id", foreignField: "user", as: "subscriptions" } }, // ✅ user field fix
+    { $lookup: { from: "subscriptions", localField: "_id", foreignField: "user", as: "subscriptions" } },
     { $lookup: { from: "sells", localField: "_id", foreignField: "userId", as: "sells" } },
   ];
 
@@ -969,8 +970,8 @@ const getCustomerAnalytics = async (
     {
       $addFields: {
         pointsAccumulated: { $sum: "$subscriptions.points" },
-        // pointsRedeemed: { $sum: "$sells.pointRedeemed" },
-        totalRevenue: { $sum: "$subscriptions.price" } 
+        pointsRedeemed: { $sum: "$sells.pointRedeemed" },
+        totalRevenue: { $sum: "$subscriptions.price" },
       },
     },
     {
@@ -980,11 +981,11 @@ const getCustomerAnalytics = async (
         customerName: "$firstName",
         location: "$address",
         subscriptionStatus: "$subscription",
-        paymentStatus: 1, // ✅ show paymentStatus
+        paymentStatus: 1,
         date: "$createdAt",
         pointsAccumulated: 1,
         pointsRedeemed: hideSensitive ? { $literal: 0 } : "$pointsRedeemed",
-        totalRevenue: 1 
+        totalRevenue: 1,
       },
     },
     { $sort: { createdAt: -1 } },
@@ -995,25 +996,18 @@ const getCustomerAnalytics = async (
     recordsPipeline.push({ $limit: limit });
   }
 
-  // ── Monthly Pipeline ─────────
+  // ── Monthly Pipeline (Subscription Aggregate) ─────────
   const monthlyPipeline: PipelineStage[] = [
-    { $match: userMatch },
-    ...lookupStages,
-    { $unwind: { path: "$subscriptions", preserveNullAndEmptyArrays: true } }, // ✅ unwind for revenue
-    { $addFields: {
-        pointsAccumulated: { $sum: "$subscriptions.points" },
-        pointsRedeemed: { $sum: "$sells.pointRedeemed" },
-      } 
-    },
-    // Optional: only active subscriptions
-    // { $match: { "subscriptions.status": "active" } },
+    { $match: { createdAt: { $gte: start, $lte: end } } },
+    ...(filters?.subscriptionStatus ? [{ $match: { status: filters.subscriptionStatus } }] : []),
+    ...(filters?.paymentStatus ? [{ $match: { paymentStatus: filters.paymentStatus } }] : []),
     {
       $group: {
         _id: { year: { $year: "$createdAt" }, month: { $month: "$createdAt" } },
-        pointsAccumulated: { $sum: "$pointsAccumulated" },
+        revenue: { $sum: "$price" },
+        pointsAccumulated: { $sum: "$points" },
         pointsRedeemed: { $sum: "$pointsRedeemed" },
-        users: { $sum: 1 },
-        revenue: { $sum: "$subscriptions.price" }, // ✅ revenue fix
+        users: { $addToSet: "$user" },
       },
     },
     {
@@ -1022,19 +1016,19 @@ const getCustomerAnalytics = async (
         year: "$_id.year",
         month: "$_id.month",
         monthName: { $arrayElemAt: [monthNames, { $subtract: ["$_id.month", 1] }] },
+        revenue: 1,
         pointsAccumulated: 1,
         pointsRedeemed: hideSensitive ? { $literal: 0 } : "$pointsRedeemed",
-        users: 1,
-        revenue: 1,
+        users: { $size: "$users" },
       },
     },
   ];
 
-  // ── Execute pipelines ─────────
+  // ── Execute Pipelines ─────────
   const [records, totalResult, monthlyDataRaw] = await Promise.all([
     User.aggregate(recordsPipeline),
     User.countDocuments(userMatch),
-    User.aggregate(monthlyPipeline),
+    Subscription.aggregate(monthlyPipeline), // ✅ Subscription directly
   ]);
 
   // ── Fill missing months ─────────
