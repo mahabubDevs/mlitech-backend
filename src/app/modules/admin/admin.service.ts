@@ -76,9 +76,11 @@ const updateUserStatus = async (id: string, status: USER_STATUS) => {
 
 
 const getAllCustomers = async (query: Record<string, unknown>) => {
+  console.log("📥 Query:", query);
+
   // 1️⃣ User data fetch
   const baseQuery = User.find({ role: "USER" }).select(
-    "customUserId firstName lastName phone email status address referredInfo.referredBy"
+    "customUserId firstName lastName phone email status address referredInfo.referredBy subscription"
   );
 
   const allCustomersQuery = new QueryBuilder(baseQuery, query)
@@ -92,27 +94,52 @@ const getAllCustomers = async (query: Record<string, unknown>) => {
     allCustomersQuery.getPaginationInfo(),
   ]);
 
+  console.log("👥 Total Customers:", allcustomers.length);
+
   // 2️⃣ Fetch latest subscription per user
   const userIds = allcustomers.map((u: any) => u._id.toString());
+
+  console.log("🆔 User IDs:", userIds);
 
   const subscriptions = await Subscription.find({
     user: { $in: userIds },
   })
-    .sort({ currentPeriodEnd: -1 }) // latest subscription first
+    .sort({ currentPeriodEnd: -1 })
     .lean();
+
+  console.log("📦 All Subscriptions:", subscriptions);
 
   // 3️⃣ Map latest subscription per user
   const subscriptionMap: Record<string, any> = {};
+
   subscriptions.forEach((sub) => {
     const userId = sub.user.toString();
+
     if (!subscriptionMap[userId]) {
-      subscriptionMap[userId] = sub; // first one = latest
+      subscriptionMap[userId] = sub;
     }
   });
 
-  // 4️⃣ Merge subscription into user objects & add subscription status
+  console.log("🗺️ Subscription Map:", subscriptionMap);
+
+  // 4️⃣ Merge subscription into user objects
+  const now = new Date();
+
   const customersWithSubscription = allcustomers.map((user) => {
     const subData = subscriptionMap[user._id.toString()] || null;
+
+    console.log("------------");
+    console.log("👤 User:", user.customUserId);
+    console.log("👉 User.subscription (DB):", user.subscription);
+    console.log("👉 Subscription Data:", subData);
+
+    const isActive =
+      subData &&
+      subData.status === "active" &&
+      new Date(subData.currentPeriodEnd) > now;
+
+    console.log("✅ Final Active?:", isActive);
+
     return {
       ...user,
       subscriptionData: subData
@@ -124,12 +151,12 @@ const getAllCustomers = async (query: Record<string, unknown>) => {
             package: subData.package,
           }
         : null,
-      subscription: subData && subData.status === "active" ? "active" : "inActive",
+      subscription: isActive ? "active" : "inActive",
     };
   });
 
   console.log(
-    "Customers with latest subscription only:",
+    "🎯 Final Customers:",
     JSON.stringify(customersWithSubscription, null, 2)
   );
 

@@ -83,13 +83,19 @@ const createTier = catchAsync(async (req: Request, res: Response) => {
     );
   }
 
-
+// 🔹 pointsThreshold 0 হলে reward > 0 দিলে error
+if (validatedBody.pointsThreshold === 0 && validatedBody.reward && Number(validatedBody.reward) > 0) {
+  throw new ApiError(StatusCodes.BAD_REQUEST, "Reward cannot be more than 0 for pointsThreshold 0");
+}
 
 
   const payload: Partial<ITier> = {
     ...validatedBody,
     admin: filterId,
     isActive: validatedBody.isActive ?? true,
+    reward: validatedBody.pointsThreshold === 0
+  ? "0"
+  : String(validatedBody.reward),
   };
   console.log("🟢 Payload to DB:", payload);
 
@@ -158,26 +164,40 @@ const updateTier = catchAsync(async (req: Request, res: Response) => {
   const validatedBody = await updateTierSchema.parseAsync(body);
   console.log("🟢 Validated Body:", validatedBody);
 
+  // -----------------------------
+  // 2️⃣ Prepare Payload with reward logic
+  // -----------------------------
   const payload: any = {
     ...(validatedBody.name && { name: validatedBody.name }),
     ...(validatedBody.pointsThreshold !== undefined && { pointsThreshold: Number(validatedBody.pointsThreshold) }),
-    ...(validatedBody.reward && { reward: validatedBody.reward }),
-    ...(validatedBody.accumulationRule && { accumulationRule: validatedBody.accumulationRule }),
-    ...(validatedBody.redemptionRule && { redemptionRule: validatedBody.redemptionRule }),
-    ...(validatedBody.minTotalSpend !== undefined && { minTotalSpend: Number(validatedBody.minTotalSpend) }),
-    ...(validatedBody.isActive !== undefined && { isActive: Boolean(validatedBody.isActive) }),
   };
+
+  // 🔹 pointsThreshold === 0 হলে reward > 0 দেওয়া যাবে না
+  if (validatedBody.pointsThreshold === 0 && validatedBody.reward && Number(validatedBody.reward) > 0) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Reward cannot be more than 0 for pointsThreshold 0");
+  }
+
+  // 🔹 reward ঠিক করা
+  if (validatedBody.reward !== undefined) {
+    payload.reward = validatedBody.pointsThreshold === 0 ? 0 : validatedBody.reward;
+  }
+
+  if (validatedBody.accumulationRule) payload.accumulationRule = validatedBody.accumulationRule;
+  if (validatedBody.redemptionRule) payload.redemptionRule = validatedBody.redemptionRule;
+  if (validatedBody.minTotalSpend !== undefined) payload.minTotalSpend = Number(validatedBody.minTotalSpend);
+  if (validatedBody.isActive !== undefined) payload.isActive = Boolean(validatedBody.isActive);
+
   console.log("🟢 Payload to DB:", payload);
 
   // -----------------------------
-  // 2️⃣ Update Tier in DB
+  // 3️⃣ Update Tier in DB
   // -----------------------------
   const result = await TierService.updateTierToDB(req.params.id, payload);
   if (!result) throw new ApiError(StatusCodes.NOT_FOUND, "Tier not found");
   console.log("💾 Tier Updated:", result);
 
   // -----------------------------
-  // 3️⃣ Audit Log
+  // 4️⃣ Audit Log
   // -----------------------------
   await AuditService.createLog(
     user._id,
@@ -187,7 +207,7 @@ const updateTier = catchAsync(async (req: Request, res: Response) => {
   console.log("📝 Audit Log Created");
 
   // -----------------------------
-  // 4️⃣ Send Notifications to Merchant's Customers (Sell model)
+  // 5️⃣ Send Notifications to Merchant's Customers
   // -----------------------------
   const filterId = user.isSubMerchant ? user.merchantId : user._id;
 
@@ -203,7 +223,7 @@ const updateTier = catchAsync(async (req: Request, res: Response) => {
       .select("_id firstName socketIds");
     console.log("👥 Customers fetched:", customers.map(c => c._id));
 
-    const ids = customers.map(c => c._id.toString());
+    const ids = customers.map((c) => c._id.toString());
 
     await sendNotification({
       userIds: ids,
@@ -213,14 +233,13 @@ const updateTier = catchAsync(async (req: Request, res: Response) => {
       channel: { socket: true, push: true },
     });
 
-
     console.log(`🔔 Notifications Sent to ${customers.length} Customers`);
   } else {
     console.log("⚠️ No customers to notify");
   }
 
   // -----------------------------
-  // 5️⃣ Send Response
+  // 6️⃣ Send Response
   // -----------------------------
   sendResponse(res, {
     statusCode: StatusCodes.OK,

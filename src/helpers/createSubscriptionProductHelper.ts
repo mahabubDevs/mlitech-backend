@@ -13,7 +13,7 @@ export const createSubscriptionProduct = async (
 ): Promise<StripeProductResult> => {
   const { title, price, duration, description } = payload;
 
-  // 🔹 price = 0 allowed, only undefined/null check
+  // 🔹 Validation
   if (!title || price === undefined || price === null || !duration) {
     throw new ApiError(
       StatusCodes.BAD_REQUEST,
@@ -21,7 +21,7 @@ export const createSubscriptionProduct = async (
     );
   }
 
-  // 🔹 Handle free plan (price = 0)
+  // 🔹 Free plan handle
   if (price === 0) {
     return {
       productId: "FREE_PLAN",
@@ -35,17 +35,40 @@ export const createSubscriptionProduct = async (
     description: description ?? "",
   });
 
-  // 2️⃣ Determine interval
-  let interval: "month" | "year" = duration.toLowerCase().includes("year")
-    ? "year"
-    : "month";
+  // =========================
+  // ✅ FIX START
+  // =========================
 
-  // 3️⃣ Create Stripe Price
+  // 🔹 Extract number from duration (e.g. "4 months" → 4)
+  const durationNumber = parseInt(
+    duration.toString().match(/\d+/)?.[0] || "1"
+  );
+
+  // 🔹 Normalize duration string
+  const lowerDuration = duration.toLowerCase();
+
+  // 🔹 Detect interval type
+  let interval: "month" | "year" = "month";
+
+  if (lowerDuration.includes("year")) {
+    interval = "year";
+  } else if (lowerDuration.includes("month")) {
+    interval = "month";
+  }
+
+  // =========================
+  // ✅ FIX END
+  // =========================
+
+  // 2️⃣ Create Stripe Price (🔥 MAIN FIX HERE)
   const stripePrice = await stripe.prices.create({
     product: product.id,
     unit_amount: Math.round(price * 100), // cents
     currency: "usd",
-    recurring: { interval },
+    recurring: {
+      interval,
+      interval_count: durationNumber, // ✅ FIX: supports 4 months, 2 years, etc.
+    },
   });
 
   return {

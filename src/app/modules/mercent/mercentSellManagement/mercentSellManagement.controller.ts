@@ -87,7 +87,6 @@ const requestApproval = catchAsync(async (req: Request, res: Response) => {
 
   const user = req.user as IUser;
 
-  console.log("Request Approval body:", req.body);
 
   // ✅ Determine merchant ID based on user role
   const merchantId = user.isSubMerchant ? user.merchantId : user._id;
