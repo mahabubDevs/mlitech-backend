@@ -353,7 +353,7 @@ const checkout = async (
   let pointsEarned = parseFloat((eligibleAmount / POINT_EARN_RATE).toFixed(4));
 
  
-  if (upcomingTier && (eligibleAmount + (digitalCard.lifeTimeEarnPoints || 0) >= upcomingTier.pointsThreshold)) {
+  if (upcomingTier && (eligibleAmount / POINT_EARN_RATE + (digitalCard.lifeTimeEarnPoints || 0) >= upcomingTier.pointsThreshold)) {
    
     const additionalRewardPoints = Number(upcomingTier.reward) || 0;
 
