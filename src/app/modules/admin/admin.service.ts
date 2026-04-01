@@ -211,7 +211,7 @@ const getAllCustomers = async (query: Record<string, unknown>) => {
   const pointsMap: Record<string, number> = {};
   digitalCards.forEach((card) => {
     const userId = card.userId.toString();
-    pointsMap[userId] = (pointsMap[userId] || 0) + (card.lifeTimeEarnPoints || 0);
+    pointsMap[userId] = (pointsMap[userId] || 0) + (card.availablePoints || 0);
   });
 
   const now = new Date();
