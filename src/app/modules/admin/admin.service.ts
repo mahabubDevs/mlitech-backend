@@ -76,10 +76,106 @@ const updateUserStatus = async (id: string, status: USER_STATUS) => {
 
 
 
+// const getAllCustomers = async (query: Record<string, unknown>) => {
+//   console.log("📥 Query:", query);
+
+//   // 1️⃣ Fetch base users
+//   const baseQuery = User.find({ role: "USER" }).select(
+//     "customUserId firstName lastName phone email status address referredInfo.referredBy subscription"
+//   );
+
+//   const allCustomersQuery = new QueryBuilder(baseQuery, query)
+//     .search(["firstName", "lastName", "email", "phone", "customUserId", "address"])
+//     .filter()
+//     .paginate()
+//     .sort();
+
+//   const [allcustomers, pagination] = await Promise.all([
+//     allCustomersQuery.modelQuery.lean<any[]>(),
+//     allCustomersQuery.getPaginationInfo(),
+//   ]);
+
+//   console.log("👥 Total Customers:", allcustomers.length);
+
+//   const userIds = allcustomers.map((u: any) => u._id.toString());
+//   console.log("🆔 User IDs:", userIds);
+
+//   // 2️⃣ Fetch latest subscriptions per user
+//   const subscriptions = await Subscription.find({
+//     user: { $in: userIds },
+//   })
+//     .sort({ currentPeriodEnd: -1 })
+//     .lean();
+
+//   const subscriptionMap: Record<string, any> = {};
+//   subscriptions.forEach((sub) => {
+//     const userId = sub.user.toString();
+//     if (!subscriptionMap[userId]) subscriptionMap[userId] = sub;
+//   });
+
+//   // 3️⃣ Fetch total points per user from DigitalCard
+//   const digitalCards = await DigitalCard.find({ userId: { $in: userIds } }).lean();
+//   const pointsMap: Record<string, number> = {};
+//   digitalCards.forEach((card) => {
+//     const userId = card.userId.toString();
+//     pointsMap[userId] = (pointsMap[userId] || 0) + (card.lifeTimeEarnPoints || 0);
+//   });
+
+//   // 4️⃣ Fetch total sell amount per user
+//   const sells = await Sell.find({ userId: { $in: userIds }, status: "completed" }).lean();
+//   const sellMap: Record<string, number> = {};
+//   sells.forEach((sell) => {
+//     if (sell.userId) {
+//       const userId = sell.userId.toString();
+//       sellMap[userId] = (sellMap[userId] || 0) + (Number(sell.totalBill) || 0);
+//     }
+//   });
+
+//   const now = new Date();
+
+//   // 5️⃣ Merge subscription, points, and total sell into user
+//   const customersWithData = allcustomers.map((user) => {
+//     const subData = subscriptionMap[user._id.toString()] || null;
+
+//     const isActive =
+//       subData &&
+//       subData.status === "active" &&
+//       new Date(subData.currentPeriodEnd) > now;
+
+//     return {
+//       ...user,
+//       subscriptionData: subData
+//         ? {
+//             currentPeriodStart: subData.currentPeriodStart,
+//             currentPeriodEnd: subData.currentPeriodEnd,
+//             status: subData.status,
+//             price: subData.price,
+//             package: subData.package,
+//           }
+//         : null,
+//       subscription: isActive ? "active" : "inActive",
+//       totalPoints: pointsMap[user._id.toString()] || 0,
+//       totalSellAmount: sellMap[user._id.toString()] || 0,
+//     };
+//   });
+
+//   console.log(
+//     "🎯 Final Customers with Points & Sell:",
+//     JSON.stringify(customersWithData, null, 2)
+//   );
+
+//   return {
+//     allcustomers: customersWithData,
+//     pagination,
+//   };
+// };
+
+
+
 const getAllCustomers = async (query: Record<string, unknown>) => {
   console.log("📥 Query:", query);
 
-  // 1️⃣ Fetch base users
+  // 1️⃣ Fetch base users (same as your getAllCustomers)
   const baseQuery = User.find({ role: "USER" }).select(
     "customUserId firstName lastName phone email status address referredInfo.referredBy subscription"
   );
@@ -95,12 +191,9 @@ const getAllCustomers = async (query: Record<string, unknown>) => {
     allCustomersQuery.getPaginationInfo(),
   ]);
 
-  console.log("👥 Total Customers:", allcustomers.length);
-
   const userIds = allcustomers.map((u: any) => u._id.toString());
-  console.log("🆔 User IDs:", userIds);
 
-  // 2️⃣ Fetch latest subscriptions per user
+  // 2️⃣ Subscriptions
   const subscriptions = await Subscription.find({
     user: { $in: userIds },
   })
@@ -113,7 +206,7 @@ const getAllCustomers = async (query: Record<string, unknown>) => {
     if (!subscriptionMap[userId]) subscriptionMap[userId] = sub;
   });
 
-  // 3️⃣ Fetch total points per user from DigitalCard
+  // 3️⃣ Points
   const digitalCards = await DigitalCard.find({ userId: { $in: userIds } }).lean();
   const pointsMap: Record<string, number> = {};
   digitalCards.forEach((card) => {
@@ -121,109 +214,222 @@ const getAllCustomers = async (query: Record<string, unknown>) => {
     pointsMap[userId] = (pointsMap[userId] || 0) + (card.lifeTimeEarnPoints || 0);
   });
 
-  // 4️⃣ Fetch total sell amount per user
-  const sells = await Sell.find({ userId: { $in: userIds }, status: "completed" }).lean();
-  const sellMap: Record<string, number> = {};
-  sells.forEach((sell) => {
-    if (sell.userId) {
-      const userId = sell.userId.toString();
-      sellMap[userId] = (sellMap[userId] || 0) + (Number(sell.totalBill) || 0);
-    }
-  });
-
   const now = new Date();
 
-  // 5️⃣ Merge subscription, points, and total sell into user
-  const customersWithData = allcustomers.map((user) => {
-    const subData = subscriptionMap[user._id.toString()] || null;
+  // 4️⃣ Combine sells per user (paginated per customer)
+  const customersWithData = await Promise.all(
+    allcustomers.map(async (user) => {
+      const subData = subscriptionMap[user._id.toString()] || null;
+      const isActive =
+        subData &&
+        subData.status === "active" &&
+        new Date(subData.currentPeriodEnd) > now;
 
-    const isActive =
-      subData &&
-      subData.status === "active" &&
-      new Date(subData.currentPeriodEnd) > now;
+      // Fetch sells per customer
+      const sellResult = await getCustomerSellDetails(user._id.toString(), query);
 
-    return {
-      ...user,
-      subscriptionData: subData
-        ? {
-            currentPeriodStart: subData.currentPeriodStart,
-            currentPeriodEnd: subData.currentPeriodEnd,
-            status: subData.status,
-            price: subData.price,
-            package: subData.package,
-          }
-        : null,
-      subscription: isActive ? "active" : "inActive",
-      totalPoints: pointsMap[user._id.toString()] || 0,
-      totalSellAmount: sellMap[user._id.toString()] || 0,
-    };
-  });
-
-  console.log(
-    "🎯 Final Customers with Points & Sell:",
-    JSON.stringify(customersWithData, null, 2)
+      return {
+        ...user,
+        subscriptionData: subData
+          ? {
+              currentPeriodStart: subData.currentPeriodStart,
+              currentPeriodEnd: subData.currentPeriodEnd,
+              status: subData.status,
+              price: subData.price,
+              package: subData.package,
+            }
+          : null,
+        subscription: isActive ? "active" : "inActive",
+        totalPoints: pointsMap[user._id.toString()] || 0,
+        totalSellAmount: sellResult.data.reduce(
+          (sum, s) => sum + (s.totalBill || 0),
+          0
+        ),
+        sells: sellResult.data, // attach sells array
+        sellsPagination: sellResult.pagination,
+      };
+    })
   );
 
   return {
     allcustomers: customersWithData,
-    pagination,
+    pagination, // customer pagination
   };
 };
 
+
+
+
+// const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
+//   const { address, service, radius, favorite, ...rest } = query;
+//   const userId = user?._id;
+
+//   // 1️⃣ Database থেকে user location fetch
+//   const userData = await User.findById(userId).select("location").lean();
+//   const userLocation = userData?.location;
+
+//   // 2️⃣ Base query
+//   let baseQuery = User.find({ role: USER_ROLES.MERCENT, verified: true });
+
+//   const allMerchantsQuery = new QueryBuilder(baseQuery, rest)
+//     .search([
+//       "firstName",
+//       "lastName",
+//       "email",
+//       "phone",
+//       "businessName",
+//       "service",
+//       "address",
+//       "customUserId",
+//       "location",
+//       "country",
+//       "city",
+//     ])
+//     .filter()
+//     .sort()
+//     .paginate();
+
+//   // 3️⃣ Address filter
+//   if (address) {
+//     allMerchantsQuery.modelQuery = allMerchantsQuery.modelQuery.find({
+//       address: { $regex: address as string, $options: "i" },
+//     });
+//   }
+
+//   // 4️⃣ Service filter
+//   if (service) {
+//     const serviceWords = (service as string).split(/\s+|,/);
+//     allMerchantsQuery.modelQuery = allMerchantsQuery.modelQuery.find({
+//       $or: serviceWords.map((word) => ({
+//         service: { $regex: word, $options: "i" },
+//       })),
+//     });
+//   }
+
+//   // 5️⃣ Radius filter
+//   if (userLocation && radius) {
+//     allMerchantsQuery.modelQuery = allMerchantsQuery.modelQuery.find({
+//       location: {
+//         $geoWithin: {
+//           $centerSphere: [userLocation.coordinates, Number(radius) / 6378.1],
+//         },
+//       },
+//     });
+//   }
+
+//   // 6️⃣ Fetch merchants, pagination, favorites
+//   const [allmerchants, pagination, favorites] = await Promise.all([
+//     allMerchantsQuery.modelQuery.lean(),
+//     allMerchantsQuery.getPaginationInfo(),
+//     Favorite.find({ userId }).select("merchantId").lean(),
+//   ]);
+
+//   const favoriteMap = new Set(favorites.map((f) => f.merchantId.toString()));
+//   const merchantIds = allmerchants.map((m) => m._id);
+
+//   // 7️⃣ Fetch average rating for each merchant from user ratings
+//   const ratingsAgg = await Rating.aggregate([
+//     { $match: { merchantId: { $in: merchantIds } } },
+//     {
+//       $group: {
+//         _id: "$merchantId",
+//         avgRating: { $avg: "$rating" }, // শুধু ওই merchant কে rating দেওয়া user দের average
+//         ratingCount: { $sum: 1 },       // কতজন user rating দিয়েছে
+//       },
+//     },
+//   ]);
+
+//   const ratingMap = new Map<string, { avgRating: number; ratingCount: number }>();
+//   ratingsAgg.forEach((r) =>
+//     ratingMap.set(r._id.toString(), {
+//       avgRating: parseFloat(r.avgRating.toFixed(1)),
+//       ratingCount: r.ratingCount,
+//     })
+//   );
+
+//   // 8️⃣ Fetch total completed sell per merchant
+//   const salesAgg = await Sell.aggregate([
+//     {
+//       $match: {
+//         merchantId: { $in: merchantIds },
+//         status: "completed",
+//       },
+//     },
+//     {
+//       $group: {
+//         _id: "$merchantId",
+//         totalRevenue: { $sum: "$discountedBill" },
+//         totalTransactions: { $sum: 1 },
+//       },
+//     },
+//   ]);
+
+//   const salesMap = new Map<string, { totalRevenue: number; totalTransactions: number }>();
+//   salesAgg.forEach((s) =>
+//     salesMap.set(s._id.toString(), {
+//       totalRevenue: s.totalRevenue,
+//       totalTransactions: s.totalTransactions,
+//     })
+//   );
+
+//   // 9️⃣ Combine all info
+//   let merchantsWithFavorite = allmerchants.map((merchant) => {
+//     const merchantIdStr = (merchant._id as any).toString();
+//     const salesData = salesMap.get(merchantIdStr);
+//     const ratingData = ratingMap.get(merchantIdStr);
+
+//     return {
+//       ...merchant,
+//       isFavorite: favoriteMap.has(merchantIdStr),
+//       rating: ratingData?.avgRating || 0,       // user rating average
+//       ratingCount: ratingData?.ratingCount || 0, // কতজন user rating দিয়েছে
+//       totalRevenue: salesData?.totalRevenue || 0,
+//       totalTransactions: salesData?.totalTransactions || 0,
+//     };
+//   });
+
+//   if (favorite === "true") {
+//     merchantsWithFavorite = merchantsWithFavorite.filter((m) => m.isFavorite);
+//   }
+
+//   return { allmerchants: merchantsWithFavorite, pagination };
+// };
+
+
+//============merchant export service ============//
+
 const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
-  const { address, service, radius, favorite, ...rest } = query;
+  const { address, service, radius, favorite, limit = 10, page = 1, ...rest } = query;
   const userId = user?._id;
 
-  // 1️⃣ Database থেকে user location fetch
+  // 1️⃣ Fetch user location
   const userData = await User.findById(userId).select("location").lean();
   const userLocation = userData?.location;
 
   // 2️⃣ Base query
   let baseQuery = User.find({ role: USER_ROLES.MERCENT, verified: true });
-
   const allMerchantsQuery = new QueryBuilder(baseQuery, rest)
     .search([
-      "firstName",
-      "lastName",
-      "email",
-      "phone",
-      "businessName",
-      "service",
-      "address",
-      "customUserId",
-      "location",
-      "country",
-      "city",
+      "firstName", "lastName", "email", "phone", "businessName",
+      "service", "address", "customUserId", "location", "country", "city"
     ])
     .filter()
     .sort()
     .paginate();
 
   // 3️⃣ Address filter
-  if (address) {
-    allMerchantsQuery.modelQuery = allMerchantsQuery.modelQuery.find({
-      address: { $regex: address as string, $options: "i" },
-    });
-  }
+  if (address) allMerchantsQuery.modelQuery = allMerchantsQuery.modelQuery.find({ address: { $regex: address as string, $options: "i" } });
 
   // 4️⃣ Service filter
   if (service) {
     const serviceWords = (service as string).split(/\s+|,/);
-    allMerchantsQuery.modelQuery = allMerchantsQuery.modelQuery.find({
-      $or: serviceWords.map((word) => ({
-        service: { $regex: word, $options: "i" },
-      })),
-    });
+    allMerchantsQuery.modelQuery = allMerchantsQuery.modelQuery.find({ $or: serviceWords.map(word => ({ service: { $regex: word, $options: "i" } })) });
   }
 
   // 5️⃣ Radius filter
   if (userLocation && radius) {
     allMerchantsQuery.modelQuery = allMerchantsQuery.modelQuery.find({
-      location: {
-        $geoWithin: {
-          $centerSphere: [userLocation.coordinates, Number(radius) / 6378.1],
-        },
-      },
+      location: { $geoWithin: { $centerSphere: [userLocation.coordinates, Number(radius) / 6378.1] } }
     });
   }
 
@@ -234,79 +440,67 @@ const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
     Favorite.find({ userId }).select("merchantId").lean(),
   ]);
 
-  const favoriteMap = new Set(favorites.map((f) => f.merchantId.toString()));
-  const merchantIds = allmerchants.map((m) => m._id);
+  const favoriteMap = new Set(favorites.map(f => f.merchantId.toString()));
+  const merchantIds = allmerchants.map(m => m._id);
 
-  // 7️⃣ Fetch average rating for each merchant from user ratings
+  // 7️⃣ Fetch ratings
   const ratingsAgg = await Rating.aggregate([
     { $match: { merchantId: { $in: merchantIds } } },
-    {
-      $group: {
-        _id: "$merchantId",
-        avgRating: { $avg: "$rating" }, // শুধু ওই merchant কে rating দেওয়া user দের average
-        ratingCount: { $sum: 1 },       // কতজন user rating দিয়েছে
-      },
-    },
+    { $group: { _id: "$merchantId", avgRating: { $avg: "$rating" }, ratingCount: { $sum: 1 } } }
   ]);
 
   const ratingMap = new Map<string, { avgRating: number; ratingCount: number }>();
-  ratingsAgg.forEach((r) =>
-    ratingMap.set(r._id.toString(), {
-      avgRating: parseFloat(r.avgRating.toFixed(1)),
-      ratingCount: r.ratingCount,
-    })
-  );
+  ratingsAgg.forEach(r => ratingMap.set(r._id.toString(), { avgRating: parseFloat(r.avgRating.toFixed(1)), ratingCount: r.ratingCount }));
 
-  // 8️⃣ Fetch total completed sell per merchant
+  // 8️⃣ Fetch total revenue & transactions
   const salesAgg = await Sell.aggregate([
-    {
-      $match: {
-        merchantId: { $in: merchantIds },
-        status: "completed",
-      },
-    },
-    {
-      $group: {
-        _id: "$merchantId",
-        totalRevenue: { $sum: "$discountedBill" },
-        totalTransactions: { $sum: 1 },
-      },
-    },
+    { $match: { merchantId: { $in: merchantIds }, status: "completed" } },
+    { $group: { _id: "$merchantId", totalRevenue: { $sum: "$discountedBill" }, totalTransactions: { $sum: 1 } } }
   ]);
 
   const salesMap = new Map<string, { totalRevenue: number; totalTransactions: number }>();
-  salesAgg.forEach((s) =>
-    salesMap.set(s._id.toString(), {
-      totalRevenue: s.totalRevenue,
-      totalTransactions: s.totalTransactions,
-    })
-  );
+  salesAgg.forEach(s => salesMap.set(s._id.toString(), { totalRevenue: s.totalRevenue, totalTransactions: s.totalTransactions }));
 
-  // 9️⃣ Combine all info
-  let merchantsWithFavorite = allmerchants.map((merchant) => {
+  // 9️⃣ Fetch all customer stats
+  const customerStatsAgg = await Sell.aggregate([
+    { $match: { merchantId: { $in: merchantIds }, status: "completed" } },
+    { $group: { _id: { merchantId: "$merchantId", userId: "$userId" }, totalSellAmount: { $sum: "$totalBill" }, totalEarnedPoints: { $sum: "$pointsEarned" }, totalRedeemedPoints: { $sum: "$pointRedeemed" }, totalTransactions: { $sum: 1 } } },
+    { $lookup: { from: "users", localField: "_id.userId", foreignField: "_id", as: "user" } },
+    { $unwind: "$user" },
+    { $project: { merchantId: "$_id.merchantId", userId: "$_id.userId", customUserId: "$user.customUserId", name: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] }, email: "$user.email", totalSellAmount: 1, totalEarnedPoints: 1, totalRedeemedPoints: 1, totalTransactions: 1 } }
+  ]);
+
+  const customerStatsMap = new Map<string, any[]>();
+  customerStatsAgg.forEach(stat => {
+    const key = stat.merchantId.toString();
+    if (!customerStatsMap.has(key)) customerStatsMap.set(key, []);
+    customerStatsMap.get(key)!.push(stat);
+  });
+
+  // 10️⃣ Combine merchants with all customers
+  let merchantsWithFavorite = allmerchants.map(merchant => {
     const merchantIdStr = (merchant._id as any).toString();
     const salesData = salesMap.get(merchantIdStr);
     const ratingData = ratingMap.get(merchantIdStr);
+    const allCustomers = customerStatsMap.get(merchantIdStr) || []; // ✅ all customers
 
     return {
       ...merchant,
       isFavorite: favoriteMap.has(merchantIdStr),
-      rating: ratingData?.avgRating || 0,       // user rating average
-      ratingCount: ratingData?.ratingCount || 0, // কতজন user rating দিয়েছে
+      rating: ratingData?.avgRating || 0,
+      ratingCount: ratingData?.ratingCount || 0,
       totalRevenue: salesData?.totalRevenue || 0,
       totalTransactions: salesData?.totalTransactions || 0,
+      customers: allCustomers
     };
   });
 
-  if (favorite === "true") {
-    merchantsWithFavorite = merchantsWithFavorite.filter((m) => m.isFavorite);
-  }
+  if (favorite === "true") merchantsWithFavorite = merchantsWithFavorite.filter(m => m.isFavorite);
 
   return { allmerchants: merchantsWithFavorite, pagination };
 };
 
 
-//============merchant export service ============//
 const exportMerchants = async (
   query: Record<string, unknown>
 ): Promise<Buffer> => {
@@ -801,6 +995,8 @@ const getCustomerSellDetails = async (
     pagination,
   };
 };
+
+
 
 
 
