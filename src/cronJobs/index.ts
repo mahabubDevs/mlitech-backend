@@ -30,7 +30,7 @@ export const startCronJobs = () => {
       }
     });
 // 🔹 Subscription Expire Check → প্রতি রাত ৩টা
-    cron.schedule("45 14 * * *", async () => {
+    cron.schedule("59 11 * * *", async () => {
       try {
         logger.info("[CRON] Subscription expire job started");
         await expireSubscriptionsJob();
