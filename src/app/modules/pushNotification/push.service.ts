@@ -142,15 +142,15 @@ const sendNotificationToAllUsers = async (
 
 
 const sendMerchantPromotion = async (payload: any, merchantId: string) => {
-  const { message, image, target, filters, mediaUrl } = payload;
+  const { title, message, image, target, filters, state, country, city, tier, subscriptionType } = payload;
 
   console.log("=================================================");
   console.log("🚀 sendMerchantPromotion START");
   console.log("🧾 Merchant ID:", merchantId);
+  console.log("📄 Payload:", payload);
   console.log("=================================================");
 
   let users: any[] = [];
-
   const allCustomer = filters?.segment === "all_customer";
 
   if (allCustomer) {
@@ -159,15 +159,17 @@ const sendMerchantPromotion = async (payload: any, merchantId: string) => {
       .select("userId availablePoints")
       .lean();
 
-    const userIds = cards
-      .map((c: any) => c.userId?._id)
-      .filter(Boolean);
+    console.log("📌 Total Cards found:", cards.length);
+
+    const userIds = cards.map((c: any) => c.userId?._id).filter(Boolean);
 
     const sells = await Sell.find({
       merchantId,
       userId: { $in: userIds },
       status: "completed",
     }).lean();
+
+    console.log("📌 Total Completed Sells found:", sells.length);
 
     const sellMap: Record<string, any[]> = {};
     sells.forEach((sell: any) => {
@@ -183,41 +185,17 @@ const sendMerchantPromotion = async (payload: any, merchantId: string) => {
     users = cards
       .map((c: any) => {
         const user = c.userId;
+        if (!user) return null;
 
-        if (!user) {
-          console.log("❌ Missing user in card:", c);
-          return null;
-        }
-
-        const userId = user?._id?.toString();
-        if (!userId) return null;
-
+        const userId = user._id.toString();
         const userSells = sellMap[userId] || [];
-
-        const totalSpend = userSells.reduce(
-          (sum, s) => sum + (s.discountedBill || 0),
-          0
-        );
-
-        const last6MonthsPurchases = userSells.filter(
-          (s) => new Date(s.createdAt) >= last6Months
-        ).length;
+        const totalSpend = userSells.reduce((sum, s) => sum + (s.discountedBill || 0), 0);
+        const last6MonthsPurchases = userSells.filter((s) => new Date(s.createdAt) >= last6Months).length;
 
         let segment = "new_customer";
-
-        if (last6MonthsPurchases >= 20 || totalSpend >= 3 * avgSpend) {
-          segment = "vip_customer";
-        } else if (
-          last6MonthsPurchases >= 5 ||
-          totalSpend >= 1.5 * avgSpend
-        ) {
-          segment = "loyal_customer";
-        } else if (
-          userSells.length >= 2 &&
-          last6MonthsPurchases < 5
-        ) {
-          segment = "returning_customer";
-        }
+        if (last6MonthsPurchases >= 20 || totalSpend >= 3 * avgSpend) segment = "vip_customer";
+        else if (last6MonthsPurchases >= 5 || totalSpend >= 1.5 * avgSpend) segment = "loyal_customer";
+        else if (userSells.length >= 2 && last6MonthsPurchases < 5) segment = "returning_customer";
 
         return {
           userId: user._id,
@@ -228,6 +206,8 @@ const sendMerchantPromotion = async (payload: any, merchantId: string) => {
         };
       })
       .filter(Boolean);
+
+    console.log("📌 Users after mapping segments:", users.length);
   } else {
     const merchantCustomers = await MerchantCustomer.find({
       merchantId,
@@ -237,13 +217,11 @@ const sendMerchantPromotion = async (payload: any, merchantId: string) => {
       .select("customerId points segment")
       .lean();
 
+    console.log("📌 MerchantCustomers found:", merchantCustomers.length);
+
     users = merchantCustomers
       .map((mc: any) => {
-        if (!mc.customerId) {
-          console.log("❌ Missing customerId:", mc);
-          return null;
-        }
-
+        if (!mc.customerId) return null;
         return {
           userId: mc.customerId._id,
           fcmToken: mc.customerId.fcmToken,
@@ -253,15 +231,15 @@ const sendMerchantPromotion = async (payload: any, merchantId: string) => {
         };
       })
       .filter(Boolean);
+
+    console.log("📌 Users mapped from MerchantCustomer:", users.length);
   }
 
-  /* ================= FILTER ================= */
-
+  // ================= FILTER =================
   let skippedNoToken = 0;
   let skippedPoints = 0;
   let skippedRadius = 0;
   let eligibleUsers = 0;
-
   const merchantLocation = filters?.merchantLocation;
 
   const eligibleUsersData = users
@@ -271,29 +249,16 @@ const sendMerchantPromotion = async (payload: any, merchantId: string) => {
         return false;
       }
 
-      if (target?.type === "points" && filters?.minPoints !== undefined) {
-        if (u.availablePoints < filters.minPoints) {
-          skippedPoints++;
-          return false;
-        }
+      if (target?.type === "points" && filters?.minPoints !== undefined && u.availablePoints < filters.minPoints) {
+        skippedPoints++;
+        return false;
       }
 
-      if (
-        typeof filters?.radius === "number" &&
-        filters.radius !== Infinity &&
-        merchantLocation?.coordinates &&
-        u.location?.coordinates
-      ) {
+      if (typeof filters?.radius === "number" && filters.radius !== Infinity && merchantLocation?.coordinates && u.location?.coordinates) {
         const [userLng, userLat] = u.location.coordinates;
         const [centerLng, centerLat] = merchantLocation.coordinates;
 
-        const distance = getDistanceFromLatLonInKm(
-          Number(userLat),
-          Number(userLng),
-          Number(centerLat),
-          Number(centerLng)
-        );
-
+        const distance = getDistanceFromLatLonInKm(Number(userLat), Number(userLng), Number(centerLat), Number(centerLng));
         if (distance > filters.radius) {
           skippedRadius++;
           return false;
@@ -308,23 +273,24 @@ const sendMerchantPromotion = async (payload: any, merchantId: string) => {
       token: u.fcmToken,
     }));
 
+  console.log("📊 Filter Stats -> No Token:", skippedNoToken, ", Points Skipped:", skippedPoints, ", Radius Skipped:", skippedRadius, ", Eligible:", eligibleUsers);
+
   const tokens = eligibleUsersData.map((u) => u.token);
   const finalUserIds = eligibleUsersData.map((u) => u.userId);
 
-  console.log("📊 Eligible Users:", eligibleUsers);
-
   if (tokens.length === 0) {
+    console.log("⚠️ No eligible users to send push notification");
     return { sentCount: 0, failedCount: 0, message: "No customers matched" };
   }
 
-  /* ================= FIREBASE ================= */
+  // ================= FIREBASE =================
+  console.log("📩 Sending Firebase notification to tokens:", tokens.length);
 
   const firebaseMessage = {
     notification: {
-      title: "Promotion",
+      title,
       body: message,
       image,
-      mediaUrl,
     },
     data: {
       type: "promotion",
@@ -333,23 +299,42 @@ const sendMerchantPromotion = async (payload: any, merchantId: string) => {
     tokens,
   };
 
-  const response = await admin
-    .messaging()
-    .sendEachForMulticast(firebaseMessage);
+  const response = await admin.messaging().sendEachForMulticast(firebaseMessage);
+  console.log("📩 Firebase Response:", response);
 
+  // ================= SOCKET NOTIFICATION =================
   await sendNotification({
     userIds: finalUserIds,
-    title: "Promotion",
+    title,
     body: message,
     type: NotificationType.PROMOTION,
     metadata: { merchantId },
     attachments: image ? [image] : [],
     channel: { socket: true, push: false },
   });
+  console.log("🔔 Socket notifications sent");
+
+  // ================= DB STORE =================
+  const pushDoc = await Push.create({
+    title,
+    body: message,
+    state,
+    country,
+    city,
+    tier,
+    subscriptionType,
+    status: "sent",
+    createdBy: merchantId,
+    sentCount: response.successCount,
+    failedCount: response.failureCount,
+    mediaUrl: image,
+  });
+  console.log("💾 Push record saved in DB:", pushDoc._id);
 
   return {
     sentCount: response.successCount,
     failedCount: response.failureCount,
+    dbRecord: pushDoc,
   };
 };
 

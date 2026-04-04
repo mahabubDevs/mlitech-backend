@@ -4,7 +4,7 @@ const pushSchema = new Schema(
   {
     title: { type: String, required: true },
     body: { type: String, required: true },
-    state: { type: String, required: true },
+    state: { type: String,  },
     country: { type: String },
     city: { type: String }, // নতুন ফিল্ড
     tier: { type: String },

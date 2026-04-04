@@ -878,6 +878,11 @@ const getMerchantDigitalCardWithPromotions = async (
 
       console.log("   📅 Date check:", { today, startDate, endDate });
 
+      if (today < startDate) {
+        console.log("   ❌ Promotion not started yet");
+        return null;
+      }
+
       // ⛔ End date finished → invalid
       if (today > endDate) {
         console.log("   ❌ Promotion expired");

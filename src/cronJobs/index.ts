@@ -4,6 +4,7 @@ import { updateMerchantVipCustomersJob } from "./vipCustomer";
 import { downgradeInactiveTiers } from "./updateMerchantVipCustomersJob";
 import { cleanupExpiredSells } from "./cleanupExpiredSells";
 import { expireSubscriptionsJob } from "./expairdSubscripon";
+import { expireReminderSubscriptionsJob } from "./expairdRemaindaerSubscription";
  // তোমার cron logic function
 
 export const startCronJobs = () => {
@@ -30,10 +31,22 @@ export const startCronJobs = () => {
       }
     });
 // 🔹 Subscription Expire Check → প্রতি রাত ৩টা
-    cron.schedule("59 11 * * *", async () => {
+    cron.schedule("39 14 * * *", async () => {
       try {
         logger.info("[CRON] Subscription expire job started");
         await expireSubscriptionsJob();
+        logger.info("[CRON] Subscription expire job finished");
+      } catch (error) {
+        logger.error("[CRON] Subscription expire job failed", error);
+      }
+    });
+
+
+    // 🔹 Subscription Expire & Reminder → রাত ৩টা
+    cron.schedule("0 3 * * *", async () => {
+      try {
+        logger.info("[CRON] Subscription expire job started");
+        await expireReminderSubscriptionsJob(); // এখানে reminder logic থাকবে
         logger.info("[CRON] Subscription expire job finished");
       } catch (error) {
         logger.error("[CRON] Subscription expire job failed", error);
