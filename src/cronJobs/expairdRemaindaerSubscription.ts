@@ -1,34 +1,53 @@
- // আগের তোমার তৈরি ফাইল
-
 import { NotificationType } from "../app/modules/notification/notification.model";
 import { Subscription } from "../app/modules/subscription/subscription.model";
 import { sendNotification } from "../helpers/notificationsHelper";
 
 export const expireReminderSubscriptionsJob = async () => {
-  const today = new Date();
+  try {
+    const today = new Date();
+    // Normalize today to midnight UTC
+    const startOfToday = new Date(today);
+    startOfToday.setUTCHours(0, 0, 0, 0);
 
-  // Active subscriptions
-  const subscriptions = await Subscription.find({ status: "active" });
+    console.log("[CRON] Expire reminder job started at:", today.toISOString());
+    console.log("[CRON] Start of today (UTC):", startOfToday.toISOString());
 
-  // Reminder for 30, 15, 7 days
-  const reminderDays = [30, 15, 7];
+    const reminderDays = [30, 15, 7];
 
-  for (const subscription of subscriptions) {
-    const daysLeft = Math.ceil(
-      (((subscription as any).endDate as Date).getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-    );
+    // Fetch all active subscriptions
+    const subscriptions = await Subscription.find({ status: "active" }).select("user currentPeriodEnd");
+    console.log(`[CRON] Total active subscriptions fetched: ${subscriptions.length}`);
 
-    if (!reminderDays.includes(daysLeft)) continue;
+    for (const sub of subscriptions) {
+      const endDate = new Date(sub.currentPeriodEnd);
+      // Calculate remaining days
+      const remainingDays = Math.ceil((endDate.getTime() - startOfToday.getTime()) / (1000 * 60 * 60 * 24));
 
-    const title = `Your subscription expires in ${daysLeft} days`;
-    const body = `Hello! Your subscription will expire in ${daysLeft} days. Please renew to continue enjoying our service.`;
+      console.log(`[CRON] Subscription ${sub._id} for user ${sub.user} ends at ${endDate.toISOString()}, remainingDays: ${remainingDays}`);
 
-    await sendNotification({
-      userIds: [subscription.user],
-      title,
-      body,
-      type: NotificationType.MANUAL, // তোমার NotificationType অনুযায়ী
-      channel: { socket: true, push: false }, // push enable করতে পারো
-    });
+      if (!reminderDays.includes(remainingDays)) {
+        console.log(`[CRON] Skipping subscription ${sub._id}, remainingDays ${remainingDays} not in [30,15,7]`);
+        continue;
+      }
+
+      const title = `Your subscription expires in ${remainingDays} days`;
+      const body = `Hello! Your subscription will expire in ${remainingDays} days. Please renew to continue enjoying our service.`;
+
+      console.log(`[CRON] Sending ${remainingDays}-day reminder to user: ${sub.user}`);
+
+      await sendNotification({
+        userIds: [sub.user],
+        title,
+        body,
+        type: NotificationType.MANUAL,
+        channel: { socket: true, push: false },
+      });
+
+      console.log(`[CRON] Reminder sent for subscription ${sub._id}`);
+    }
+
+    console.log("[CRON] Expire reminder job finished at:", new Date().toISOString());
+  } catch (error) {
+    console.error("[CRON] Expire reminder error:", error);
   }
 };

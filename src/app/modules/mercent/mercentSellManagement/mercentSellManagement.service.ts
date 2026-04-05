@@ -372,12 +372,15 @@ const checkout = async (
     }
 
     // 🔥 NEW: apply correct reward (only highest tier)
-    if (achievedTier) {
+    if (achievedTier && !digitalCard.hasReceivedFirstReward) {
       const additionalRewardPoints = Number(achievedTier.reward) || 0;
 
       pointsEarned = parseFloat(
         (pointsEarned + additionalRewardPoints).toFixed(4)
       );
+
+      // ✅ mark as reward given
+      digitalCard.hasReceivedFirstReward = true;
     }
 
     console.log("🔹 Points Earned:", pointsEarned);
