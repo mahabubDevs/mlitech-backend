@@ -406,18 +406,14 @@ const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
     favorite,
     limit = 10,
     page = 1,
-
-    // ✅ NEW (customer pagination)
     customerPage = 1,
     customerLimit = 5,
-
     ...rest
   } = query;
 
   const userId = user?._id;
 
-  const customerSkip =
-    (Number(customerPage) - 1) * Number(customerLimit);
+  const customerSkip = (Number(customerPage) - 1) * Number(customerLimit);
 
   // 1️⃣ User location
   const userData = await User.findById(userId).select("location").lean();
@@ -429,7 +425,30 @@ const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
     verified: true,
   });
 
-  const allMerchantsQuery = new QueryBuilder(baseQuery, rest)
+  // 3️⃣ Filters applied আগে
+  if (address) {
+    baseQuery = baseQuery.find({ address: { $regex: address as string, $options: "i" } });
+  }
+
+  if (service) {
+    const serviceWords = (service as string).split(/\s+|,/);
+    baseQuery = baseQuery.find({
+      $or: serviceWords.map((word) => ({ service: { $regex: word, $options: "i" } })),
+    });
+  }
+
+  if (userLocation && radius) {
+    baseQuery = baseQuery.find({
+      location: {
+        $geoWithin: {
+          $centerSphere: [userLocation.coordinates, Number(radius) / 6378.1],
+        },
+      },
+    });
+  }
+
+  // 4️⃣ QueryBuilder-এ limit/page পাঠাও
+  const allMerchantsQuery = new QueryBuilder(baseQuery, { ...rest, limit, page })
     .search([
       "firstName",
       "lastName",
@@ -447,234 +466,81 @@ const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
     .sort()
     .paginate();
 
-  // 3️⃣ Address filter
-  if (address) {
-    allMerchantsQuery.modelQuery =
-      allMerchantsQuery.modelQuery.find({
-        address: { $regex: address as string, $options: "i" },
-      });
-  }
-
-  // 4️⃣ Service filter
-  if (service) {
-    const serviceWords = (service as string).split(/\s+|,/);
-
-    allMerchantsQuery.modelQuery =
-      allMerchantsQuery.modelQuery.find({
-        $or: serviceWords.map((word) => ({
-          service: { $regex: word, $options: "i" },
-        })),
-      });
-  }
-
-  // 5️⃣ Radius filter
-  if (userLocation && radius) {
-    allMerchantsQuery.modelQuery =
-      allMerchantsQuery.modelQuery.find({
-        location: {
-          $geoWithin: {
-            $centerSphere: [
-              userLocation.coordinates,
-              Number(radius) / 6378.1,
-            ],
-          },
-        },
-      });
-  }
-
-  // 6️⃣ Fetch merchants + pagination + favorites
+  // 5️⃣ Fetch merchants, pagination, favorites
   const [allmerchants, pagination, favorites] = await Promise.all([
     allMerchantsQuery.modelQuery.lean(),
     allMerchantsQuery.getPaginationInfo(),
     Favorite.find({ userId }).select("merchantId").lean(),
   ]);
 
-  const favoriteMap = new Set(
-    favorites.map((f) => f.merchantId.toString())
-  );
-
+  const favoriteMap = new Set(favorites.map((f) => f.merchantId.toString()));
   const merchantIds = allmerchants.map((m) => m._id);
 
-  // 7️⃣ Ratings
+  // 6️⃣ Ratings
   const ratingsAgg = await Rating.aggregate([
     { $match: { merchantId: { $in: merchantIds } } },
-    {
-      $group: {
-        _id: "$merchantId",
-        avgRating: { $avg: "$rating" },
-        ratingCount: { $sum: 1 },
-      },
-    },
+    { $group: { _id: "$merchantId", avgRating: { $avg: "$rating" }, ratingCount: { $sum: 1 } } },
   ]);
 
   const ratingMap = new Map();
   ratingsAgg.forEach((r) =>
-    ratingMap.set(r._id.toString(), {
-      avgRating: parseFloat(r.avgRating.toFixed(1)),
-      ratingCount: r.ratingCount,
-    })
+    ratingMap.set(r._id.toString(), { avgRating: parseFloat(r.avgRating.toFixed(1)), ratingCount: r.ratingCount })
   );
 
-  // 8️⃣ Sales summary
+  // 7️⃣ Sales summary
   const salesAgg = await Sell.aggregate([
-    {
-      $match: {
-        merchantId: { $in: merchantIds },
-        status: "completed",
-      },
-    },
-    {
-      $group: {
-        _id: "$merchantId",
-        totalRevenue: { $sum: "$discountedBill" },
-        totalTransactions: { $sum: 1 },
-      },
-    },
+    { $match: { merchantId: { $in: merchantIds }, status: "completed" } },
+    { $group: { _id: "$merchantId", totalRevenue: { $sum: "$discountedBill" }, totalTransactions: { $sum: 1 } } },
   ]);
 
   const salesMap = new Map();
   salesAgg.forEach((s) =>
-    salesMap.set(s._id.toString(), {
-      totalRevenue: s.totalRevenue,
-      totalTransactions: s.totalTransactions,
-    })
+    salesMap.set(s._id.toString(), { totalRevenue: s.totalRevenue, totalTransactions: s.totalTransactions })
   );
 
-  // 9️⃣ Customer-wise stats WITH pagination 🔥
+  // 8️⃣ Customer-wise stats WITH pagination
   const customerStatsAgg = await Sell.aggregate([
-    {
-      $match: {
-        merchantId: { $in: merchantIds },
-        status: "completed",
-      },
-    },
-
-    {
-      $group: {
-        _id: {
-          merchantId: "$merchantId",
-          userId: "$userId",
-        },
-        totalSellAmount: { $sum: "$totalBill" },
-        totalEarnedPoints: { $sum: "$pointsEarned" },
-        totalRedeemedPoints: { $sum: "$pointRedeemed" },
-        totalTransactions: { $sum: 1 },
-      },
-    },
-
-    {
-      $lookup: {
-        from: "users",
-        localField: "_id.userId",
-        foreignField: "_id",
-        as: "user",
-      },
-    },
+    { $match: { merchantId: { $in: merchantIds }, status: "completed" } },
+    { $group: { _id: { merchantId: "$merchantId", userId: "$userId" }, totalSellAmount: { $sum: "$totalBill" }, totalEarnedPoints: { $sum: "$pointsEarned" }, totalRedeemedPoints: { $sum: "$pointRedeemed" }, totalTransactions: { $sum: 1 } } },
+    { $lookup: { from: "users", localField: "_id.userId", foreignField: "_id", as: "user" } },
     { $unwind: "$user" },
-
-    {
-      $project: {
-        merchantId: "$_id.merchantId",
-        userId: "$_id.userId",
-        customUserId: "$user.customUserId",
-        name: {
-          $trim: {
-            input: {
-              $concat: [
-                { $ifNull: ["$user.firstName", ""] },
-                " ",
-                { $ifNull: ["$user.lastName", ""] },
-              ],
-            },
-          },
-        },
-        email: "$user.email",
-
-        totalSellAmount: 1,
-        totalEarnedPoints: 1,
-        totalRedeemedPoints: 1,
-        totalTransactions: 1,
-      },
-    },
-
-    // 🔥 regroup by merchant
-    {
-      $group: {
-        _id: "$merchantId",
-        customers: { $push: "$$ROOT" },
-        totalCustomers: { $sum: 1 },
-      },
-    },
-
-    // 🔥 apply pagination
-    {
-      $project: {
-        customers: {
-          $slice: ["$customers", customerSkip, Number(customerLimit)],
-        },
-        totalCustomers: 1,
-      },
-    },
+    { $project: { merchantId: "$_id.merchantId", userId: "$_id.userId", customUserId: "$user.customUserId", name: { $trim: { input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] } } }, email: "$user.email", totalSellAmount: 1, totalEarnedPoints: 1, totalRedeemedPoints: 1, totalTransactions: 1 } },
+    { $group: { _id: "$merchantId", customers: { $push: "$$ROOT" }, totalCustomers: { $sum: 1 } } },
+    { $project: { customers: { $slice: ["$customers", customerSkip, Number(customerLimit)] }, totalCustomers: 1 } },
   ]);
 
-  const customerStatsMap = new Map<
-    string,
-    { customers: any[]; totalCustomers: number }
-  >();
+  const customerStatsMap = new Map();
+  customerStatsAgg.forEach((stat) => customerStatsMap.set(stat._id.toString(), { customers: stat.customers, totalCustomers: stat.totalCustomers }));
 
-  customerStatsAgg.forEach((stat) => {
-    customerStatsMap.set(stat._id.toString(), {
-      customers: stat.customers,
-      totalCustomers: stat.totalCustomers,
-    });
-  });
-
-  // 🔟 Final merge
+  // 9️⃣ Final merge
   let merchantsWithData = allmerchants.map((merchant) => {
     const merchantIdStr = (merchant._id as any).toString();
-
     const customerData = customerStatsMap.get(merchantIdStr);
 
     return {
       ...merchant,
-
       isFavorite: favoriteMap.has(merchantIdStr),
-
       rating: ratingMap.get(merchantIdStr)?.avgRating || 0,
       ratingCount: ratingMap.get(merchantIdStr)?.ratingCount || 0,
-
       totalRevenue: salesMap.get(merchantIdStr)?.totalRevenue || 0,
-      totalTransactions:
-        salesMap.get(merchantIdStr)?.totalTransactions || 0,
-
-      // ✅ customers
+      totalTransactions: salesMap.get(merchantIdStr)?.totalTransactions || 0,
       customers: customerData?.customers || [],
-
       customersPagination: {
         total: customerData?.totalCustomers || 0,
         page: Number(customerPage),
         limit: Number(customerLimit),
-        totalPage: Math.ceil(
-          (customerData?.totalCustomers || 0) /
-            Number(customerLimit)
-        ),
+        totalPage: Math.ceil((customerData?.totalCustomers || 0) / Number(customerLimit)),
       },
     };
   });
 
-  // 11️⃣ Favorite filter
+  // 10️⃣ Favorite filter
   if (favorite === "true") {
-    merchantsWithData = merchantsWithData.filter(
-      (m) => m.isFavorite
-    );
+    merchantsWithData = merchantsWithData.filter((m) => m.isFavorite);
   }
 
-  return {
-    allmerchants: merchantsWithData,
-    pagination,
-  };
+  return { allmerchants: merchantsWithData, pagination };
 };
-
 
 const exportMerchants = async (
   query: Record<string, unknown>

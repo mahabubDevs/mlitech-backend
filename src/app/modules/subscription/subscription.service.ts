@@ -17,6 +17,10 @@ import { TransactionHistory } from "../transectionHistory/transection.model";
 // =========================
 // createSubscriptionSession
 // =========================
+
+const calculateISODateString = (date: Date) => {
+  return date.toISOString(); // "2026-04-06T05:31:35.697Z" ফরম্যাটে
+};
 const createSubscriptionSession = async (userId: string, packageId: string) => {
   console.log("🚀 createSubscriptionSession called");
   console.log("UserId:", userId, "PackageId:", packageId);
@@ -39,13 +43,15 @@ const createSubscriptionSession = async (userId: string, packageId: string) => {
       package: packageId,
       price: 0,
       subscriptionId: "FREE_PLAN_" + Date.now(),
-      currentPeriodStart: new Date(),
-      currentPeriodEnd: calculateEndDate(pkg.duration),
+      currentPeriodStart: calculateISODateString(new Date()),
+      currentPeriodEnd: calculateISODateString(calculateEndDate(pkg.duration)),
       status: "active",
       source: "manual",
       remaining: 1,
       customerId: null,
     });
+
+     console.log("💾 Saving free plan subscription to DB:", subscription);
 
     await User.findByIdAndUpdate(userId, { subscription: SUBSCRIPTION_STATUS.ACTIVE,paymentStatus: "paid", });
     console.log("✅ Free plan subscription created:", subscription._id);

@@ -382,40 +382,50 @@ const exportMerchantAnalytics = catchAsync(
       customerName,
       location,
       paymentStatus,
-      city
+      city,
     } = req.query;
 
-    console.log("🚀 Export request received with filters:", {
+    console.log("🚀 Export filters:", {
       startDate,
       endDate,
       subscriptionStatus,
       customerName,
       location,
       paymentStatus,
-      city
+      city,
     });
 
-    // Export all filtered data
     const result = await AnalyticsService.getMerchantAnalyticsExport(
       startDate as string,
       endDate as string,
-      1, // page ignored
-      0, // 0 = export all
+      1,
+      0, // export all
       {
         subscriptionStatus: subscriptionStatus as string,
         customerName: customerName as string,
         location: location as string,
         paymentStatus: paymentStatus as string,
-        city: city as string
+        city: city as string,
       }
     );
 
-    console.log("🔹 Aggregated records count:", result.records.length);
-    console.log("🔸 Sample records:", result.records.slice(0, 5));
+    console.log("🔹 Total records:", result.records.length);
+
+    if (!result.records.length) {
+      console.log("⚠️ No data found");
+    }
+
+    // ✅ Ensure safe values
+    const safeRows = result.records.map((r: any) => ({
+      ...r,
+      pointsAccumulated: r.pointsAccumulated || 0,
+      pointsRedeemed: r.pointsRedeemed || 0,
+      totalRevenue: r.totalRevenue || 0,
+      subscriptionStatus: r.subscriptionStatus || "inactive",
+    }));
 
     const columns = [
-      { header: "Business Name", key: "customerName" },
-      // { header: "Last Name", key: "lastName" },
+      { header: "Business Name", key: "merchantName" },
       { header: "Email", key: "email" },
       { header: "Phone", key: "phone" },
       { header: "Location", key: "location" },
@@ -430,15 +440,14 @@ const exportMerchantAnalytics = catchAsync(
     const buffer = await generateExcelBuffer({
       sheetName: "Merchant Analytics",
       columns,
-      rows: result.records,
+      rows: safeRows,
     });
-
-    console.log("✅ Excel buffer generated, size:", buffer.length, "bytes");
 
     res.setHeader(
       "Content-Disposition",
       `attachment; filename=merchant-analytics.xlsx`
     );
+
     res.setHeader(
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -447,7 +456,6 @@ const exportMerchantAnalytics = catchAsync(
     res.send(buffer);
   }
 );
-
 
 
 
@@ -509,48 +517,43 @@ const exportMerchantMonthlyAnalytics = catchAsync(
 
 const exportCustomerMonthlyData = catchAsync(
   async (req: Request, res: Response) => {
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, userRole } = req.query;
 
-    console.log("🚀 Customer Records export request:", { startDate, endDate });
+    console.log("🚀 Customer Monthly export request:", { startDate, endDate, userRole });
 
-    // -------- Fetch Records --------
-    const result = await AnalyticsService.getCustomerAnalytics(
+    // -------- Fetch Monthly Report --------
+    const result = await AnalyticsService.getCustomerMonthlyReport(
       startDate as string,
       endDate as string,
-      1,
-      0, // limit 0 = all records
-      {}
+      {}, // filters
+      (userRole as string) || "USER"
     );
 
-    const records = result.data.records;
+    const monthlyData = result.monthlyData;
 
-    console.log("🔹 Records count:", records.length);
-    console.log("🔸 Sample records:", records.slice(0, 5));
+    console.log("🔹 Monthly data count:", monthlyData.length);
+    console.log("🔸 Sample data:", monthlyData.slice(0, 5));
 
     // -------- Excel Columns --------
     const columns = [
-      { header: "User ID", key: "userId" },
-      { header: "Custom ID", key: "customUserId" },
-      { header: "Customer Name", key: "customerName" },
-      { header: "Location", key: "location" },
-      { header: "Subscription Status", key: "subscriptionStatus" },
-      { header: "Payment Status", key: "paymentStatus" },
-      { header: "Points Accumulated", key: "pointsAccumulated" },
+      { header: "Year", key: "year" },
+      { header: "Month", key: "monthName" },
+      { header: "Total Revenue", key: "totalRevenue" },
+      { header: "Points Earned", key: "pointsEarned" },
       { header: "Points Redeemed", key: "pointsRedeemed" },
-      { header: "Revenue", key: "totalRevenue" },
-      { header: "Date", key: "date" },
+      { header: "Users Count", key: "users" },
     ];
 
     // -------- Generate Excel --------
     const buffer = await generateExcelBuffer({
-      sheetName: "Customer Records",
+      sheetName: "Customer Monthly Report",
       columns,
-      rows: records,
+      rows: monthlyData,
     });
 
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=customer-records.xlsx`
+      `attachment; filename=customer-monthly-report.xlsx`
     );
 
     res.setHeader(
