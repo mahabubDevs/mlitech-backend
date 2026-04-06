@@ -28,6 +28,10 @@ const digitalCardSchema = new Schema(
       type: Number,
       default: 0,
     },
+    hasReceivedFirstReward: {
+      type: Boolean,
+      default: false,
+    },
     tier: { type: String, default: null },
 
 // Promotion tracking with status
