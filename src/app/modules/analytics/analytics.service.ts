@@ -610,6 +610,7 @@ const getMerchantAnalytics = async (
   if (filters?.city) merchantMatch.city = { $regex: filters.city, $options: "i" };
   if (filters?.customerName) merchantMatch.firstName = { $regex: filters.customerName, $options: "i" };
   if (filters?.location) merchantMatch.address = { $regex: filters.location, $options: "i" };
+  if (filters?.subscriptionStatus) merchantMatch["subscription"] = filters.subscriptionStatus; // ✅ subscription field filter
 
   const skip = (page - 1) * limit;
 
