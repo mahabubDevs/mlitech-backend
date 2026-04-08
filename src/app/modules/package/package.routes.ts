@@ -4,7 +4,7 @@ import auth from "../../middlewares/auth";
 import validateRequest from "../../middlewares/validateRequest";
 import { PackageValidation } from "./package.validation";
 import fileUploadHandler from "../../middlewares/fileUploaderHandler";
-import { authWithPageAccess } from "../../middlewares/authWithPageAccess";
+// import { authWithPageAccess } from "../../middlewares/authWithPageAccess";
 import { USER_ROLES } from "../../../enums/user";
 
 const router = express.Router();

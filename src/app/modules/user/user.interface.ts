@@ -180,6 +180,10 @@ export interface IUser {
   // 🔹 Add these fields
   isRootMerchant?: boolean;
   isSubMerchant?: boolean;
+
+
+  // build time error solve for user model
+  pages?: string[];
 }
 
 export type UserModal = {

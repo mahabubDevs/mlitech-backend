@@ -5,16 +5,16 @@ import { AuraSubscriptionService,  } from "./aurashop.service";
 import { IPackage } from "../package/package.interface";
 
 
- const  createPackage = async (req: Request, res: Response) => {
-    const payload: IPackage = req.body; // <-- type enforce
-    console.log("Payload received in controller:", payload);
-    const newPackage = await AuraSubscriptionService.createPackage(payload);
-    res.status(StatusCodes.CREATED).json({
-      success: true,
-      message: "Package created successfully",
-      data: newPackage,
-    });
-  }
+//  const  createPackage = async (req: Request, res: Response) => {
+//     const payload: IPackage = req.body; // <-- type enforce
+//     console.log("Payload received in controller:", payload);
+//     const newPackage = await AuraSubscriptionService.createPackage(payload);
+//     res.status(StatusCodes.CREATED).json({
+//       success: true,
+//       message: "Package created successfully",
+//       data: newPackage,
+//     });
+//   }
 
 
   const updatePackage = async (req: Request, res: Response) => {
@@ -68,7 +68,7 @@ const getAllPackages = async (req: Request, res: Response) => {
 
 
 export const AuraSubscriptionController = {
-  createPackage,
+  // createPackage,
   updatePackage,
   deletePackage,
   togglePackage,

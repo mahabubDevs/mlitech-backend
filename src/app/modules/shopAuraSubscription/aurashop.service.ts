@@ -7,43 +7,43 @@ import { IPackage } from "./aurashop.interface";
 import { Package } from "./aurashop.module";
 
 
-const createPackage= async (payload: IPackage) => {
-    // 1️⃣ Create Stripe Product
-    const product = await stripe.products.create({
-      name: payload.title,
-      description: payload.description,
-    });
+// const createPackage= async (payload: IPackage) => {
+//     // 1️⃣ Create Stripe Product
+//     const product = await stripe.products.create({
+//       name: payload.title,
+//       description: payload.description,
+//     });
 
-    // Map duration to interval
-    let interval: 'day' | 'week' | 'month' | 'year' = 'month';
-    let intervalCount = 1;
-    switch (payload.duration) {
-      case "1 day": interval = "day"; break;
-      case '1 week': interval = 'week'; break;
-      case '1 month': interval = 'month'; break;
-      case '3 months': interval = 'month'; intervalCount = 3; break;
-      case '6 months': interval = 'month'; intervalCount = 6; break;
-      case '1 year': interval = 'year'; break;
-      default: interval = 'month';
-    }
+//     // Map duration to interval
+//     let interval: 'day' | 'week' | 'month' | 'year' = 'month';
+//     let intervalCount = 1;
+//     switch (payload.duration) {
+//       case "1 day": interval = "day"; break;
+//       case '1 week': interval = 'week'; break;
+//       case '1 month': interval = 'month'; break;
+//       case '3 months': interval = 'month'; intervalCount = 3; break;
+//       case '6 months': interval = 'month'; intervalCount = 6; break;
+//       case '1 year': interval = 'year'; break;
+//       default: interval = 'month';
+//     }
 
-    // 2️⃣ Create Stripe Price
-    const price = await stripe.prices.create({
-      product: product.id,
-      unit_amount: Math.round(payload.price * 100),
-      currency: "usd",
-      recurring: { interval, interval_count: intervalCount },
-    });
+//     // 2️⃣ Create Stripe Price
+//     const price = await stripe.prices.create({
+//       product: product.id,
+//       unit_amount: Math.round(payload.price * 100),
+//       currency: "usd",
+//       recurring: { interval, interval_count: intervalCount },
+//     });
 
-    // 3️⃣ Save in DB
-    const newPackage = await Package.create({
-      ...payload,
-      productId: product.id,
-      priceId: price.id,
-    });
+//     // 3️⃣ Save in DB
+//     const newPackage = await Package.create({
+//       ...payload,
+//       productId: product.id,
+//       priceId: price.id,
+//     });
 
-    return newPackage;
-  };
+//     return newPackage;
+//   };
 
 const updatePackage = async (id: string, payload: Partial<IPackage>) => {
   const updated = await Package.findByIdAndUpdate(id, payload, { new: true });
@@ -98,7 +98,7 @@ console.log("Mongoose query filter:", builder.modelQuery.getFilter());
 };
 
 export const AuraSubscriptionService = {
-  createPackage,
+  // createPackage,
    updatePackage,
   deletePackage,
   togglePackage,

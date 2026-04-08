@@ -412,20 +412,19 @@ const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
   } = query;
 
   const userId = user?._id;
-
   const customerSkip = (Number(customerPage) - 1) * Number(customerLimit);
 
   // 1️⃣ User location
   const userData = await User.findById(userId).select("location").lean();
   const userLocation = userData?.location;
 
-  // 2️⃣ Base query
+  // 2️⃣ Base query for merchants
   let baseQuery = User.find({
     role: USER_ROLES.MERCENT,
     verified: true,
   });
 
-  // 3️⃣ Filters applied আগে
+  // 3️⃣ Filters
   if (address) {
     baseQuery = baseQuery.find({ address: { $regex: address as string, $options: "i" } });
   }
@@ -447,7 +446,7 @@ const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
     });
   }
 
-  // 4️⃣ QueryBuilder-এ limit/page পাঠাও
+  // 4️⃣ QueryBuilder for merchant pagination
   const allMerchantsQuery = new QueryBuilder(baseQuery, { ...rest, limit, page })
     .search([
       "firstName",
@@ -458,7 +457,6 @@ const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
       "service",
       "address",
       "customUserId",
-      "location",
       "country",
       "city",
     ])
@@ -498,24 +496,59 @@ const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
     salesMap.set(s._id.toString(), { totalRevenue: s.totalRevenue, totalTransactions: s.totalTransactions })
   );
 
-  // 8️⃣ Customer-wise stats WITH pagination
+  // 8️⃣ Customer-wise stats WITH pagination for each merchant
   const customerStatsAgg = await Sell.aggregate([
     { $match: { merchantId: { $in: merchantIds }, status: "completed" } },
-    { $group: { _id: { merchantId: "$merchantId", userId: "$userId" }, totalSellAmount: { $sum: "$totalBill" }, totalEarnedPoints: { $sum: "$pointsEarned" }, totalRedeemedPoints: { $sum: "$pointRedeemed" }, totalTransactions: { $sum: 1 } } },
-    { $lookup: { from: "users", localField: "_id.userId", foreignField: "_id", as: "user" } },
+    {
+      $group: {
+        _id: { merchantId: "$merchantId", userId: "$userId" },
+        totalSellAmount: { $sum: "$totalBill" },
+        totalEarnedPoints: { $sum: "$pointsEarned" },
+        totalRedeemedPoints: { $sum: "$pointRedeemed" },
+        totalTransactions: { $sum: 1 },
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "_id.userId",
+        foreignField: "_id",
+        as: "user",
+      },
+    },
     { $unwind: "$user" },
-    { $project: { merchantId: "$_id.merchantId", userId: "$_id.userId", customUserId: "$user.customUserId", name: { $trim: { input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] } } }, email: "$user.email", totalSellAmount: 1, totalEarnedPoints: 1, totalRedeemedPoints: 1, totalTransactions: 1 } },
-    { $group: { _id: "$merchantId", customers: { $push: "$$ROOT" }, totalCustomers: { $sum: 1 } } },
-    { $project: { customers: { $slice: ["$customers", customerSkip, Number(customerLimit)] }, totalCustomers: 1 } },
+    {
+      $project: {
+        merchantId: "$_id.merchantId",
+        userId: "$_id.userId",
+        customUserId: "$user.customUserId",
+        name: { $trim: { input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] } } },
+        email: "$user.email",
+        totalSellAmount: 1,
+        totalEarnedPoints: 1,
+        totalRedeemedPoints: 1,
+        totalTransactions: 1,
+      },
+    },
+    {
+      $group: {
+        _id: "$merchantId",
+        customers: { $push: "$$ROOT" },
+        totalCustomers: { $sum: 1 },
+      },
+    },
   ]);
 
   const customerStatsMap = new Map();
   customerStatsAgg.forEach((stat) => customerStatsMap.set(stat._id.toString(), { customers: stat.customers, totalCustomers: stat.totalCustomers }));
 
-  // 9️⃣ Final merge
+  // 9️⃣ Merge final data
   let merchantsWithData = allmerchants.map((merchant) => {
     const merchantIdStr = (merchant._id as any).toString();
     const customerData = customerStatsMap.get(merchantIdStr);
+
+    // Apply customer pagination here
+    const paginatedCustomers = customerData?.customers?.slice(customerSkip, customerSkip + Number(customerLimit)) || [];
 
     return {
       ...merchant,
@@ -524,7 +557,7 @@ const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
       ratingCount: ratingMap.get(merchantIdStr)?.ratingCount || 0,
       totalRevenue: salesMap.get(merchantIdStr)?.totalRevenue || 0,
       totalTransactions: salesMap.get(merchantIdStr)?.totalTransactions || 0,
-      customers: customerData?.customers || [],
+      customers: paginatedCustomers,
       customersPagination: {
         total: customerData?.totalCustomers || 0,
         page: Number(customerPage),

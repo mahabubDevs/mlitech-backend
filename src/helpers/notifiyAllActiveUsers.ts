@@ -15,7 +15,7 @@ export const notifyAllActiveUsers = async ({
     body: string;
     type: NotificationType;
     metadata?: Record<string, any>;
-    audience: USER_ROLES.MERCENT | USER_ROLES.USER;
+    audience?: USER_ROLES.MERCENT | USER_ROLES.USER;
 }) => {
     const users = await User.find({ role: audience === USER_ROLES.USER ? USER_ROLES.USER : USER_ROLES.MERCENT, status: USER_STATUS.ACTIVE }).select('_id');
 

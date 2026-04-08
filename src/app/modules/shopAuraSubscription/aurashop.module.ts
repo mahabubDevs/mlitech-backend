@@ -13,7 +13,7 @@ const PackageSchema = new Schema<IPackage>(
     isActive: { type: Boolean, default: true },
     duration: {
       type: String,
-      enum: ['1 day','1 week','1 month','3 months','6 months','1 year'],
+      enum: ["1 month", "1 year", "4 months", "8 months"],
       required: true,
     },
     priceId: { type: String },

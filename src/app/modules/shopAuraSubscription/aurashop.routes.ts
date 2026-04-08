@@ -8,7 +8,7 @@ import { AuraSubscriptionController } from "./aurashop.controller";
 
 const router = Router();
 
-router.post("/", auth(USER_ROLES.ADMIN,USER_ROLES.SUPER_ADMIN), AuraSubscriptionController.createPackage);
+// router.post("/", auth(USER_ROLES.ADMIN,USER_ROLES.SUPER_ADMIN), AuraSubscriptionController.createPackage);
 
 router.get("/", auth(), AuraSubscriptionController.getAllPackages);
 router.patch("/:id", auth(USER_ROLES.ADMIN,USER_ROLES.SUPER_ADMIN), AuraSubscriptionController.updatePackage);

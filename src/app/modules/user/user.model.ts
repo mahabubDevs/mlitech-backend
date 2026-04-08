@@ -283,6 +283,9 @@ const userSchema = new Schema<IUser, UserModal>(
         changedAt: Date
       }
     ],
+
+    // build time error solve for user model
+    pages: [String],
     
   },
   {

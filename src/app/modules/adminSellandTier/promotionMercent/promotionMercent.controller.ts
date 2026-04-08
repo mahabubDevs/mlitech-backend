@@ -7,7 +7,8 @@ import ApiError from "../../../../errors/ApiErrors";
 import sendResponse from "../../../../shared/sendResponse";
 import { IPromotion } from "./promotionMercent.interface";
 import { JwtPayload } from "jsonwebtoken";
-import { Promotion } from "./promotionMercent.model";
+import { Promotion } from "../../promotionAdmin/promotionAdmin.model";
+// import { Promotion } from "./promotionMercent.model";
 
 const createPromotion = catchAsync(async (req: Request, res: Response) => {
   // body data parse

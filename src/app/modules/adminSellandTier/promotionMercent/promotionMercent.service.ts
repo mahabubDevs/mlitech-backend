@@ -104,7 +104,7 @@ const getUserSegment = async (userId: string) => {
     p => new Date(p.createdAt) > new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000)
   );
 
-  const totalSpend = purchases.reduce((sum, p) => sum + p.totalBill, 0);
+  const totalSpend = purchases.reduce((sum, p) => sum + (p as any).totalBill, 0);
   const avgSpend = 1000;
 
   let segment: string;
