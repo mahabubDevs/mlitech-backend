@@ -881,7 +881,7 @@ const exportMerchantCustomersExcel = catchAsync(
 
       if (!userMap[userId]) {
         userMap[userId] = {
-          UserID: userId,
+          // UserID: userId,
           Name: `${user.firstName} ${user.lastName || ""}`.trim(),
           Email: user.email,
           Phone: user.phone,
@@ -923,7 +923,7 @@ const exportMerchantCustomersExcel = catchAsync(
     const sheet = workbook.addWorksheet("Customers");
 
     sheet.columns = [
-      { header: "User ID", key: "UserID", width: 28 },
+      // { header: "User ID", key: "UserID", width: 28 },
       { header: "Name", key: "Name", width: 25 },
       { header: "Email", key: "Email", width: 30 },
       { header: "Phone", key: "Phone", width: 18 },

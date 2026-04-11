@@ -114,18 +114,24 @@ const getAllMerchants = catchAsync(async (req: Request, res: Response) => {
 
 //=============== mercent export ===================//
 const exportMerchants = catchAsync(async (req: Request, res: Response) => {
-  const buffer = await AdminService.exportMerchants(req.query);
+  const user = req.user as any; // ✅ auth user
+
+  const buffer = await AdminService.exportMerchants(
+    req.query,
+    user // ✅ pass user
+  );
 
   res.setHeader(
     "Content-Type",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
   );
+
   res.setHeader(
     "Content-Disposition",
     "attachment; filename=merchants.xlsx"
   );
 
-  res.send(buffer);
+  res.status(200).send(buffer);
 });
 
 // ======== customer crue operations ======== //

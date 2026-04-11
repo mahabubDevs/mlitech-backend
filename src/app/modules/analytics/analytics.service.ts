@@ -618,13 +618,24 @@ const getMerchantAnalytics = async (
   const recordsPipeline: PipelineStage[] = [
     { $match: merchantMatch },
     {
-      $lookup: {
-        from: "sells",
-        localField: "_id",
-        foreignField: "merchantId",
-        as: "sells",
-      },
-    },
+  $lookup: {
+    from: "sells",
+    let: { merchantId: "$_id" },
+    pipeline: [
+      {
+        $match: {
+          $expr: {
+            $and: [
+              { $eq: ["$merchantId", "$$merchantId"] },
+              { $eq: ["$status", "completed"] } // 🔥 ONLY THIS CHANGE
+            ]
+          }
+        }
+      }
+    ],
+    as: "sells",
+  },
+},
     {
       // Join sells.userId -> users collection
       $lookup: {
@@ -672,20 +683,21 @@ const getMerchantAnalytics = async (
   // ── Monthly Aggregation ─────────
   const monthlyPipeline: PipelineStage[] = [
     {
-      $match: {
-        createdAt: { $gte: start, $lte: end },
-        ...(filters?.paymentStatus ? { paymentStatus: filters.paymentStatus } : {}),
-      },
+    $match: {
+      createdAt: { $gte: start, $lte: end },
+      status: "completed", // 🔥 ONLY COMPLETED SELLS
+      ...(filters?.paymentStatus ? { paymentStatus: filters.paymentStatus } : {}),
     },
-    {
-      $group: {
-        _id: { year: { $year: "$createdAt" }, month: { $month: "$createdAt" } },
-        totalRevenue: { $sum: "$totalBill" },
-        pointsRedeemed: { $sum: "$pointRedeemed" },
-        pointsEarned: { $sum: "$pointsEarned" },
-        users: { $addToSet: "$userId" },
-      },
+  },
+  {
+    $group: {
+      _id: { year: { $year: "$createdAt" }, month: { $month: "$createdAt" } },
+      totalRevenue: { $sum: "$totalBill" },
+      pointsRedeemed: { $sum: "$pointRedeemed" },
+      pointsEarned: { $sum: "$pointsEarned" },
+      users: { $addToSet: "$userId" },
     },
+  },
     {
       $project: {
         _id: 0,
@@ -934,7 +946,25 @@ const getCustomerAnalytics = async (
 
   // ── Lookup Stages ─────────
   const lookupStages: PipelineStage[] = [
-    { $lookup: { from: "sells", localField: "_id", foreignField: "userId", as: "sells" } },
+    {
+  $lookup: {
+    from: "sells",
+    let: { userId: "$_id" },
+    pipeline: [
+      {
+        $match: {
+          $expr: {
+            $and: [
+              { $eq: ["$userId", "$$userId"] },
+              { $eq: ["$status", "completed"] } // 🔥 ONLY COMPLETED
+            ]
+          }
+        }
+      }
+    ],
+    as: "sells",
+  },
+},
   ];
 
   // ── Records Pipeline ─────────
@@ -945,7 +975,7 @@ const getCustomerAnalytics = async (
       $addFields: {
         pointsRedeemed: { $sum: "$sells.pointRedeemed" },
         pointsEarned: { $sum: "$sells.pointsEarned" },
-        totalRevenue: { $sum: "$sells.discountedBill" },
+        totalRevenue: { $sum: "$sells.totalBill" },
         visit: { $size: { $ifNull: [{ $setUnion: ["$sells.merchantId", []] }, []] } },
       },
     },
@@ -990,7 +1020,7 @@ const getCustomerAnalytics = async (
     {
       $group: {
         _id: { year: { $year: "$createdAt" }, month: { $month: "$createdAt" } },
-        totalRevenue: { $sum: "$discountedBill" },
+        totalRevenue: { $sum: "$totalBill" },
         pointsRedeemed: { $sum: "$pointRedeemed" },
         pointsEarned: { $sum: "$pointsEarned" },
         users: { $addToSet: "$userId" },
@@ -1085,7 +1115,7 @@ const getCustomerMonthlyReport = async (
     {
       $group: {
         _id: { year: { $year: "$createdAt" }, month: { $month: "$createdAt" } },
-        totalRevenue: { $sum: "$discountedBill" },
+        totalRevenue: { $sum: "$totalBill" },
         pointsRedeemed: { $sum: "$pointRedeemed" },
         pointsEarned: { $sum: "$pointsEarned" },
         users: { $addToSet: "$userId" },
@@ -1162,7 +1192,25 @@ const exportCustomerAnalytics = async (
 
   // ── Lookup Sells & Subscriptions ──
   const lookupStages: PipelineStage[] = [
-    { $lookup: { from: "sells", localField: "_id", foreignField: "userId", as: "sells" } },
+    {
+  $lookup: {
+    from: "sells",
+    let: { userId: "$_id" },
+    pipeline: [
+      {
+        $match: {
+          $expr: {
+            $and: [
+              { $eq: ["$userId", "$$userId"] },
+              { $eq: ["$status", "completed"] }, // ✅ ONLY COMPLETED
+            ],
+          },
+        },
+      },
+    ],
+    as: "sells",
+  },
+},
     { $lookup: { from: "subscriptions", localField: "_id", foreignField: "user", as: "subscriptions" } },
   ];
 
@@ -1203,7 +1251,7 @@ const exportCustomerAnalytics = async (
   const sheet = workbook.addWorksheet("Customer Records");
 
   sheet.columns = [
-    { header: "User ID", key: "userId", width: 28 },
+    // { header: "User ID", key: "userId", width: 28 },
     { header: "Custom ID", key: "customUserId", width: 18 },
     { header: "Customer Name", key: "customerName", width: 25 },
     { header: "Location", key: "location", width: 35 },
@@ -1430,6 +1478,8 @@ const getMerchantAnalyticsMonthly = async (
       $match: {
         merchantId: { $in: merchantIds },
         createdAt: { $gte: start, $lte: end },
+        status: "completed",
+         
       },
     },
 

@@ -31,7 +31,7 @@ export const expireReminderSubscriptionsJob = async () => {
       }
 
       const title = `Your subscription expires in ${remainingDays} days`;
-      const body = `Hello! Your subscription will expire in ${remainingDays} days. Please renew to continue enjoying our service.`;
+      const body = `Hello! Your subscription will expire in ${remainingDays} days. `;
 
       console.log(`[CRON] Sending ${remainingDays}-day reminder to user: ${sub.user}`);
 
