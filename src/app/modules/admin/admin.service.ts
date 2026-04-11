@@ -407,7 +407,7 @@ const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
     limit = 10,
     page = 1,
     customerPage = 1,
-    customerLimit = 5,
+    customerLimit = 500,
     ...rest
   } = query;
 
@@ -418,21 +418,24 @@ const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
   const userData = await User.findById(userId).select("location").lean();
   const userLocation = userData?.location;
 
-  // 2️⃣ Base query for merchants
+  // 2️⃣ Base query
   let baseQuery = User.find({
     role: USER_ROLES.MERCENT,
     verified: true,
   });
 
-  // 3️⃣ Filters
   if (address) {
-    baseQuery = baseQuery.find({ address: { $regex: address as string, $options: "i" } });
+    baseQuery = baseQuery.find({
+      address: { $regex: address as string, $options: "i" },
+    });
   }
 
   if (service) {
     const serviceWords = (service as string).split(/\s+|,/);
     baseQuery = baseQuery.find({
-      $or: serviceWords.map((word) => ({ service: { $regex: word, $options: "i" } })),
+      $or: serviceWords.map((word) => ({
+        service: { $regex: word, $options: "i" },
+      })),
     });
   }
 
@@ -446,8 +449,12 @@ const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
     });
   }
 
-  // 4️⃣ QueryBuilder for merchant pagination
-  const allMerchantsQuery = new QueryBuilder(baseQuery, { ...rest, limit, page })
+  // 3️⃣ QueryBuilder
+  const allMerchantsQuery = new QueryBuilder(baseQuery, {
+    ...rest,
+    limit,
+    page,
+  })
     .search([
       "firstName",
       "lastName",
@@ -464,41 +471,72 @@ const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
     .sort()
     .paginate();
 
-  // 5️⃣ Fetch merchants, pagination, favorites
+  // 4️⃣ Fetch merchants + favorites
   const [allmerchants, pagination, favorites] = await Promise.all([
     allMerchantsQuery.modelQuery.lean(),
     allMerchantsQuery.getPaginationInfo(),
     Favorite.find({ userId }).select("merchantId").lean(),
   ]);
 
-  const favoriteMap = new Set(favorites.map((f) => f.merchantId.toString()));
+  const favoriteMap = new Set(
+    favorites.map((f) => f.merchantId.toString())
+  );
+
   const merchantIds = allmerchants.map((m) => m._id);
 
-  // 6️⃣ Ratings
+  // 5️⃣ Ratings
   const ratingsAgg = await Rating.aggregate([
     { $match: { merchantId: { $in: merchantIds } } },
-    { $group: { _id: "$merchantId", avgRating: { $avg: "$rating" }, ratingCount: { $sum: 1 } } },
+    {
+      $group: {
+        _id: "$merchantId",
+        avgRating: { $avg: "$rating" },
+        ratingCount: { $sum: 1 },
+      },
+    },
   ]);
 
   const ratingMap = new Map();
-  ratingsAgg.forEach((r) =>
-    ratingMap.set(r._id.toString(), { avgRating: parseFloat(r.avgRating.toFixed(1)), ratingCount: r.ratingCount })
-  );
+  ratingsAgg.forEach((r) => {
+    ratingMap.set(r._id.toString(), {
+      avgRating: parseFloat(r.avgRating.toFixed(1)),
+      ratingCount: r.ratingCount,
+    });
+  });
 
-  // 7️⃣ Sales summary
+  // 6️⃣ Sales
   const salesAgg = await Sell.aggregate([
-    { $match: { merchantId: { $in: merchantIds }, status: "completed" } },
-    { $group: { _id: "$merchantId", totalRevenue: { $sum: "$discountedBill" }, totalTransactions: { $sum: 1 } } },
+    {
+      $match: {
+        merchantId: { $in: merchantIds },
+        status: "completed",
+      },
+    },
+    {
+      $group: {
+        _id: "$merchantId",
+        totalRevenue: { $sum: "$totalBill" },
+        totalTransactions: { $sum: 1 },
+      },
+    },
   ]);
 
   const salesMap = new Map();
-  salesAgg.forEach((s) =>
-    salesMap.set(s._id.toString(), { totalRevenue: s.totalRevenue, totalTransactions: s.totalTransactions })
-  );
+  salesAgg.forEach((s) => {
+    salesMap.set(s._id.toString(), {
+      totalRevenue: s.totalRevenue,
+      totalTransactions: s.totalTransactions,
+    });
+  });
 
-  // 8️⃣ Customer-wise stats WITH pagination for each merchant
+  // 7️⃣ ✅ Customer Stats WITH Pagination (FIXED)
   const customerStatsAgg = await Sell.aggregate([
-    { $match: { merchantId: { $in: merchantIds }, status: "completed" } },
+    {
+      $match: {
+        merchantId: { $in: merchantIds },
+        status: "completed",
+      },
+    },
     {
       $group: {
         _id: { merchantId: "$merchantId", userId: "$userId" },
@@ -522,7 +560,17 @@ const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
         merchantId: "$_id.merchantId",
         userId: "$_id.userId",
         customUserId: "$user.customUserId",
-        name: { $trim: { input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] } } },
+        name: {
+          $trim: {
+            input: {
+              $concat: [
+                { $ifNull: ["$user.firstName", ""] },
+                " ",
+                { $ifNull: ["$user.lastName", ""] },
+              ],
+            },
+          },
+        },
         email: "$user.email",
         totalSellAmount: 1,
         totalEarnedPoints: 1,
@@ -537,37 +585,45 @@ const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
         totalCustomers: { $sum: 1 },
       },
     },
+    {
+      $project: {
+        customers: {
+          $slice: ["$customers", customerSkip, Number(customerLimit)],
+        },
+        totalCustomers: 1,
+      },
+    },
   ]);
 
   const customerStatsMap = new Map();
-  customerStatsAgg.forEach((stat) => customerStatsMap.set(stat._id.toString(), { customers: stat.customers, totalCustomers: stat.totalCustomers }));
+  customerStatsAgg.forEach((stat) => {
+    customerStatsMap.set(stat._id.toString(), stat);
+  });
 
-  // 9️⃣ Merge final data
+  // 8️⃣ Merge
   let merchantsWithData = allmerchants.map((merchant) => {
-    const merchantIdStr = (merchant._id as any).toString();
-    const customerData = customerStatsMap.get(merchantIdStr);
-
-    // Apply customer pagination here
-    const paginatedCustomers = customerData?.customers?.slice(customerSkip, customerSkip + Number(customerLimit)) || [];
+    const id = (merchant._id as any).toString();
+    const customerData = customerStatsMap.get(id);
 
     return {
       ...merchant,
-      isFavorite: favoriteMap.has(merchantIdStr),
-      rating: ratingMap.get(merchantIdStr)?.avgRating || 0,
-      ratingCount: ratingMap.get(merchantIdStr)?.ratingCount || 0,
-      totalRevenue: salesMap.get(merchantIdStr)?.totalRevenue || 0,
-      totalTransactions: salesMap.get(merchantIdStr)?.totalTransactions || 0,
-      customers: paginatedCustomers,
+      isFavorite: favoriteMap.has(id),
+      rating: ratingMap.get(id)?.avgRating || 0,
+      ratingCount: ratingMap.get(id)?.ratingCount || 0,
+      totalRevenue: salesMap.get(id)?.totalRevenue || 0,
+      totalTransactions: salesMap.get(id)?.totalTransactions || 0,
+      customers: customerData?.customers || [],
       customersPagination: {
         total: customerData?.totalCustomers || 0,
         page: Number(customerPage),
         limit: Number(customerLimit),
-        totalPage: Math.ceil((customerData?.totalCustomers || 0) / Number(customerLimit)),
+        totalPage: Math.ceil(
+          (customerData?.totalCustomers || 0) / Number(customerLimit)
+        ),
       },
     };
   });
 
-  // 10️⃣ Favorite filter
   if (favorite === "true") {
     merchantsWithData = merchantsWithData.filter((m) => m.isFavorite);
   }
@@ -576,25 +632,163 @@ const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
 };
 
 const exportMerchants = async (
-  query: Record<string, unknown>
+  query: Record<string, unknown>,
+  user: any
 ): Promise<Buffer> => {
-  /* ---------------- Base Query ---------------- */
-  const baseQuery = User.find({ role: USER_ROLES.MERCENT }).select(
-    "customUserId firstName lastName email phone status address createdAt"
-  );
+  const {
+    address,
+    service,
+    radius,
+    ...rest
+  } = query;
 
-  /* ---------------- Apply Filters ---------------- */
-  const merchantsQuery = new QueryBuilder(baseQuery, query)
-    .search(["firstName", "lastName", "email", "phone"])
+  const userId = user?._id;
+
+  /* ---------------- User Location ---------------- */
+  const userData = await User.findById(userId)
+    .select("location")
+    .lean();
+
+  const userLocation = userData?.location;
+
+  /* ---------------- Base Query ---------------- */
+  let baseQuery = User.find({
+    role: USER_ROLES.MERCENT,
+    verified: true,
+  });
+
+  /* ---------------- Address Filter ---------------- */
+  if (address) {
+    baseQuery = baseQuery.find({
+      address: { $regex: address as string, $options: "i" },
+    });
+  }
+
+  /* ---------------- Service Filter ---------------- */
+  if (service) {
+    const serviceWords = (service as string).split(/\s+|,/);
+
+    baseQuery = baseQuery.find({
+      $or: serviceWords.map((word) => ({
+        service: { $regex: word, $options: "i" },
+      })),
+    });
+  }
+
+  /* ---------------- Radius Filter ---------------- */
+  if (userLocation && radius) {
+    baseQuery = baseQuery.find({
+      location: {
+        $geoWithin: {
+          $centerSphere: [
+            userLocation.coordinates,
+            Number(radius) / 6378.1,
+          ],
+        },
+      },
+    });
+  }
+
+  /* ---------------- Query Builder ---------------- */
+  const merchantsQuery = new QueryBuilder(baseQuery, {
+    ...rest,
+    limit: 100000, // 🚀 export e sob data lagbe
+    page: 1,
+  })
+    .search([
+      "firstName",
+      "lastName",
+      "email",
+      "phone",
+      "businessName",
+      "service",
+      "address",
+      "customUserId",
+      "country",
+      "city",
+    ])
     .filter()
     .sort();
 
   const merchants = await merchantsQuery.modelQuery.lean<any[]>();
 
+  const merchantIds = merchants.map((m) => m._id);
+
+  /* ---------------- Ratings ---------------- */
+  const ratingsAgg = await Rating.aggregate([
+    { $match: { merchantId: { $in: merchantIds } } },
+    {
+      $group: {
+        _id: "$merchantId",
+        avgRating: { $avg: "$rating" },
+        ratingCount: { $sum: 1 },
+      },
+    },
+  ]);
+
+  const ratingMap = new Map();
+  ratingsAgg.forEach((r) => {
+    ratingMap.set(r._id.toString(), {
+      rating: parseFloat(r.avgRating.toFixed(1)),
+      ratingCount: r.ratingCount,
+    });
+  });
+
+  /* ---------------- Sales ---------------- */
+  const salesAgg = await Sell.aggregate([
+    {
+      $match: {
+        merchantId: { $in: merchantIds },
+        status: "completed",
+      },
+    },
+    {
+      $group: {
+        _id: "$merchantId",
+        totalRevenue: { $sum: "$totalBill" },
+        totalTransactions: { $sum: 1 },
+      },
+    },
+  ]);
+
+  const salesMap = new Map();
+  salesAgg.forEach((s) => {
+    salesMap.set(s._id.toString(), {
+      totalRevenue: s.totalRevenue,
+      totalTransactions: s.totalTransactions,
+    });
+  });
+
+  /* ---------------- Merge (NO CUSTOMER DATA) ---------------- */
+  const finalMerchants = merchants.map((m) => {
+    const id = m._id.toString();
+
+    return {
+      customUserId: m.customUserId,
+      firstName: m.firstName,
+      lastName: m.lastName,
+      email: m.email,
+      phone: m.phone,
+      status: m.status,
+      address: m.address,
+      businessName: m.businessName,
+      service: m.service,
+      country: m.country,
+      city: m.city,
+      rating: ratingMap.get(id)?.rating || 0,
+      ratingCount: ratingMap.get(id)?.ratingCount || 0,
+      totalRevenue: salesMap.get(id)?.totalRevenue || 0,
+      totalTransactions:
+        salesMap.get(id)?.totalTransactions || 0,
+      createdAt: m.createdAt
+        ? new Date(m.createdAt).toLocaleString()
+        : "",
+    };
+  });
+
   /* ---------------- Excel ---------------- */
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "The Pigeon Hub";
-  workbook.created = new Date();
 
   const sheet = workbook.addWorksheet("Merchants");
 
@@ -605,24 +799,28 @@ const exportMerchants = async (
     { header: "Email", key: "email", width: 30 },
     { header: "Phone", key: "phone", width: 18 },
     { header: "Status", key: "status", width: 15 },
+    { header: "Business Name", key: "businessName", width: 25 },
+    { header: "Service", key: "service", width: 25 },
+    { header: "Country", key: "country", width: 20 },
+    { header: "City", key: "city", width: 20 },
     { header: "Address", key: "address", width: 35 },
+    { header: "Rating", key: "rating", width: 10 },
+    { header: "Rating Count", key: "ratingCount", width: 15 },
+    { header: "Total Revenue", key: "totalRevenue", width: 18 },
+    { header: "Total Transactions", key: "totalTransactions", width: 20 },
     { header: "Created At", key: "createdAt", width: 22 },
   ];
 
-  merchants.forEach((m) => {
-    sheet.addRow({
-      ...m,
-      createdAt: m.createdAt
-        ? new Date(m.createdAt).toLocaleString()
-        : "",
-    });
+  finalMerchants.forEach((m) => {
+    sheet.addRow(m);
   });
 
   sheet.getRow(1).font = { bold: true };
-  sheet.autoFilter = "A1:H1";
+  sheet.autoFilter = "A1:P1";
 
   /* ---------------- Buffer ---------------- */
   const buffer = await workbook.xlsx.writeBuffer();
+
   return Buffer.from(buffer as ArrayBuffer);
 };
 
@@ -974,50 +1172,100 @@ const exportCustomers = async (
     "customUserId firstName lastName email phone status address createdAt"
   );
 
-  /* ---------------- Apply Filters ---------------- */
-  const customersQuery = new QueryBuilder(baseQuery, query)
-    .search(["firstName", "lastName", "email", "phone"])
+  /* ---------------- Query Builder ---------------- */
+  const customersQuery = new QueryBuilder(baseQuery, {
+    ...query,
+    limit: 100000,
+    page: 1,
+  })
+    .search([
+      "firstName",
+      "lastName",
+      "email",
+      "phone",
+      "customUserId",
+      "address",
+    ])
     .filter()
     .sort();
 
   const customers = await customersQuery.modelQuery.lean<any[]>();
 
+  const userIds = customers.map((u) => u._id);
 
+  /* ---------------- Sell Aggregation (SUMMARY ONLY) ---------------- */
+  const sellsAgg = await Sell.aggregate([
+    {
+      $match: {
+        userId: { $in: userIds },
+        status: "completed",
+      },
+    },
+    {
+      $group: {
+        _id: "$userId",
+        totalSellAmount: { $sum: "$totalBill" },
+        totalTransactions: { $sum: 1 },
+      },
+    },
+  ]);
+
+  const sellMap = new Map();
+  sellsAgg.forEach((s) => {
+    sellMap.set(s._id.toString(), {
+      totalSellAmount: s.totalSellAmount,
+      totalTransactions: s.totalTransactions,
+    });
+  });
+
+  /* ---------------- Format Data ---------------- */
+  const finalCustomers = customers.map((c) => {
+    const sellData = sellMap.get(c._id.toString());
+
+    return {
+      customUserId: c.customUserId,
+      name: `${c.firstName || ""} ${c.lastName || ""}`.trim(),
+      email: c.email,
+      phone: c.phone,
+      status: c.status,
+      address: c.address,
+      totalSellAmount: sellData?.totalSellAmount || 0,
+      totalTransactions: sellData?.totalTransactions || 0,
+      createdAt: c.createdAt
+        ? new Date(c.createdAt).toLocaleString()
+        : "",
+    };
+  });
 
   /* ---------------- Excel ---------------- */
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "The Pigeon Hub";
-  workbook.created = new Date();
 
   const sheet = workbook.addWorksheet("Customers");
 
   sheet.columns = [
     { header: "Customer ID", key: "customUserId", width: 20 },
-    { header: " Name", key: "firstName", width: 20 },
-    // { header: "Last Name", key: "lastName", width: 20 },
+    { header: "Name", key: "name", width: 25 },
     { header: "Email", key: "email", width: 30 },
     { header: "Phone", key: "phone", width: 18 },
     { header: "Status", key: "status", width: 15 },
     { header: "Address", key: "address", width: 35 },
-    // { header: "Subscripton", key: "", width: 22 },
+    { header: "Total Sell Amount", key: "totalSellAmount", width: 20 },
+    { header: "Total Transactions", key: "totalTransactions", width: 20 },
     { header: "Created At", key: "createdAt", width: 22 },
   ];
 
-  customers.forEach((c) => {
-    sheet.addRow({
-      ...c,
-      createdAt: new Date(c.createdAt).toLocaleString(),
-    });
+  finalCustomers.forEach((c) => {
+    sheet.addRow(c);
   });
 
   sheet.getRow(1).font = { bold: true };
-  sheet.autoFilter = "A1:H1";
+  sheet.autoFilter = "A1:I1";
 
   /* ---------------- Buffer ---------------- */
   const buffer = await workbook.xlsx.writeBuffer();
   return Buffer.from(buffer as ArrayBuffer);
 };
-
 
 const getCustomerSellDetails = async (
   userId: string,

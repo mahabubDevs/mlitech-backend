@@ -9,7 +9,7 @@ import { expireReminderSubscriptionsJob } from "./expairdRemaindaerSubscription"
 
 export const startCronJobs = () => {
   try {
-    // 🔹 VIP Customer Update → রাত ১টা
+    // 🔹 VIP Customer Update → 
     cron.schedule("0 1 * * *", async () => {
       try {
         logger.info("[CRON] VIP customer update started");
@@ -20,8 +20,8 @@ export const startCronJobs = () => {
       }
     });
 
-    // 🔹 Tier Downgrade → রাত ২টা
-    cron.schedule("0 2 * * *", async () => {
+    // 🔹 Tier Downgrade → 
+    cron.schedule("33 15 * * *", async () => {
       try {
         logger.info("[CRON] Tier downgrade job started");
         await downgradeInactiveTiers();
@@ -30,7 +30,7 @@ export const startCronJobs = () => {
         logger.error("[CRON] Tier downgrade job failed", error);
       }
     });
-// 🔹 Subscription Expire Check → প্রতি রাত ৩টা
+// 🔹 Subscription Expire Check → 
     cron.schedule("13 14 * * *", async () => {
       try {
         logger.info("[CRON] Subscription expire job started");
@@ -42,17 +42,17 @@ export const startCronJobs = () => {
     });
 
 
-    // 🔹 Subscription Expire & Reminder → রাত ৩টা
-    cron.schedule("20 14 * * *", async () => {
+    // 🔹 Subscription Expire & Reminder 
+    cron.schedule("23 15 * * *", async () => {
       try {
         logger.info("[CRON] Subscription expire job started");
-        await expireReminderSubscriptionsJob(); // এখানে reminder logic থাকবে
+        await expireReminderSubscriptionsJob(); // 
         logger.info("[CRON] Subscription expire job finished");
       } catch (error) {
         logger.error("[CRON] Subscription expire job failed", error);
       }
     });
-     // 🔹 Pending Sell Cleanup → প্রতি মিনিটে
+     // 🔹 Pending Sell Cleanup → 
     // cron.schedule("* * * * *", async () => {
     //   logger.info("[CRON] Sell cleanup job running");
     //     await cleanupExpiredSells();

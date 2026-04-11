@@ -410,7 +410,7 @@ const getCustomerChart = async (merchantId: string, year?: number) => {
     {
       $group: {
         _id: { month: { $month: "$createdAt" } },
-        totalRevenue: { $sum: "$discountedBill" },
+        totalRevenue: { $sum: "$totalBill" },
         totalDiscount: {
           $sum: { $subtract: ["$totalBill", "$discountedBill"] },
         },
@@ -479,7 +479,7 @@ const getCustomerChartWeek = async (
           month: { $month: "$createdAt" },
           day: { $dayOfMonth: "$createdAt" },
         },
-        totalRevenue: { $sum: "$discountedBill" },
+        totalRevenue: { $sum: "$totalBill" },
         totalDiscount: { $sum: { $subtract: ["$totalBill", "$discountedBill"] } },
       },
     },

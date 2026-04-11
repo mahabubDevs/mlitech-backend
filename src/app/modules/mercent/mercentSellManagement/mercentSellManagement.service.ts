@@ -315,7 +315,7 @@ const checkout = async (
   const pointDiscount = parseFloat((pointRedeemed * POINT_REDEEM_RATE).toFixed(4));
   const discountedBill = parseFloat((discountedBills - pointDiscount).toFixed(4));
 
-
+// 6 months inactivity check
   const sixMonthsAgo = subMonths(new Date(), 6);
 
   if (digitalCard.updatedAt < sixMonthsAgo && pointRedeemed > 0) {
@@ -323,6 +323,16 @@ const checkout = async (
       "Your points are blocked due to inactivity in the last 6 months."
     );
   }
+
+// 10 minutes inactivity check
+// const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+
+// if (digitalCard.updatedAt < tenMinutesAgo && pointRedeemed > 0) {
+//   throw new Error(
+//     "Your points are blocked due to inactivity in the last 10 minutes."
+//   );
+// }
+
 
   const finalBill = parseFloat((discountedBill).toFixed(4));
 
