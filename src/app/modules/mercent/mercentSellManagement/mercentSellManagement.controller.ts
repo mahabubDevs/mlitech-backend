@@ -461,12 +461,21 @@ const getMerchantSales = async (req: Request, res: Response) => {
 
 const getMerchantCustomersList = async (req: Request, res: Response) => {
   try {
+    console.log("🚀 API HIT: getMerchantCustomersList");
+
     const user = req.user as any;
+    console.log("👤 Logged in user:", {
+      id: user?._id,
+      isSubMerchant: user?.isSubMerchant,
+      merchantId: user?.merchantId,
+    });
 
     // ✅ Decide which ID to use for filtering
     const filterId = user.isSubMerchant ? user.merchantId : user._id;
+    console.log("🔑 Filter ID selected:", filterId);
 
     if (!filterId || !Types.ObjectId.isValid(filterId)) {
+      console.log("❌ Invalid merchant ID");
       return res.status(401).json({
         success: false,
         message: "Unauthorized merchant",
@@ -476,11 +485,13 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
     const merchantId = filterId;
 
     /* -----------------------------
-       0️⃣ Date filter based on period (UTC)
+       0️⃣ Date filter
     ------------------------------*/
     const period = req.query.period as string;
     const now = new Date();
     let dateFilter: any = {};
+
+    console.log("📆 Period received:", period);
 
     if (period === "day") {
       const startOfDayUTC = new Date(
@@ -503,17 +514,26 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
       dateFilter = { createdAt: { $gte: startOfMonthUTC } };
     }
 
-    console.log("📌 Period filter:", period);
-    console.log("📌 Date filter applied (UTC):", dateFilter);
+    console.log("📌 Date Filter Applied:", JSON.stringify(dateFilter));
 
     /* -----------------------------
        🔍 Search keyword
     ------------------------------*/
-    const search = (req.query.search as string)?.toLowerCase() || "";
+    const searchTerm = (
+      (req.query.search as string) ||
+      (req.query.searchTerm as string) ||
+      ""
+    )
+      .toLowerCase()
+      .trim();
+
+    console.log("🔍 Search Term:", searchTerm);
 
     /* -----------------------------
-       1️⃣ Fetch all completed sells
+       1️⃣ Fetch sales
     ------------------------------*/
+    console.log("📡 Fetching sales from DB...");
+
     const sales = await Sell.find({
       merchantId,
       status: "completed",
@@ -527,7 +547,10 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
       .populate("merchantId", "businessName shopName firstName")
       .lean();
 
+    console.log("📊 Total sales fetched:", sales.length);
+
     if (!sales.length) {
+      console.log("⚠️ No sales found");
       return res.status(200).json({
         success: true,
         data: [],
@@ -541,43 +564,38 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
     }
 
     /* -----------------------------
-       🔍 Apply SEARCH (JS level)
+       🔍 FILTER SEARCH
     ------------------------------*/
-/* -----------------------------
-   🔍 Apply SEARCH (JS level)
-   Only by customer ID, name, or country
-------------------------------*/
-// Remove any previous `const search` declaration
-const searchTerm = ((req.query.search as string) || (req.query.searchTerm as string) || "")
-  .toLowerCase()
-  .trim();
+    let filteredSales = sales;
 
-let filteredSales = sales;
+    if (searchTerm) {
+      console.log("🔎 Applying search filter...");
 
-if (searchTerm) {
-  console.log("🔍 Search keyword:", searchTerm);
+      filteredSales = sales.filter((tx: any) => {
+        const user = tx.userId || {};
 
-  filteredSales = sales.filter((tx: any) => {
-    const user = tx.userId || {};
-    const fullName = `${user.firstName || ""} ${user.lastName || ""}`.toLowerCase();
-    const customId = (user.customUserId || "").toLowerCase();
-    const country = (user.country || "").toLowerCase();
+        const fullName = `${user.firstName || ""} ${user.lastName || ""}`.toLowerCase();
+        const customId = (user.customUserId || "").toLowerCase();
+        const country = (user.country || "").toLowerCase();
 
-    console.log("🧾 Checking user:", {
-      fullName,
-      customId,
-      country,
-    });
+        const match =
+          fullName.includes(searchTerm) ||
+          customId.includes(searchTerm) ||
+          country.includes(searchTerm);
 
-    return (
-      fullName.includes(searchTerm) ||    // search by name
-      customId.includes(searchTerm) ||    // search by customer ID
-      country.includes(searchTerm)        // search by country/location
-    );
-  });
-}
+        if (match) {
+          console.log("✅ Match found:", {
+            fullName,
+            customId,
+            country,
+          });
+        }
 
+        return match;
+      });
 
+      console.log("📉 After search filter:", filteredSales.length);
+    }
 
     /* -----------------------------
        2️⃣ Ratings
@@ -590,6 +608,8 @@ if (searchTerm) {
       ),
     ];
 
+    console.log("⭐ Unique user IDs for rating:", userIds.length);
+
     const ratings = await Rating.find({
       merchantId,
       userId: { $in: userIds },
@@ -597,15 +617,19 @@ if (searchTerm) {
       .select("userId rating comment")
       .lean();
 
+    console.log("⭐ Ratings fetched:", ratings.length);
+
     const ratingMap: Record<string, any> = {};
     ratings.forEach((r: any) => {
       ratingMap[r.userId.toString()] = r;
     });
 
     /* -----------------------------
-       3️⃣ Aggregate customer data
+       3️⃣ Aggregate customers
     ------------------------------*/
     const userMap: Record<string, any> = {};
+
+    console.log("📦 Aggregating customers...");
 
     filteredSales.forEach((tx: any) => {
       const user = tx.userId;
@@ -619,7 +643,6 @@ if (searchTerm) {
           name: `${user.firstName} ${user.lastName || ""}`.trim(),
           email: user.email,
           phone: user.phone,
-          profile: user.profile,
           country: user.country,
           customUserId: user.customUserId || "",
           totalTransactions: 0,
@@ -630,7 +653,6 @@ if (searchTerm) {
           availablePoints: tx.digitalCardId?.availablePoints || 0,
           tier: tx.digitalCardId?.tier || "",
           createdAt: tx.digitalCardId?.createdAt || null,
-          digitalCardId: tx.digitalCardId?._id || null,
           salesRep:
             tx.merchantId?.businessName ||
             tx.merchantId?.shopName ||
@@ -638,7 +660,6 @@ if (searchTerm) {
             "",
           rating: ratingMap[userId]?.rating,
           ratingComment: ratingMap[userId]?.comment,
-          status: "completed",
         };
       }
 
@@ -649,14 +670,22 @@ if (searchTerm) {
       userMap[userId].finalBilled += tx.discountedBill || 0;
     });
 
+    console.log("👥 Total unique customers:", Object.keys(userMap).length);
+
     /* -----------------------------
-       4️⃣ Manual Pagination
+       4️⃣ Pagination
     ------------------------------*/
     const customers = Object.values(userMap);
+
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
     const skip = (page - 1) * limit;
+
+    console.log("📄 Pagination:", { page, limit, skip });
+
     const paginatedCustomers = customers.slice(skip, skip + limit);
+
+    console.log("📤 Sending response customers:", paginatedCustomers.length);
 
     /* -----------------------------
        5️⃣ Response
@@ -679,7 +708,6 @@ if (searchTerm) {
     });
   }
 };
-
 
 const getRecentMerchantCustomersList = async (req: Request, res: Response) => {
   try {

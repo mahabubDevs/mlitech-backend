@@ -638,39 +638,53 @@ const getMerchantAnalytics = async (
   end.setHours(23, 59, 59, 999);
 
   // ── Merchant Match Filter ─────────
-  const merchantMatch: Record<string, any> = { createdAt: { $gte: start, $lte: end }, role: "MERCENT" };
+  const merchantMatch: Record<string, any> = {
+    createdAt: { $gte: start, $lte: end },
+    role: "MERCENT",
+  };
+
   if (filters?.paymentStatus) merchantMatch.paymentStatus = filters.paymentStatus;
-  if (filters?.city) merchantMatch.city = { $regex: filters.city, $options: "i" };
-  if (filters?.customerName) merchantMatch.firstName = { $regex: filters.customerName, $options: "i" };
-  if (filters?.location) merchantMatch.address = { $regex: filters.location, $options: "i" };
-  if (filters?.subscriptionStatus) merchantMatch["subscription"] = filters.subscriptionStatus; // ✅ subscription field filter
+  // if (filters?.city) merchantMatch.city = { $regex: filters.city, $options: "i" };
+
+  // ✅ EXACT MATCH (case-insensitive)
+  if (filters?.customerName) {
+    merchantMatch.firstName = {
+      $regex: `^${filters.customerName}$`,
+      $options: "i",
+    };
+  }
+
+  if (filters?.location)
+  merchantMatch.city = { $regex: filters.location, $options: "i" };
+  if (filters?.subscriptionStatus) merchantMatch["subscription"] = filters.subscriptionStatus;
 
   const skip = (page - 1) * limit;
 
   // ── Records Pipeline ─────────
   const recordsPipeline: PipelineStage[] = [
     { $match: merchantMatch },
+
     {
-  $lookup: {
-    from: "sells",
-    let: { merchantId: "$_id" },
-    pipeline: [
-      {
-        $match: {
-          $expr: {
-            $and: [
-              { $eq: ["$merchantId", "$$merchantId"] },
-              { $eq: ["$status", "completed"] } // 🔥 ONLY THIS CHANGE
-            ]
+      $lookup: {
+        from: "sells",
+        let: { merchantId: "$_id" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ["$merchantId", "$$merchantId"] },
+                  { $eq: ["$status", "completed"] }
+                ]
+              }
+            }
           }
-        }
-      }
-    ],
-    as: "sells",
-  },
-},
+        ],
+        as: "sells",
+      },
+    },
+
     {
-      // Join sells.userId -> users collection
       $lookup: {
         from: "users",
         localField: "sells.userId",
@@ -678,14 +692,36 @@ const getMerchantAnalytics = async (
         as: "sellUsers",
       },
     },
+
     {
       $addFields: {
-        totalRevenue: { $sum: { $map: { input: "$sells", as: "s", in: "$$s.totalBill" } } },
-        pointsRedeemed: { $sum: { $map: { input: "$sells", as: "s", in: "$$s.pointRedeemed" } } },
-        pointsEarned: { $sum: { $map: { input: "$sells", as: "s", in: "$$s.pointsEarned" } } },
-        visit: { $size: { $ifNull: [{ $setUnion: { $map: { input: "$sells", as: "s", in: "$$s.userId" } } }, []] } },
+        totalRevenue: {
+          $sum: { $map: { input: "$sells", as: "s", in: "$$s.totalBill" } }
+        },
+        pointsRedeemed: {
+          $sum: { $map: { input: "$sells", as: "s", in: "$$s.pointRedeemed" } }
+        },
+        pointsEarned: {
+          $sum: { $map: { input: "$sells", as: "s", in: "$$s.pointsEarned" } }
+        },
+
+        totalTransactions: { $size: "$sells" },
+
+        visit: {
+          $size: {
+            $ifNull: [
+              {
+                $setUnion: {
+                  $map: { input: "$sells", as: "s", in: "$$s.userId" }
+                }
+              },
+              []
+            ]
+          }
+        }
       }
     },
+
     {
       $project: {
         merchantId: "$_id",
@@ -701,10 +737,12 @@ const getMerchantAnalytics = async (
         totalRevenue: 1,
         pointsEarned: 1,
         pointsRedeemed: hideSensitive ? { $literal: 0 } : "$pointsRedeemed",
+        totalTransactions: 1,
         visit: 1,
         date: "$createdAt",
       },
     },
+
     { $sort: { totalRevenue: -1 } },
   ];
 
@@ -716,21 +754,54 @@ const getMerchantAnalytics = async (
   // ── Monthly Aggregation ─────────
   const monthlyPipeline: PipelineStage[] = [
     {
-    $match: {
-      createdAt: { $gte: start, $lte: end },
-      status: "completed", // 🔥 ONLY COMPLETED SELLS
-      ...(filters?.paymentStatus ? { paymentStatus: filters.paymentStatus } : {}),
+      $match: {
+        createdAt: { $gte: start, $lte: end },
+        status: "completed",
+      },
     },
-  },
-  {
-    $group: {
-      _id: { year: { $year: "$createdAt" }, month: { $month: "$createdAt" } },
-      totalRevenue: { $sum: "$totalBill" },
-      pointsRedeemed: { $sum: "$pointRedeemed" },
-      pointsEarned: { $sum: "$pointsEarned" },
-      users: { $addToSet: "$userId" },
+
+    // ✅ JOIN merchant
+    {
+      $lookup: {
+        from: "users",
+        localField: "merchantId",
+        foreignField: "_id",
+        as: "merchant",
+      },
     },
-  },
+    { $unwind: "$merchant" },
+
+    // ✅ APPLY SAME FILTERS
+    {
+      $match: {
+        ...(filters?.paymentStatus ? { "merchant.paymentStatus": filters.paymentStatus } : {}),
+        ...(filters?.city ? { "merchant.city": { $regex: filters.city, $options: "i" } } : {}),
+        ...(filters?.location ? { "merchant.city": { $regex: filters.location, $options: "i" } } : {}),
+        ...(filters?.subscriptionStatus ? { "merchant.subscription": filters.subscriptionStatus } : {}),
+        ...(filters?.customerName
+          ? {
+              "merchant.firstName": {
+                $regex: `^${filters.customerName}$`,
+                $options: "i",
+              },
+            }
+          : {}),
+      },
+    },
+
+    {
+      $group: {
+        _id: {
+          year: { $year: "$createdAt" },
+          month: { $month: "$createdAt" }
+        },
+        totalRevenue: { $sum: "$totalBill" },
+        pointsRedeemed: { $sum: "$pointRedeemed" },
+        pointsEarned: { $sum: "$pointsEarned" },
+        users: { $addToSet: "$userId" },
+      },
+    },
+
     {
       $project: {
         _id: 0,
@@ -759,6 +830,7 @@ const getMerchantAnalytics = async (
   while (cursor <= end) {
     const year = cursor.getFullYear();
     const month = cursor.getMonth() + 1;
+
     const found = monthlyDataRaw.find((d) => d.year === year && d.month === month);
 
     filledMonthlyData.push({

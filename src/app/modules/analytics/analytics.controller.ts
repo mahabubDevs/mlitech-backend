@@ -148,6 +148,8 @@ const exportBusinessCustomerAnalytics = catchAsync(
 
 
 const getMerchantAnalytics = catchAsync(async (req: Request, res: Response) => {
+  console.log("========== 🚀 API HIT: getMerchantAnalytics ==========");
+
   const {
     startDate,
     endDate,
@@ -160,9 +162,11 @@ const getMerchantAnalytics = catchAsync(async (req: Request, res: Response) => {
     city
   } = req.query;
 
-  console.log("Controller - Received query:", {
+  console.log("📥 Controller - Received query:", {
     startDate,
     endDate,
+    page,
+    limit,
     subscriptionStatus,
     customerName,
     location,
@@ -173,7 +177,18 @@ const getMerchantAnalytics = catchAsync(async (req: Request, res: Response) => {
   const userRole = (req.user as any)?.role;
   const merchantId = (req.user as any)?._id;
 
-  console.log("Controller - User role:", userRole, "Merchant ID:", merchantId);
+  console.log("👤 Controller - User Info:", {
+    userRole,
+    merchantId
+  });
+
+  console.log("🎯 Controller - Filters Parsed:", {
+    subscriptionStatus,
+    customerName,
+    location,
+    paymentStatus,
+    city
+  });
 
   const result = await AnalyticsService.getMerchantAnalytics(
     startDate as string,
@@ -191,10 +206,16 @@ const getMerchantAnalytics = catchAsync(async (req: Request, res: Response) => {
     // merchantId
   );
 
-  console.log(
-    "Controller - Records Fetched:", result.data.records.length,
-    "Total Records Count:", result.pagination.total
-  );
+  console.log("📦 Controller - Service Response Received");
+
+  console.log("📊 Controller - Records Fetched:", {
+    recordsCount: result.data.records.length,
+    totalRecords: result.pagination.total,
+    page: result.pagination.page,
+    totalPage: result.pagination.totalPage
+  });
+
+  console.log("========== ✅ API SUCCESS ==========");
 
   sendResponse(res, {
     success: true,
@@ -204,7 +225,6 @@ const getMerchantAnalytics = catchAsync(async (req: Request, res: Response) => {
     pagination: result.pagination,
   });
 });
-
 
 
 
