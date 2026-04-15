@@ -765,51 +765,109 @@ const getMerchantAnalytics = async (
   }
 
   // ===================== MONTHLY PIPELINE =====================
-  const monthlyPipeline: PipelineStage[] = [
-    {
-      $match: {
-        createdAt: { $gte: start, $lte: end },
-        status: "completed",
-      },
+const monthlyPipeline: PipelineStage[] = [
+  {
+    $match: {
+      createdAt: { $gte: start, $lte: end },
+      status: "completed",
     },
+  },
 
-    {
-      $group: {
-        _id: {
-          year: { $year: "$createdAt" },
-          month: { $month: "$createdAt" },
-        },
-        totalRevenue: { $sum: "$totalBill" },
-        pointsRedeemed: { $sum: "$pointRedeemed" },
-        pointsEarned: { $sum: "$pointsEarned" },
-        users: { $sum: 1 },
-      },
+  /* 🔥 JOIN USER / MERCHANT */
+  {
+    $lookup: {
+      from: "users",
+      localField: "merchantId",
+      foreignField: "_id",
+      as: "user",
     },
+  },
 
-    // 🔥 SAFE PROJECT
-    {
-      $project: {
-        _id: 0,
-        year: "$_id.year",
-        month: "$_id.month",
-        monthName: {
-          $arrayElemAt: [monthNames, { $subtract: ["$_id.month", 1] }],
+  { $unwind: "$user" },
+
+  /* 🔥 FILTER SECTION (FRONTEND PAYLOAD SUPPORT) */
+  {
+    $match: {
+      ...(filters?.paymentStatus && {
+        "user.paymentStatus": filters.paymentStatus,
+      }),
+
+      ...(filters?.subscriptionStatus && {
+        "user.subscription": filters.subscriptionStatus,
+      }),
+
+      ...(filters?.city && {
+        "user.city": {
+          $regex: filters.city,
+          $options: "i",
         },
+      }),
 
-        totalRevenue: {
-          $cond: {
-            if: { $eq: [hideSensitive, true] },
-            then: 0,
-            else: "$totalRevenue",
+      /* 🔥 businessName / customerName BOTH SUPPORT */
+      ...(filters?.customerName && {
+        $or: [
+          {
+            "user.firstName": {
+              $regex: filters.customerName,
+              $options: "i",
+            },
           },
-        },
+          {
+            "user.businessName": {
+              $regex: filters.customerName,
+              $options: "i",
+            },
+          },
+        ],
+      }),
 
-        pointsEarned: 1,
-        pointsRedeemed: 1,
-        users: 1,
-      },
+      ...(filters?.location && {
+        "user.address": {
+          $regex: filters.location,
+          $options: "i",
+        },
+      }),
     },
-  ];
+  },
+
+  /* 🔥 GROUP (UNCHANGED) */
+  {
+    $group: {
+      _id: {
+        year: { $year: "$createdAt" },
+        month: { $month: "$createdAt" },
+      },
+      totalRevenue: { $sum: "$totalBill" },
+      pointsRedeemed: { $sum: "$pointRedeemed" },
+      pointsEarned: { $sum: "$pointsEarned" },
+      users: { $sum: 1 },
+    },
+  },
+
+  /* 🔥 SAFE PROJECT */
+  {
+    $project: {
+      _id: 0,
+      year: "$_id.year",
+      month: "$_id.month",
+      monthName: {
+        $arrayElemAt: [monthNames, { $subtract: ["$_id.month", 1] }],
+      },
+
+      totalRevenue: {
+        $cond: {
+          if: { $eq: [hideSensitive, true] },
+          then: 0,
+          else: "$totalRevenue",
+        },
+      },
+
+      pointsEarned: 1,
+      pointsRedeemed: 1,
+      users: 1,
+    },
+  },
+];
 
   // ===================== EXECUTION =====================
   const [records, totalResult, monthlyDataRaw] = await Promise.all([
@@ -1434,109 +1492,164 @@ const getCustomerMonthlyReport = async (
   return { monthlyData: filledMonthlyData };
 };
 
+
 const exportCustomerAnalytics = async (
   startDate?: string,
   endDate?: string,
   filters?: AnalyticsFilters,
   userRole: string = "MERCHANT"
 ): Promise<Buffer> => {
+
   const hideSensitive = userRole === "VIEW_ADMIN";
 
-  // ── Set Date Range ──
   const start = startDate ? new Date(startDate) : new Date("2000-01-01");
   const end = endDate ? new Date(endDate) : new Date();
+
   start.setHours(0, 0, 0, 0);
   end.setHours(23, 59, 59, 999);
 
-  // ── Match Users ──
-  const userMatch: Record<string, any> = {
+  console.log("🚀 EXPORT START:", { start, end, filters });
+
+  /* ================= BASE MATCH ================= */
+  const baseMatch: any = {
+    status: "completed",
     createdAt: { $gte: start, $lte: end },
-    role: "USER",
   };
-  if (filters?.subscriptionStatus) userMatch.subscription = filters.subscriptionStatus;
-  if (filters?.customerName) userMatch.firstName = { $regex: filters.customerName, $options: "i" };
-  if (filters?.location) userMatch.address = { $regex: filters.location, $options: "i" };
-  if (filters?.city) userMatch.city = { $regex: filters.city, $options: "i" };
-  if (filters?.paymentStatus) userMatch.paymentStatus = { $regex: `^${filters.paymentStatus}$`, $options: "i" };
 
-  // ── Lookup Sells & Subscriptions ──
-  const lookupStages: PipelineStage[] = [
-    {
-  $lookup: {
-    from: "sells",
-    let: { userId: "$_id" },
-    pipeline: [
-      {
-        $match: {
-          $expr: {
-            $and: [
-              { $eq: ["$userId", "$$userId"] },
-              { $eq: ["$status", "completed"] }, // ✅ ONLY COMPLETED
-            ],
-          },
-        },
-      },
-    ],
-    as: "sells",
-  },
-},
-    { $lookup: { from: "subscriptions", localField: "_id", foreignField: "user", as: "subscriptions" } },
-  ];
+  /* ================= MAIN PIPELINE (FIXED) ================= */
+  const pipeline: PipelineStage[] = [
+    { $match: baseMatch },
 
-  // ── Aggregate Records ──
-  const records = await User.aggregate([
-    { $match: userMatch },
-    ...lookupStages,
+    /* 🔥 START FROM USERS (IMPORTANT FIX) */
     {
-      $addFields: {
-        pointsAccumulated: { $sum: "$subscriptions.points" },
-        pointsRedeemed: { $sum: "$sells.pointRedeemed" },
-        totalRevenue: { $sum: "$sells.discountedBill" },
-        visit: { $size: { $ifNull: [{ $setUnion: ["$sells.merchantId", []] }, []] } },
+      $lookup: {
+        from: "users",
+        localField: "userId",
+        foreignField: "_id",
+        as: "user",
       },
     },
+
+    { $unwind: "$user" },
+
+    /* ================= FILTERS (SAME AS ANALYTICS) ================= */
+    {
+      $match: {
+        ...(filters?.paymentStatus && {
+          "user.paymentStatus": {
+            $regex: `^${filters.paymentStatus}$`,
+            $options: "i",
+          },
+        }),
+
+        ...(filters?.subscriptionStatus && {
+          "user.subscription": filters.subscriptionStatus,
+        }),
+
+        ...(filters?.city && {
+          "user.city": {
+            $regex: filters.city,
+            $options: "i",
+          },
+        }),
+
+        ...(filters?.location && {
+          "user.address": {
+            $regex: filters.location,
+            $options: "i",
+          },
+        }),
+
+        ...(filters?.customerName && {
+          $or: [
+            {
+              "user.firstName": {
+                $regex: filters.customerName,
+                $options: "i",
+              },
+            },
+            {
+              "user.businessName": {
+                $regex: filters.customerName,
+                $options: "i",
+              },
+            },
+          ],
+        }),
+      },
+    },
+
+    /* ================= GROUP ================= */
+    {
+      $group: {
+        _id: "$user._id",
+
+        customUserId: { $first: "$user.customUserId" },
+        customerName: { $first: "$user.firstName" },
+        location: { $first: "$user.address" },
+        city: { $first: "$user.city" },
+        subscriptionStatus: { $first: "$user.subscription" },
+        paymentStatus: { $first: "$user.paymentStatus" },
+
+        pointsEarned: { $sum: { $ifNull: ["$pointsEarned", 0] } },
+        pointsRedeemed: { $sum: { $ifNull: ["$pointRedeemed", 0] } },
+        totalRevenue: { $sum: { $ifNull: ["$totalBill", 0] } },
+
+        visits: { $sum: 1 },
+      },
+    },
+
+    /* ================= MASK ================= */
+    {
+      $addFields: {
+        totalRevenue: hideSensitive ? 0 : "$totalRevenue",
+      },
+    },
+
+    /* ================= FINAL OUTPUT ================= */
     {
       $project: {
         _id: 0,
-        // userId: "$_id",
         customUserId: 1,
-        customerName: "$firstName",
-        location: "$address",
+        customerName: 1,
+        location: 1,
         city: 1,
-        subscriptionStatus: "$subscription",
+        subscriptionStatus: 1,
         paymentStatus: 1,
-        date: "$createdAt",
-        pointsAccumulated: 1,
-        pointsRedeemed: hideSensitive ? { $literal: 0 } : "$pointsRedeemed",
+        pointsEarned: 1,
+        pointsRedeemed: 1,
         totalRevenue: 1,
-        visit: 1,
+        visits: 1,
       },
     },
-    { $sort: { createdAt: -1 } },
-  ]);
 
-  // ── Excel Export ──
+    { $sort: { totalRevenue: -1 } },
+  ];
+
+  console.log("📊 Running aggregation...");
+
+  const records = await Sell.aggregate(pipeline);
+
+  console.log("📦 EXPORT RECORDS:", records.length);
+
+  /* ================= EXCEL ================= */
   const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet("Customer Records");
+  const sheet = workbook.addWorksheet("Customer Analytics");
 
   sheet.columns = [
-    // { header: "User ID", key: "userId", width: 28 },
     { header: "Custom ID", key: "customUserId", width: 18 },
     { header: "Customer Name", key: "customerName", width: 25 },
     { header: "Location", key: "location", width: 35 },
     { header: "City", key: "city", width: 18 },
     { header: "Subscription", key: "subscriptionStatus", width: 15 },
     { header: "Payment Status", key: "paymentStatus", width: 18 },
-    { header: "Points Earned", key: "pointsAccumulated", width: 18 },
+    { header: "Points Accumulated", key: "pointsEarned", width: 18 },
     { header: "Points Redeemed", key: "pointsRedeemed", width: 18 },
     { header: "Revenue", key: "totalRevenue", width: 18 },
-    { header: "Visits", key: "visit", width: 12 },
-    { header: "Date", key: "date", width: 20 },
+    { header: "Visits", key: "visits", width: 12 },
   ];
 
-  records.forEach((r) => {
-    sheet.addRow({ ...r, date: new Date(r.date).toLocaleString() });
-  });
+  records.forEach((r) => sheet.addRow(r));
 
   sheet.getRow(1).font = { bold: true };
 
