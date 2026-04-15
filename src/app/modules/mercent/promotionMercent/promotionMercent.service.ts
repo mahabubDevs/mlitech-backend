@@ -220,7 +220,11 @@ const getDetailsOfMerchant = async (merchantId: string, userId?: string) => {
   console.log("userId:", userId);
 
   // 1️⃣ Increment merchant visits
-  await User.updateOne({ _id: merchantId }, { $inc: { totalVisits: 1 } });
+  await User.updateOne(
+    { _id: merchantId },
+    { $inc: { totalVisits: 1 } }
+  );
+
   console.log("✔ Merchant visit count incremented");
 
   // 2️⃣ Load merchant
@@ -228,11 +232,12 @@ const getDetailsOfMerchant = async (merchantId: string, userId?: string) => {
     .select("firstName businessName location profile photo about website address")
     .lean();
 
-  if (!merchant) throw new ApiError(StatusCodes.NOT_FOUND, "Merchant not found");
+  if (!merchant) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Merchant not found");
+  }
 
   merchant.merchantName = merchant.businessName || merchant.firstName;
-  merchant.availablePoints = 0;
-  merchant.digitalCardId = ""; // default
+
   console.log(`✔ Merchant loaded: ${merchant.merchantName}`);
 
   let userSegment = "all_customer";
@@ -242,7 +247,10 @@ const getDetailsOfMerchant = async (merchantId: string, userId?: string) => {
 
   /* ================= USER CONTEXT ================= */
   if (userId) {
-    const activeUser: any = await User.findById(userId).select("_id status").lean();
+    const activeUser: any = await User.findById(userId)
+      .select("_id status")
+      .lean();
+
     console.log("User status:", activeUser?.status);
 
     if (activeUser?.status === "active") {
@@ -250,56 +258,83 @@ const getDetailsOfMerchant = async (merchantId: string, userId?: string) => {
       console.log("✔ User segment:", userSegment);
 
       // 🔹 Fetch user's digital card for this merchant
-      const digitalCard = await DigitalCard.findOne({ userId, merchantId }).lean();
-      userDigitalCard = digitalCard;
+      const digitalCard = await DigitalCard.findOne({ userId, merchantId })
+  .select("cardCode availablePoints")
+  .lean();
 
-      // ✅ Attach digitalCardId
-      merchant.digitalCardId = digitalCard?._id.toString() || "";
-      console.log("✔ User's digitalCardId:", merchant.digitalCardId);
+if (digitalCard) {
+  userDigitalCard = {
+    id: digitalCard._id.toString(),
+    cardCode: digitalCard.cardCode,
+    availablePoints: digitalCard.availablePoints || 0,
+  };
 
-      // 🔹 Bought promotion IDs
-      boughtPromotionIds = digitalCard?.promotions
-        .map((p) => p.promotionId?.toString())
-        .filter((id): id is string => !!id) || [];
-      console.log("✔ Bought promotion IDs from DigitalCard:", boughtPromotionIds);
+  // 🔥 merchant এর ভিতরে inject
+  merchant.digitalCardId = digitalCard._id.toString();
+  merchant.cardCode = digitalCard.cardCode;
+  merchant.availablePoints = digitalCard.availablePoints || 0;
+} else {
+  userDigitalCard = null;
+  merchant.digitalCardId = "";
+  merchant.cardCode = "";
+  merchant.availablePoints = 0;
+}
+
+      console.log("✔ digitalCard mapped:", userDigitalCard);
 
       // 🔹 Fetch ratings for bought promotions
-      const ratings = await Rating.find({
-        merchantId,
-        userId,
-        promotionId: { $in: boughtPromotionIds },
-      })
-        .select("promotionId rating")
-        .lean();
+      if (boughtPromotionIds.length > 0) {
+        const ratings = await Rating.find({
+          merchantId,
+          userId,
+          promotionId: { $in: boughtPromotionIds },
+        })
+          .select("promotionId rating")
+          .lean();
 
-      ratings.forEach((r: any) => {
-        if (r.promotionId) userRatings[r.promotionId.toString()] = r.rating;
-      });
-      console.log("✔ User ratings map:", userRatings);
+        ratings.forEach((r: any) => {
+          if (r.promotionId) {
+            userRatings[r.promotionId.toString()] = r.rating;
+          }
+        });
+
+        console.log("✔ User ratings map:", userRatings);
+      }
     }
   }
 
   /* ================= PROMOTIONS ================= */
   const allPromotions = await Promotion.find({ merchantId })
-    .select("name discountPercentage startDate endDate image status availableDays customerSegment")
+    .select(
+      "name discountPercentage startDate endDate image status availableDays customerSegment"
+    )
     .lean();
 
   const today = new Date();
   const todayDay = dayMap[today.getDay()];
 
   const promotions = allPromotions
-    .map((promo) => {
+    .map((promo: any) => {
       const promoId = promo._id.toString();
 
       const isBought = boughtPromotionIds.includes(promoId);
 
-      const isValidDate = today >= new Date(promo.startDate) && today <= new Date(promo.endDate);
-      const isValidDay = promo.availableDays?.includes("all") || promo.availableDays?.includes(todayDay);
-      const isActive = promo.status === "active";
-      const segmentMatch =
-        promo.customerSegment?.includes("all") || promo.customerSegment?.includes(userSegment);
+      const isValidDate =
+        today >= new Date(promo.startDate) &&
+        today <= new Date(promo.endDate);
 
-      const isValidPromo = isActive && isValidDate && isValidDay && (isBought || segmentMatch);
+      const isValidDay =
+        promo.availableDays?.includes("all") ||
+        promo.availableDays?.includes(todayDay);
+
+      const isActive = promo.status === "active";
+
+      const segmentMatch =
+        promo.customerSegment?.includes("all") ||
+        promo.customerSegment?.includes(userSegment);
+
+      const isValidPromo =
+        isActive && isValidDate && isValidDay && (isBought || segmentMatch);
 
       if (!isValidPromo) return null;
 
@@ -313,9 +348,13 @@ const getDetailsOfMerchant = async (merchantId: string, userId?: string) => {
 
   console.log("✔ Total valid promotions found:", promotions.length);
   console.log("========== API END ==========");
-  return { merchant, promotions, digitalCard: userDigitalCard };
-};
 
+  return {
+    merchant,
+    promotions,
+    digitalCard: userDigitalCard,
+  };
+};
 
 
 const getUserTierOfMerchant = async (userId: string, merchantId: string) => {
