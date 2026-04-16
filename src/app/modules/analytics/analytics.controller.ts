@@ -419,7 +419,7 @@ const exportMerchantAnalytics = catchAsync(
       startDate as string,
       endDate as string,
       1,
-      0, // export all
+      0,
       {
         subscriptionStatus: subscriptionStatus as string,
         customerName: customerName as string,
@@ -431,11 +431,6 @@ const exportMerchantAnalytics = catchAsync(
 
     console.log("🔹 Total records:", result.records.length);
 
-    if (!result.records.length) {
-      console.log("⚠️ No data found");
-    }
-
-    // ✅ Ensure safe values
     const safeRows = result.records.map((r: any) => ({
       ...r,
       pointsAccumulated: r.pointsAccumulated || 0,

@@ -82,6 +82,13 @@ enum APPROVE_STATUS {
 
 
 const createMerchantToDB = async (payload: any, creatorUser: any) => {
+  console.log("\n==============================");
+  console.log("🚀 CREATE MERCHANT STARTED");
+  console.log("==============================");
+
+  console.log("📥 Incoming Payload:", payload);
+  console.log("👤 Creator User:", creatorUser);
+
   // required check
   if (!payload.email) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Email is required");
@@ -97,15 +104,19 @@ const createMerchantToDB = async (payload: any, creatorUser: any) => {
 
   // uniqueness check
   if (await User.isExistUserByEmail(payload.email)) {
+    console.log("❌ Email already exists:", payload.email);
     throw new ApiError(StatusCodes.BAD_REQUEST, "Email already exists");
   }
 
   if (await User.isExistUserByPhone(payload.phone)) {
+    console.log("❌ Phone already exists:", payload.phone);
     throw new ApiError(StatusCodes.BAD_REQUEST, "Phone already exists");
   }
 
   const referenceId = await createUniqueReferralId();
   const customerId = await generateCustomUserId(USER_ROLES.MERCENT);
+
+  console.log("🆔 Generated IDs:", { referenceId, customerId });
 
   const merchantData: any = {
     ...payload,
@@ -118,9 +129,12 @@ const createMerchantToDB = async (payload: any, creatorUser: any) => {
     customUserId: customerId,
     referenceId,
 
+    // ⚠️ IMPORTANT (case sensitive issue check)
+    subscription: "active",
+    paymentStatus: "paid",
+
     // merchant specific
     businessName: payload.businessName,
-    subscription: payload.subscriptionType,
     lastPaymentDate: payload.lastPaymentDate,
     expiryDate: payload.expiryDate,
     tier: payload.tier,
@@ -128,31 +142,55 @@ const createMerchantToDB = async (payload: any, creatorUser: any) => {
     city: payload.city,
   };
 
+  console.log("🔥 FINAL MERCHANT DATA BEFORE SAVE:", merchantData);
+
   // ✅ ONLY super_admin auto approve
   if (creatorUser.role === USER_ROLES.SUPER_ADMIN) {
     merchantData.approveStatus = APPROVE_STATUS.APPROVED;
+    console.log("✅ Auto Approved by SUPER_ADMIN");
   }
 
-  // 🔍 Check duplicate email or phone
-if (payload.email || payload.phone) {
-  const existingUser = await User.findOne({
-    $or: [
-      { email: payload.email },
-      { phone: payload.phone }
-    ]
-  });
+  // 🔍 duplicate check (again)
+  if (payload.email || payload.phone) {
+    const existingUser = await User.findOne({
+      $or: [
+        { email: payload.email },
+        { phone: payload.phone }
+      ]
+    });
 
-  if (existingUser) {
-    if (existingUser.email === payload.email) {
-      throw new ApiError(400, "Email already exists");
-    }
-    if (existingUser.phone === payload.phone) {
-      throw new ApiError(400, "Phone number already exists");
+    if (existingUser) {
+      console.log("❌ Duplicate Found in DB:", existingUser);
+
+      if (existingUser.email === payload.email) {
+        throw new ApiError(400, "Email already exists");
+      }
+      if (existingUser.phone === payload.phone) {
+        throw new ApiError(400, "Phone number already exists");
+      }
     }
   }
-}
 
   const result = await User.create(merchantData);
+
+  console.log("✅ SAVED USER FROM DB:", result);
+
+  if (result.email) {
+    console.log("📧 Sending Email to:", result.email);
+
+    emailHelper.sendEmail(
+      emailTemplate.createAccountNotification({
+        email: result.email,
+        name: result.firstName || "User",
+        password: payload.password || "password",
+      })
+    );
+  }
+
+  console.log("==============================");
+  console.log("✅ CREATE MERCHANT COMPLETED");
+  console.log("==============================\n");
+
   return result;
 };
 

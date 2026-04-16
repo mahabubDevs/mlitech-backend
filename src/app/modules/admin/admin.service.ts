@@ -1085,6 +1085,7 @@ const updateMerchantStatus = async (
 };
 
 
+
 const updateMerchantApproveStatus = async (
   id: string,
   approveStatus: APPROVE_STATUS,
@@ -1108,6 +1109,9 @@ const updateMerchantApproveStatus = async (
       throw new ApiError(StatusCodes.NOT_FOUND, "Admin not found");
     }
     data.status = USER_STATUS.ACTIVE
+     // ✅ ADD THESE (IMPORTANT)
+    data.subscription = "active";
+    data.paymentStatus = "paid";
     data.salesRep = `${adminName.firstName} ${adminName.lastName ?? ""}`.trim();
   }
 

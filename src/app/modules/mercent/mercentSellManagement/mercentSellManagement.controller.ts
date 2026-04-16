@@ -687,6 +687,7 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
           email: user.email,
           phone: user.phone,
           country: user.country,
+          profile: user.profile,
           customUserId: user.customUserId || "",
           totalTransactions: 0,
           totalPointsEarned: 0,
