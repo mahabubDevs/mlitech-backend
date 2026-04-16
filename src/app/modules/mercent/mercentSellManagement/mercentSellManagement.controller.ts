@@ -465,21 +465,10 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
 
     const user = req.user as any;
 
-    console.log("👤 Logged in user FULL:", user);
-
-    console.log("👤 User Breakdown:", {
-      id: user?._id,
-      isSubMerchant: user?.isSubMerchant,
-      merchantId: user?.merchantId,
-    });
-
-    // ✅ Decide which ID to use
+    // ✅ Decide merchant ID
     const filterId = user.isSubMerchant ? user.merchantId : user._id;
 
-    console.log("🔑 Filter ID selected:", filterId);
-
     if (!filterId || !Types.ObjectId.isValid(filterId)) {
-      console.log("❌ Invalid merchant ID:", filterId);
       return res.status(401).json({
         success: false,
         message: "Unauthorized merchant",
@@ -494,53 +483,41 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
     const period = req.query.period as string;
     const now = new Date();
 
-    console.log("⏰ Current Time:", now.toISOString());
-
     let dateFilter: any = {};
-
-    console.log("📆 Period received:", period);
 
     if (period === "day") {
       const startOfDayUTC = new Date(
         Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
       );
-      console.log("📅 Start of Day:", startOfDayUTC);
-
       dateFilter = { createdAt: { $gte: startOfDayUTC } };
 
     } else if (period === "week") {
-  const endOfDayUTC = new Date(
-    Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate(),
-      23, 59, 59, 999
-    )
-  );
+      const endOfDayUTC = new Date(
+        Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth(),
+          now.getUTCDate(),
+          23, 59, 59, 999
+        )
+      );
 
-  const startOf7DaysUTC = new Date(endOfDayUTC);
-  startOf7DaysUTC.setUTCDate(startOf7DaysUTC.getUTCDate() - 6);
+      const startOf7DaysUTC = new Date(endOfDayUTC);
+      startOf7DaysUTC.setUTCDate(startOf7DaysUTC.getUTCDate() - 6);
 
-  console.log("📅 Last 7 Days Start:", startOf7DaysUTC);
-  console.log("📅 Last 7 Days End:", endOfDayUTC);
+      dateFilter = {
+        createdAt: {
+          $gte: startOf7DaysUTC,
+          $lte: endOfDayUTC,
+        },
+      };
 
-  dateFilter = {
-    createdAt: {
-      $gte: startOf7DaysUTC,
-      $lte: endOfDayUTC,
-    },
-  };
-} else if (period === "month") {
+    } else if (period === "month") {
       const startOfMonthUTC = new Date(
         Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
       );
 
-      console.log("📅 Start of Month:", startOfMonthUTC);
-
       dateFilter = { createdAt: { $gte: startOfMonthUTC } };
     }
-
-    console.log("📌 Final Date Filter:", dateFilter);
 
     /* -----------------------------
        🔍 Search keyword
@@ -553,18 +530,9 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
       .toLowerCase()
       .trim();
 
-    console.log("🔍 Search Term Raw:", req.query.search || req.query.searchTerm);
-    console.log("🔍 Search Term Processed:", searchTerm);
-
     /* -----------------------------
        1️⃣ Fetch sales
     ------------------------------*/
-    console.log("📡 Querying DB with:", {
-      merchantId,
-      status: "completed",
-      ...dateFilter,
-    });
-
     const sales = await Sell.find({
       merchantId,
       status: "completed",
@@ -578,11 +546,7 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
       .populate("merchantId", "businessName shopName firstName")
       .lean();
 
-    console.log("📊 Total sales fetched:", sales.length);
-    console.log("📊 Sample sale:", sales[0]);
-
     if (!sales.length) {
-      console.log("⚠️ No sales found");
       return res.status(200).json({
         success: true,
         data: [],
@@ -601,38 +565,23 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
     let filteredSales = sales;
 
     if (searchTerm) {
-      console.log("🔎 Applying search filter...");
-
-      filteredSales = sales.filter((tx: any, index: number) => {
+      filteredSales = sales.filter((tx: any) => {
         const user = tx.userId || {};
 
         const fullName = `${user.firstName || ""} ${user.lastName || ""}`.toLowerCase();
         const customId = (user.customUserId || "").toLowerCase();
         const country = (user.country || "").toLowerCase();
 
-        console.log(`🔍 Checking sale #${index}`, {
-          fullName,
-          customId,
-          country,
-        });
-
-        const match =
+        return (
           fullName.includes(searchTerm) ||
           customId.includes(searchTerm) ||
-          country.includes(searchTerm);
-
-        if (match) {
-          console.log("✅ Match found:", fullName);
-        }
-
-        return match;
+          country.includes(searchTerm)
+        );
       });
-
-      console.log("📉 After search filter:", filteredSales.length);
     }
 
     /* -----------------------------
-       2️⃣ Ratings
+       2️⃣ Ratings (AVG FIX)
     ------------------------------*/
     const userIds = [
       ...new Set(
@@ -642,8 +591,6 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
       ),
     ];
 
-    console.log("⭐ User IDs:", userIds);
-
     const ratings = await Rating.find({
       merchantId,
       userId: { $in: userIds },
@@ -651,14 +598,29 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
       .select("userId rating comment")
       .lean();
 
-    console.log("⭐ Ratings fetched:", ratings.length);
-    console.log("⭐ Sample rating:", ratings[0]);
-
-    const ratingMap: Record<string, any> = {};
+    // ✅ FIX: store total + count
+    const ratingMap: Record<
+      string,
+      { total: number; count: number; comments: string[] }
+    > = {};
 
     ratings.forEach((r: any) => {
-      console.log("⭐ Mapping rating:", r.userId.toString(), r.rating);
-      ratingMap[r.userId.toString()] = r;
+      const userId = r.userId.toString();
+
+      if (!ratingMap[userId]) {
+        ratingMap[userId] = {
+          total: 0,
+          count: 0,
+          comments: [],
+        };
+      }
+
+      ratingMap[userId].total += r.rating;
+      ratingMap[userId].count += 1;
+
+      if (r.comment) {
+        ratingMap[userId].comments.push(r.comment);
+      }
     });
 
     /* -----------------------------
@@ -666,20 +628,14 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
     ------------------------------*/
     const userMap: Record<string, any> = {};
 
-    console.log("📦 Aggregating customers...");
-
-    filteredSales.forEach((tx: any, index: number) => {
+    filteredSales.forEach((tx: any) => {
       const user = tx.userId;
-
-      if (!user?._id) {
-        console.log(`⚠️ Missing user at index ${index}`);
-        return;
-      }
+      if (!user?._id) return;
 
       const userId = user._id.toString();
 
       if (!userMap[userId]) {
-        console.log("🆕 New customer added:", userId);
+        const ratingData = ratingMap[userId];
 
         userMap[userId] = {
           _id: userId,
@@ -702,12 +658,16 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
             tx.merchantId?.shopName ||
             tx.merchantId?.firstName ||
             "",
-          rating: ratingMap[userId]?.rating,
-          ratingComment: ratingMap[userId]?.comment,
+
+          // ✅ Average Rating
+          rating: ratingData
+            ? Number((ratingData.total / ratingData.count).toFixed(1))
+            : null,
+
+          ratingCount: ratingData?.count || 0,
+          ratingComments: ratingData?.comments || [],
         };
       }
-
-      console.log("➕ Updating stats for:", userId);
 
       userMap[userId].totalTransactions += 1;
       userMap[userId].totalPointsEarned += tx.pointsEarned || 0;
@@ -715,8 +675,6 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
       userMap[userId].totalBilled += tx.totalBill || 0;
       userMap[userId].finalBilled += tx.discountedBill || 0;
     });
-
-    console.log("👥 Total unique customers:", Object.keys(userMap).length);
 
     /* -----------------------------
        4️⃣ Pagination
@@ -727,11 +685,7 @@ const getMerchantCustomersList = async (req: Request, res: Response) => {
     const limit = Number(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    console.log("📄 Pagination:", { page, limit, skip });
-
     const paginatedCustomers = customers.slice(skip, skip + limit);
-
-    console.log("📤 Sending customers count:", paginatedCustomers.length);
 
     /* -----------------------------
        5️⃣ Response
