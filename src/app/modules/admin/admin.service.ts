@@ -958,7 +958,21 @@ const updateCustomer = async (id: string, payload: Record<string, unknown>) => {
 //===== delete customer ======//
 
 const deleteCustomer = async (id: string) => {
-  const user = await User.findOneAndDelete({ _id: id, role: "USER" }).lean();
+  const user = await User.findOneAndUpdate(
+    {
+      _id: id,
+      role: "USER",
+      isDeleted: false, // ensure already deleted users are not processed again
+    },
+    {
+      $set: {
+        status: "suspended", // optional: change status to indicate deletion
+        isDeleted: true,
+        deletedAt: new Date(),
+      },
+    },
+    { new: true }
+  ).lean();
 
   if (!user) {
     throw new ApiError(StatusCodes.NOT_FOUND, "Customer not found");
@@ -1015,52 +1029,72 @@ const updateMerchant = async (id: string, payload: Record<string, unknown>) => {
 const deleteMerchant = async (id: string) => {
   console.log("Delete Merchant called for ID:", id);
 
-  const merchant = await User.findById(id).lean();
+  // 1️⃣ Find merchant
+  const merchant = await User.findOne({
+    _id: id,
+    role: "MERCHANT",
+    isDeleted: false,
+  });
+
   if (!merchant) {
     console.log("Merchant not found in DB");
     throw new ApiError(StatusCodes.NOT_FOUND, "Merchant not found");
   }
 
-  console.log("Merchant found:", merchant.firstName, merchant.email, merchant.fcmToken);
+  console.log(
+    "Merchant found:",
+    merchant.firstName,
+    merchant.email,
+    merchant.fcmToken
+  );
 
-  // 1️⃣ Send push notification
+  // 2️⃣ Send push notification to merchant
   if (merchant.fcmToken) {
     console.log("Sending push notification to:", merchant.fcmToken);
+
     await sendPushNotification(
       merchant.fcmToken,
-      "Account Deleted",
-      "Your merchant account has been deleted by Admin."
+      "Account Suspended",
+      "Your merchant account has been suspended by Admin."
     );
+
     console.log("Push notification sent");
   } else {
     console.log("No FCM token found, skipping notification");
   }
 
-      // 2️⃣ Save DB Notification for Super Admin(s)
-
-
-        // 🔎 Find Super Admin(s)
+  // 3️⃣ Notify Super Admin(s)
   const superAdmins = await User.find({
     role: USER_ROLES.SUPER_ADMIN,
   }).select("_id fcmToken");
 
   if (!superAdmins.length) {
     console.log("No Super Admin found");
+  } else {
+    await sendNotification({
+      userIds: superAdmins.map((admin) => admin._id),
+      title: `Merchant ${merchant.firstName} (${merchant.email}) has been deleted by Admin.`,
+      body: `Merchant ${merchant.firstName} (${merchant.email}) has been deleted by Admin.`,
+      type: NotificationType.MANUAL,
+    });
   }
 
-  await sendNotification({
-    userIds: superAdmins.map((admin) => admin._id),
-    title: `Merchant ${merchant.firstName} (${merchant.email}) has been deleted by Admin.`,
-    body: `Merchant ${merchant.firstName} (${merchant.email}) has been deleted by Admin.`,
-    type: NotificationType.MANUAL,
-  });
+  // 4️⃣ Soft delete (suspend merchant instead of hard delete)
+  const updatedMerchant = await User.findByIdAndUpdate(
+    id,
+    {
+      $set: {
+        status: "suspended", // optional: change status to indicate deletion
+        isDeleted: true,
+        deletedAt: new Date(),
+      },
+    },
+    { new: true }
+  );
 
+  console.log("Merchant soft-deleted (suspended):", updatedMerchant?._id);
 
-  // 2️⃣ Delete merchant
-  const deleted = await User.findByIdAndDelete(id);
-  console.log("Merchant deleted from DB:", deleted?._id);
-
-  return merchant;
+  return updatedMerchant;
 };
 
 

@@ -277,6 +277,15 @@ const userSchema = new Schema<IUser, UserModal>(
       type: Boolean,
       default: false,
     },
+    isDeleted: {
+  type: Boolean,
+  default: false,
+    },
+
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
     previousPasswords: [
       {
         hash: String,

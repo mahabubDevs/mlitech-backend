@@ -15,6 +15,7 @@ export enum USER_STATUS {
   INACTIVE = "inActive",
   BLOCK = "block",
   ARCHIVE = "archive",
+  SUSPEND = "suspend",
 }
 
 export enum USER_REPORT {

@@ -48,22 +48,60 @@ const DEVICE_ROLE_MAP: Record<string, USER_ROLES[]> = {
   ],
 };
 
-const loginUserFromDB = async (  payload: ILoginData & { device: string; fcmToken?: string }) => {
+const loginUserFromDB = async (
+  payload: ILoginData & { device: string; fcmToken?: string }
+) => {
   const { identifier, password, device, fcmToken } = payload;
 
   // 1️⃣ Find user by email or phone
   const user: any = await User.findOne({
     $or: [{ email: identifier }, { phone: identifier }],
-  }).select('+password');
+  }).select("+password");
 
-  if (!user) throw new ApiError(StatusCodes.BAD_REQUEST, "User doesn't exist!");
-  if (!user.verified) throw new ApiError(StatusCodes.BAD_REQUEST, 'Please verify your account before login');
-  if (user.status !== USER_STATUS.ACTIVE) throw new ApiError(StatusCodes.BAD_REQUEST, 'Your account is not active. Please contact support.');
-  if (password && !(await User.isMatchPassword(password, user.password))) throw new ApiError(StatusCodes.BAD_REQUEST, 'Password is incorrect!');
+  if (!user) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "User doesn't exist!");
+  }
 
-  // 2️⃣ Device-based role validation
+  // 🚨 1.5️⃣ Soft delete / suspended account check (IMPORTANT)
+  if (user.isDeleted || user.status === "SUSPENDED") {
+    throw new ApiError(
+      StatusCodes.FORBIDDEN,
+      "Your account has been deleted/suspended. Please create a new account with a new email or contact support."
+    );
+  }
+
+  // 2️⃣ Verification check
+  if (!user.verified) {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      "Please verify your account before login"
+    );
+  }
+
+  // 3️⃣ Active status check
+  if (user.status !== USER_STATUS.ACTIVE) {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      "Your account is not active. Please contact support."
+    );
+  }
+
+  // 4️⃣ Password check
+  if (
+    password &&
+    !(await User.isMatchPassword(password, user.password))
+  ) {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      "Password is incorrect!"
+    );
+  }
+
+  // 5️⃣ Device-based role validation
   const allowedRoles = DEVICE_ROLE_MAP[device.toLowerCase()];
-  if (!allowedRoles) throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid device type");
+  if (!allowedRoles) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid device type");
+  }
 
   if (!allowedRoles.includes(user.role)) {
     throw new ApiError(
@@ -72,7 +110,7 @@ const loginUserFromDB = async (  payload: ILoginData & { device: string; fcmToke
     );
   }
 
-  // 3️⃣ Create tokens
+  // 6️⃣ Create tokens
   const accessToken = jwtHelper.createToken(
     { id: user._id, role: user.role, email: user.email },
     config.jwt.jwt_secret as Secret,
@@ -85,7 +123,11 @@ const loginUserFromDB = async (  payload: ILoginData & { device: string; fcmToke
     config.jwt.jwtRefreshExpiresIn as string
   );
 
-  await User.findByIdAndUpdate(user._id, { latestToken: accessToken,...(fcmToken && { fcmToken })  });
+  // 7️⃣ Update token + FCM
+  await User.findByIdAndUpdate(user._id, {
+    latestToken: accessToken,
+    ...(fcmToken && { fcmToken }),
+  });
 
   return {
     success: true,
@@ -98,8 +140,8 @@ const loginUserFromDB = async (  payload: ILoginData & { device: string; fcmToke
       subscription: user.subscription,
       businessName: user.businessName || "",
       isUserWaiting: user.isUserWaiting,
-      location: user.location ?? { type: 'Point', coordinates: [0, 0] },
-    }
+      location: user.location ?? { type: "Point", coordinates: [0, 0] },
+    },
   };
 };
 
@@ -202,6 +244,13 @@ const forgetPasswordToDB = async (identifier: string) => {
 
   if (!user) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "User doesn't exist!");
+  }
+
+  if (user.isDeleted ) {
+    throw new ApiError(
+      StatusCodes.FORBIDDEN,
+      "Your account has been deleted/suspended. Please create a new account with a new email or contact support."
+    );
   }
 
   // 2️⃣ Generate OTP
@@ -721,63 +770,122 @@ const newAccessTokenToUser = async (token: string) => {
 
 
 
-const deleteUserFromDB = async (user: JwtPayload, password: string): Promise<void> => {
+const deleteUserFromDB = async (
+  user: JwtPayload,
+  password: string
+): Promise<void> => {
   // 1️⃣ Find user
-  const isExistUser = await User.findById(user.id).select('+password');
+  const isExistUser = await User.findById(user.id).select("+password");
+
   if (!isExistUser) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "User doesn't exist!");
   }
 
   // 2️⃣ Password required check
   if (!password) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, "Password is required to delete account");
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      "Password is required to delete account"
+    );
   }
 
   // 3️⃣ Ensure user password exists
   if (!isExistUser.password) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, "User has no password set");
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      "User has no password set"
+    );
   }
 
   // 4️⃣ Password match check
-  const isMatch = await User.isMatchPassword(password, isExistUser.password);
+  const isMatch = await User.isMatchPassword(
+    password,
+    isExistUser.password
+  );
+
   if (!isMatch) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, 'Password is incorrect');
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Password is incorrect");
   }
 
-  // 5️⃣ Delete user
-  await User.findByIdAndDelete(user.id);
+  // 5️⃣ Soft delete (suspend user instead of remove)
+  await User.findByIdAndUpdate(
+    user.id,
+    {
+      $set: {
+        status: "suspended",
+        isDeleted: true,
+        deletedAt: new Date(),
+      },
+    },
+    { new: true }
+  );
+
+  // 6️⃣ Optional: send SMS / notification (if you already use it)
+  // await sendSMS(...)
+  // await sendPushNotification(...)
+
+  console.log("User account suspended successfully");
 };
 
 
 const deleteOwnUserAccount = async (userId: string, password: string) => {
   if (!userId || !password) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, "User ID and password are required");
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      "User ID and password are required"
+    );
   }
 
+  // 1️⃣ Find user
   const user = await User.findById(userId).select("+password");
-  if (!user) throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
-  if (!user.password) throw new ApiError(StatusCodes.BAD_REQUEST, "This account has no password set");
 
-  // Trim password to avoid whitespace issues
+  if (!user) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
+  }
+
+  if (!user.password) {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      "This account has no password set"
+    );
+  }
+
+  // 2️⃣ Password check
   const isMatch = await bcrypt.compare(password.trim(), user.password);
-  if (!isMatch) throw new ApiError(StatusCodes.UNAUTHORIZED, "Incorrect password");
 
-   // 🔹 Keep user info before delete
+  if (!isMatch) {
+    throw new ApiError(
+      StatusCodes.UNAUTHORIZED,
+      "Incorrect password"
+    );
+  }
+
+  // 🔹 Keep user info before delete
   const deletedUserInfo = {
     id: user._id,
     name: user.firstName || "Unknown User",
     email: user.email,
   };
 
-  await User.findByIdAndDelete(userId);
+  // 3️⃣ SOFT DELETE (instead of findByIdAndDelete)
+  await User.findByIdAndUpdate(
+    userId,
+    {
+      $set: {
+        status: "SUSPENDED",
+        isDeleted: true,
+        deletedAt: new Date(),
+      },
+    },
+    { new: true }
+  );
 
-  
-  // ✅ Background notification (fire & forget)
+  // 4️⃣ Background notification (fire & forget)
   (async () => {
     try {
       const admins = await User.find({
         role: { $in: ["ADMIN", "SUPER_ADMIN"] },
-        status: "active",
+        status: "ACTIVE",
       }).select("_id");
 
       const adminIds = admins.map((a) => a._id);
@@ -800,10 +908,18 @@ const deleteOwnUserAccount = async (userId: string, password: string) => {
         `[Background] Account deletion notification sent to ${adminIds.length} admin(s)`
       );
     } catch (err) {
-      console.error("[Background] Account delete notification error:", err);
+      console.error(
+        "[Background] Account delete notification error:",
+        err
+      );
     }
   })();
-  return { deletedUserId: userId };
+
+  return {
+    success: true,
+    message: "Account suspended successfully",
+    deletedUserId: userId,
+  };
 };
 // sendPhoneOtpToDB.ts
 // sendPhoneOtpToDB.ts

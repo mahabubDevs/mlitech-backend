@@ -171,6 +171,8 @@ export interface IUser {
     subscriptionNotifications: boolean;
     pushNotifications: boolean;
   };
+  isDeleted?: boolean;
+  deletedAt?: Date;
   previousPasswords?: {
     hash: string;
     changedAt: Date;
