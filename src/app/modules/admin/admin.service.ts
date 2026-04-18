@@ -839,7 +839,7 @@ const getNearbyMerchants = async (query: IQuery, userId: string) => {
     throw new ApiError(StatusCodes.BAD_REQUEST, "User location not found");
   }
 
-  const radius = query.radius ? Number(query.radius) : 10; // km
+  const radius = query.radius ? Number(query.radius) : 1000000; // km
   const searchTerm = query.searchTerm ? String(query.searchTerm) : null;
   const radiusInMeters = radius * 1000;
 
