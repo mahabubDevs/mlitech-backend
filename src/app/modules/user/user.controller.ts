@@ -159,6 +159,7 @@ const getUserOnlineStatus = catchAsync(async (req: Request, res: Response) => {
 
 const getUserSummaryCounts = catchAsync(async (req: Request, res: Response) => {
   const userId = (req.user as any)?._id;
+
   if (!userId) {
     return res.status(StatusCodes.UNAUTHORIZED).json({
       success: false,
@@ -168,30 +169,40 @@ const getUserSummaryCounts = catchAsync(async (req: Request, res: Response) => {
 
   // 1️⃣ Fetch subscriptions with package title
   const subscriptions = await Subscription.find({ user: userId })
-    .populate("package", "title") // fetch only package title
+    .populate("package", "title")
     .lean();
 
-  // Extract only titles
-  const subscriptionTitles = subscriptions.map(sub => (sub.package as any)?.title).filter(Boolean);
+  const subscriptionTitles = subscriptions
+    .map((sub) => (sub.package as any)?.title)
+    .filter(Boolean);
 
   // 2️⃣ Total spent
-  const totalSpent = subscriptions.reduce((sum, sub) => sum + sub.price, 0);
+  const totalSpent = subscriptions.reduce(
+    (sum, sub) => sum + (sub.price || 0),
+    0
+  );
 
-  // 3️⃣ Total digital cards
-  const totalDigitalCards = await DigitalCard.countDocuments({ userId });
+  // 3️⃣ Fetch digital cards once (reuse)
+  const digitalCards = await DigitalCard.find({ userId })
+    .select("promotions")
+    .lean();
 
-  // 4️⃣ Total promotions
-  const digitalCards = await DigitalCard.find({ userId }).select("promotions").lean();
-  const totalPromotions =  digitalCards.reduce((sum, card) => {
-    const available = (card.promotions || []).filter(
-      (p: any) => p.status !== "used"
-    ).length;
-    return sum + available;
+  // 4️⃣ Total digital cards
+  const totalDigitalCards = digitalCards.length;
+
+  // 5️⃣ Total promotions (exclude expired, include used + unused)
+  const totalPromotions = digitalCards.reduce((sum, card) => {
+    if (!Array.isArray(card.promotions)) return sum;
+
+    const validPromotions = card.promotions.filter(
+      (p: any) => p && p.status && p.status !== "expired"
+    );
+
+    return sum + validPromotions.length;
   }, 0);
 
-  
-  // 5️⃣ Minimal response
-  res.status(StatusCodes.OK).json({
+  // 6️⃣ Response
+  return res.status(StatusCodes.OK).json({
     success: true,
     message: "User Summary fetched successfully",
     data: {
