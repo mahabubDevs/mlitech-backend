@@ -10,22 +10,57 @@ class QueryBuilder<T> {
   }
  
   //searching
+  // search(searchableFields: string[]) {
+  //   if (this?.query?.searchTerm) {
+  //     this.modelQuery = this.modelQuery.find({
+  //       $or: searchableFields.map(
+  //         field =>
+  //           ({
+  //             [field]: {
+  //               $regex: this.query.searchTerm,
+  //               $options: 'i',
+  //             },
+  //           } as FilterQuery<T>)
+  //       ),
+  //     });
+  //   }
+  //   return this;
+  // }
+
   search(searchableFields: string[]) {
-    if (this?.query?.searchTerm) {
-      this.modelQuery = this.modelQuery.find({
-        $or: searchableFields.map(
-          field =>
-            ({
-              [field]: {
-                $regex: this.query.searchTerm,
-                $options: 'i',
-              },
-            } as FilterQuery<T>)
-        ),
-      });
-    }
-    return this;
+  if (this?.query?.searchTerm) {
+
+    // 🔥 Escape regex special characters
+    const escapeRegex = (text: string) =>
+      text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    const raw = this.query.searchTerm as string;
+
+    const escaped = escapeRegex(raw);
+
+    // 🔥 normalize (remove + for phone search)
+    const normalized = raw.replace(/^\+/, '');
+
+    this.modelQuery = this.modelQuery.find({
+      $or: searchableFields.flatMap(field => [
+        {
+          [field]: {
+            $regex: escaped,
+            $options: 'i',
+          },
+        },
+        {
+          [field]: {
+            $regex: normalized,
+            $options: 'i',
+          },
+        },
+      ]) as FilterQuery<T>[],
+    });
   }
+
+  return this;
+}
  
   //filtering
 // filtering
