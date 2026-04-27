@@ -4,6 +4,7 @@ import sendResponse from "../../../shared/sendResponse";
 import { StatusCodes } from "http-status-codes";
 import { AnalyticsService } from "./analytics.service";
 import { get } from "mongoose";
+import * as ExcelJS from "exceljs";
 import { generateExcelBuffer } from "../../../helpers/excelExport";
 
 // User creates report
@@ -60,41 +61,101 @@ const getBusinessCustomerAnalytics = catchAsync(
 
 const exportBusinessCustomerAnalytics = catchAsync(
   async (req: Request, res: Response) => {
-    const merchantId = (req.user as any)._id;
+    const user = req.user as any;
 
-    const {
-      startDate,
-      endDate,
-      subscriptionStatus,
-      customerName,
-      location,
-    } = req.query;
+    const { startDate, endDate } = req.query;
 
-    const buffer =
-      await AnalyticsService.exportBusinessCustomerAnalytics(
-        merchantId,
+    if (!startDate || !endDate) {
+      throw new Error("startDate and endDate are required");
+    }
+
+    console.log("🚀 Export Started");
+
+    const bufferData =
+      await AnalyticsService.getBusinessCustomerAnalytics(
+        user._id,
         startDate as string,
         endDate as string,
-        {
-          subscriptionStatus: subscriptionStatus as string,
-          customerName: customerName as string,
-          location: location as string,
-        }
+        1,
+        10,
+        {}, // filters empty for export
+        user.role,
+        user.isSubMerchant,
+        user.merchantId?.toString()
       );
 
+    const monthlyData = bufferData.data.monthlyData;
+
+    console.log("📊 Monthly Data Count:", monthlyData.length);
+
+    /* ==============================
+       📦 EXCEL WORKBOOK
+    ============================== */
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Monthly Business Report");
+
+    /* ==============================
+       📌 COLUMNS
+    ============================== */
+    worksheet.columns = [
+      { header: "Year", key: "year", width: 10 },
+      { header: "Month Name", key: "monthName", width: 15 },
+      { header: "Total Revenue", key: "totalRevenue", width: 18 },
+      { header: "Points Earned", key: "totalPointsAccumulated", width: 18 },
+      { header: "Points Redeemed", key: "totalPointsRedeemed", width: 18 },
+      { header: "Visits", key: "totalUsers", width: 12 },
+    ];
+
+    /* ==============================
+       📌 ROWS
+    ============================== */
+    monthlyData.forEach((item: any) => {
+      worksheet.addRow({
+        year: item.year,
+        monthName: item.monthName,
+        totalRevenue: item.totalRevenue,
+        totalPointsAccumulated: item.totalPointsAccumulated,
+        totalPointsRedeemed: item.totalPointsRedeemed,
+        totalUsers: item.totalUsers,
+      });
+    });
+
+    /* ==============================
+       🎯 HEADER STYLE (PRO LOOK)
+    ============================== */
+    worksheet.getRow(1).font = {
+      bold: true,
+      size: 12,
+    };
+
+    worksheet.getRow(1).alignment = {
+      vertical: "middle",
+      horizontal: "center",
+    };
+
+    /* ==============================
+       📤 BUFFER
+    ============================== */
+    const buffer = await workbook.xlsx.writeBuffer();
+
+    /* ==============================
+       📥 RESPONSE HEADERS
+    ============================== */
     res.setHeader(
       "Content-Disposition",
-      "attachment; filename=business-customer-analytics.xlsx"
+      `attachment; filename=business-customer-monthly-report.xlsx`
     );
+
     res.setHeader(
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     );
 
-    res.send(buffer);
+    console.log("✅ Export Completed");
+
+    return res.send(buffer);
   }
 );
-
 
 
 
