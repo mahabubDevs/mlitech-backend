@@ -15,7 +15,7 @@ router.get(
 
 router.get(
   "/business-customer/export",
-  auth(USER_ROLES.MERCENT),
+  auth(USER_ROLES.MERCENT,USER_ROLES.VIEW_MERCENT,USER_ROLES.ADMIN_MERCENT),
   AnalyticsController.exportBusinessCustomerAnalytics
 );
 
