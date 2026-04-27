@@ -431,13 +431,22 @@ const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
   }
 
   if (service) {
-    const serviceWords = (service as string).split(/\s+|,/);
-    baseQuery = baseQuery.find({
-      $or: serviceWords.map((word) => ({
-        service: { $regex: word, $options: "i" },
-      })),
-    });
-  }
+  console.log("🛠 Raw Service Input:", service);
+
+  const safeService = decodeURIComponent(service as string)
+    .replace(/\+/g, " ")
+    .trim();
+
+  console.log("✨ Safe Service:", safeService);
+
+  baseQuery = baseQuery.find({
+    service: { $regex: safeService, $options: "i" },
+  });
+
+  console.log("🔎 Service Filter Applied");
+} else {
+  console.log("⚡ No Service Provided → Default Merchants Returned");
+}
 
   if (userLocation && radius) {
     baseQuery = baseQuery.find({
@@ -630,6 +639,9 @@ const getAllMerchants = async (query: Record<string, unknown>, user: any) => {
 
   return { allmerchants: merchantsWithData, pagination };
 };
+
+
+
 
 const exportMerchants = async (
   query: Record<string, unknown>,
