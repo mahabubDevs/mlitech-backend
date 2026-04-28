@@ -68,15 +68,17 @@ const sendNotificationToAllUsers = async (
 
     console.log("[Notification] Users after applying filter:", filteredUsers);
 
-    const tokens: string[] = [];
-    const userIds: Types.ObjectId[] = [];
+   const tokenSet = new Set<string>();
+const userIds: Types.ObjectId[] = [];
 
-    filteredUsers.forEach((u) => {
-      if (u.fcmToken) {
-        tokens.push(u.fcmToken);
-        userIds.push(u._id);
-      }
-    });
+filteredUsers.forEach((u) => {
+  if (u.fcmToken) {
+    tokenSet.add(u.fcmToken);
+    userIds.push(u._id);
+  }
+});
+
+const tokens = Array.from(tokenSet);
 
     console.log("[Notification] Tokens to send:", tokens);
 
@@ -141,25 +143,232 @@ const sendNotificationToAllUsers = async (
 
 
 
-const sendMerchantPromotion = async (payload: any, merchantId: string) => {
-  const { title, message, image, target, filters, state, country, city, tier, subscriptionType } = payload;
+// const sendMerchantPromotion = async (payload: any, merchantId: string) => {
+//   const { title, message, image, target, filters, state, country, city, tier, subscriptionType } = payload;
 
-  console.log("=================================================");
+//   console.log("=================================================");
+//   console.log("🚀 sendMerchantPromotion START");
+//   console.log("🧾 Merchant ID:", merchantId);
+//   console.log("📄 Payload:", payload);
+//   console.log("=================================================");
+
+//   let users: any[] = [];
+//   const allCustomer = filters?.segment === "all_customer";
+
+//   if (allCustomer) {
+//     const cards = await DigitalCard.find({ merchantId })
+//       .populate("userId", "fcmToken location createdAt isVIP")
+//       .select("userId availablePoints")
+//       .lean();
+
+//     console.log("📌 Total Cards found:", cards.length);
+
+//     const userIds = cards.map((c: any) => c.userId?._id).filter(Boolean);
+
+//     const sells = await Sell.find({
+//       merchantId,
+//       userId: { $in: userIds },
+//       status: "completed",
+//     }).lean();
+
+//     console.log("📌 Total Completed Sells found:", sells.length);
+
+//     const sellMap: Record<string, any[]> = {};
+//     sells.forEach((sell: any) => {
+//       const uid = sell.userId.toString();
+//       if (!sellMap[uid]) sellMap[uid] = [];
+//       sellMap[uid].push(sell);
+//     });
+
+//     const now = new Date();
+//     const last6Months = new Date(now.getTime() - 6 * 30 * 24 * 60 * 60 * 1000);
+//     const avgSpend = 1000;
+
+//     users = cards
+//       .map((c: any) => {
+//         const user = c.userId;
+//         if (!user) return null;
+
+//         const userId = user._id.toString();
+//         const userSells = sellMap[userId] || [];
+//         const totalSpend = userSells.reduce((sum, s) => sum + (s.discountedBill || 0), 0);
+//         const last6MonthsPurchases = userSells.filter((s) => new Date(s.createdAt) >= last6Months).length;
+
+//         let segment = "new_customer";
+//         if (last6MonthsPurchases >= 20 || totalSpend >= 3 * avgSpend) segment = "vip_customer";
+//         else if (last6MonthsPurchases >= 5 || totalSpend >= 1.5 * avgSpend) segment = "loyal_customer";
+//         else if (userSells.length >= 2 && last6MonthsPurchases < 5) segment = "returning_customer";
+
+//         return {
+//           userId: user._id,
+//           fcmToken: user.fcmToken,
+//           location: user.location,
+//           availablePoints: c.availablePoints ?? 0,
+//           segment,
+//         };
+//       })
+//       .filter(Boolean);
+
+//     console.log("📌 Users after mapping segments:", users.length);
+//   } else {
+//     const merchantCustomers = await MerchantCustomer.find({
+//       merchantId,
+//       segment: filters.segment,
+//     })
+//       .populate("customerId", "fcmToken location createdAt isVIP")
+//       .select("customerId points segment")
+//       .lean();
+
+//     console.log("📌 MerchantCustomers found:", merchantCustomers.length);
+
+//     users = merchantCustomers
+//       .map((mc: any) => {
+//         if (!mc.customerId) return null;
+//         return {
+//           userId: mc.customerId._id,
+//           fcmToken: mc.customerId.fcmToken,
+//           location: mc.customerId.location,
+//           availablePoints: mc.points ?? 0,
+//           segment: mc.segment,
+//         };
+//       })
+//       .filter(Boolean);
+
+//     console.log("📌 Users mapped from MerchantCustomer:", users.length);
+//   }
+
+//   // ================= FILTER =================
+//   let skippedNoToken = 0;
+//   let skippedPoints = 0;
+//   let skippedRadius = 0;
+//   let eligibleUsers = 0;
+//   const merchantLocation = filters?.merchantLocation;
+
+//   const eligibleUsersData = users
+//     .filter((u) => {
+//       if (!u.fcmToken) {
+//         skippedNoToken++;
+//         return false;
+//       }
+
+//       if (target?.type === "points" && filters?.minPoints !== undefined && u.availablePoints < filters.minPoints) {
+//         skippedPoints++;
+//         return false;
+//       }
+
+//       if (typeof filters?.radius === "number" && filters.radius !== Infinity && merchantLocation?.coordinates && u.location?.coordinates) {
+//         const [userLng, userLat] = u.location.coordinates;
+//         const [centerLng, centerLat] = merchantLocation.coordinates;
+
+//         const distance = getDistanceFromLatLonInKm(Number(userLat), Number(userLng), Number(centerLat), Number(centerLng));
+//         if (distance > filters.radius) {
+//           skippedRadius++;
+//           return false;
+//         }
+//       }
+
+//       eligibleUsers++;
+//       return true;
+//     })
+//     .map((u) => ({
+//       userId: u.userId,
+//       token: u.fcmToken,
+//     }));
+
+//   console.log("📊 Filter Stats -> No Token:", skippedNoToken, ", Points Skipped:", skippedPoints, ", Radius Skipped:", skippedRadius, ", Eligible:", eligibleUsers);
+
+//   const tokens = eligibleUsersData.map((u) => u.token);
+//   const finalUserIds = eligibleUsersData.map((u) => u.userId);
+
+//   if (tokens.length === 0) {
+//     console.log("⚠️ No eligible users to send push notification");
+//     return { sentCount: 0, failedCount: 0, message: "No customers matched" };
+//   }
+
+//   // ================= FIREBASE =================
+//   console.log("📩 Sending Firebase notification to tokens:", tokens.length);
+
+//   const firebaseMessage = {
+//     notification: {
+//       title,
+//       body: message,
+//       image,
+//     },
+//     data: {
+//       type: "promotion",
+//       merchantId: merchantId.toString(),
+//     },
+//     tokens,
+//   };
+
+//   const response = await admin.messaging().sendEachForMulticast(firebaseMessage);
+//   console.log("📩 Firebase Response:", response);
+
+//   // ================= SOCKET NOTIFICATION =================
+//   await sendNotification({
+//     userIds: finalUserIds,
+//     title,
+//     body: message,
+//     type: NotificationType.PROMOTION,
+//     metadata: { merchantId },
+//     attachments: image ? [image] : [],
+//     channel: { socket: true, push: false },
+//   });
+//   console.log("🔔 Socket notifications sent");
+
+//   // ================= DB STORE =================
+//   const pushDoc = await Push.create({
+//     title,
+//     body: message,
+//     state,
+//     country,
+//     city,
+//     tier,
+//     subscriptionType,
+//     status: "sent",
+//     createdBy: merchantId,
+//     sentCount: response.successCount,
+//     failedCount: response.failureCount,
+//     mediaUrl: image,
+//   });
+//   console.log("💾 Push record saved in DB:", pushDoc._id);
+
+//   return {
+//     sentCount: response.successCount,
+//     failedCount: response.failureCount,
+//     dbRecord: pushDoc,
+//   };
+// };
+
+
+// Helper functions
+
+
+const sendMerchantPromotion = async (payload: any, merchantId: string) => {
+  const {
+    title,
+    message,
+    image,
+    target,
+    filters,
+    state,
+    country,
+    city,
+    tier,
+    subscriptionType,
+  } = payload;
+
   console.log("🚀 sendMerchantPromotion START");
-  console.log("🧾 Merchant ID:", merchantId);
-  console.log("📄 Payload:", payload);
-  console.log("=================================================");
 
   let users: any[] = [];
   const allCustomer = filters?.segment === "all_customer";
 
+  // ================= FETCH USERS =================
   if (allCustomer) {
     const cards = await DigitalCard.find({ merchantId })
       .populate("userId", "fcmToken location createdAt isVIP")
       .select("userId availablePoints")
       .lean();
-
-    console.log("📌 Total Cards found:", cards.length);
 
     const userIds = cards.map((c: any) => c.userId?._id).filter(Boolean);
 
@@ -168,8 +377,6 @@ const sendMerchantPromotion = async (payload: any, merchantId: string) => {
       userId: { $in: userIds },
       status: "completed",
     }).lean();
-
-    console.log("📌 Total Completed Sells found:", sells.length);
 
     const sellMap: Record<string, any[]> = {};
     sells.forEach((sell: any) => {
@@ -189,13 +396,23 @@ const sendMerchantPromotion = async (payload: any, merchantId: string) => {
 
         const userId = user._id.toString();
         const userSells = sellMap[userId] || [];
-        const totalSpend = userSells.reduce((sum, s) => sum + (s.discountedBill || 0), 0);
-        const last6MonthsPurchases = userSells.filter((s) => new Date(s.createdAt) >= last6Months).length;
+
+        const totalSpend = userSells.reduce(
+          (sum, s) => sum + (s.discountedBill || 0),
+          0
+        );
+
+        const last6MonthsPurchases = userSells.filter(
+          (s) => new Date(s.createdAt) >= last6Months
+        ).length;
 
         let segment = "new_customer";
-        if (last6MonthsPurchases >= 20 || totalSpend >= 3 * avgSpend) segment = "vip_customer";
-        else if (last6MonthsPurchases >= 5 || totalSpend >= 1.5 * avgSpend) segment = "loyal_customer";
-        else if (userSells.length >= 2 && last6MonthsPurchases < 5) segment = "returning_customer";
+        if (last6MonthsPurchases >= 20 || totalSpend >= 3 * avgSpend)
+          segment = "vip_customer";
+        else if (last6MonthsPurchases >= 5 || totalSpend >= 1.5 * avgSpend)
+          segment = "loyal_customer";
+        else if (userSells.length >= 2)
+          segment = "returning_customer";
 
         return {
           userId: user._id,
@@ -206,8 +423,6 @@ const sendMerchantPromotion = async (payload: any, merchantId: string) => {
         };
       })
       .filter(Boolean);
-
-    console.log("📌 Users after mapping segments:", users.length);
   } else {
     const merchantCustomers = await MerchantCustomer.find({
       merchantId,
@@ -217,11 +432,10 @@ const sendMerchantPromotion = async (payload: any, merchantId: string) => {
       .select("customerId points segment")
       .lean();
 
-    console.log("📌 MerchantCustomers found:", merchantCustomers.length);
-
     users = merchantCustomers
       .map((mc: any) => {
         if (!mc.customerId) return null;
+
         return {
           userId: mc.customerId._id,
           fcmToken: mc.customerId.fcmToken,
@@ -231,61 +445,82 @@ const sendMerchantPromotion = async (payload: any, merchantId: string) => {
         };
       })
       .filter(Boolean);
-
-    console.log("📌 Users mapped from MerchantCustomer:", users.length);
   }
 
   // ================= FILTER =================
-  let skippedNoToken = 0;
-  let skippedPoints = 0;
-  let skippedRadius = 0;
-  let eligibleUsers = 0;
   const merchantLocation = filters?.merchantLocation;
 
-  const eligibleUsersData = users
-    .filter((u) => {
-      if (!u.fcmToken) {
-        skippedNoToken++;
-        return false;
-      }
+  let skippedNoToken = 0;
 
-      if (target?.type === "points" && filters?.minPoints !== undefined && u.availablePoints < filters.minPoints) {
-        skippedPoints++;
-        return false;
-      }
+  const filtered = users.filter((u) => {
+    if (!u.fcmToken) {
+      skippedNoToken++;
+      return false;
+    }
 
-      if (typeof filters?.radius === "number" && filters.radius !== Infinity && merchantLocation?.coordinates && u.location?.coordinates) {
-        const [userLng, userLat] = u.location.coordinates;
-        const [centerLng, centerLat] = merchantLocation.coordinates;
+    if (
+      target?.type === "points" &&
+      filters?.minPoints !== undefined &&
+      u.availablePoints < filters.minPoints
+    ) {
+      return false;
+    }
 
-        const distance = getDistanceFromLatLonInKm(Number(userLat), Number(userLng), Number(centerLat), Number(centerLng));
-        if (distance > filters.radius) {
-          skippedRadius++;
-          return false;
-        }
-      }
+    if (
+      typeof filters?.radius === "number" &&
+      merchantLocation?.coordinates &&
+      u.location?.coordinates
+    ) {
+      const [lng1, lat1] = u.location.coordinates;
+      const [lng2, lat2] = merchantLocation.coordinates;
 
-      eligibleUsers++;
-      return true;
-    })
-    .map((u) => ({
-      userId: u.userId,
-      token: u.fcmToken,
-    }));
+      const distance = getDistanceFromLatLonInKm(
+        lat1,
+        lng1,
+        lat2,
+        lng2
+      );
 
-  console.log("📊 Filter Stats -> No Token:", skippedNoToken, ", Points Skipped:", skippedPoints, ", Radius Skipped:", skippedRadius, ", Eligible:", eligibleUsers);
+      if (distance > filters.radius) return false;
+    }
 
-  const tokens = eligibleUsersData.map((u) => u.token);
-  const finalUserIds = eligibleUsersData.map((u) => u.userId);
+    return true;
+  });
+
+  // ================= 🔥 FIX 1: REMOVE DUPLICATE USERS =================
+  const userMap = new Map<string, any>();
+
+  filtered.forEach((u) => {
+    const key = u.userId.toString();
+    if (!userMap.has(key)) {
+      userMap.set(key, u);
+    }
+  });
+
+  const uniqueUsers = Array.from(userMap.values());
+
+  // ================= 🔥 FIX 2: REMOVE DUPLICATE TOKENS =================
+  const tokenMap = new Map<string, any>();
+
+  uniqueUsers.forEach((u) => {
+    if (u.fcmToken) {
+      tokenMap.set(u.fcmToken, u);
+    }
+  });
+
+  const finalUsers = Array.from(tokenMap.values());
+
+  const tokens = finalUsers.map((u) => u.fcmToken);
+  const finalUserIds = finalUsers.map((u) => u.userId);
+
+  console.log("📊 Final Users:", finalUsers.length);
+  console.log("📩 Tokens:", tokens.length);
 
   if (tokens.length === 0) {
-    console.log("⚠️ No eligible users to send push notification");
-    return { sentCount: 0, failedCount: 0, message: "No customers matched" };
+    return { sentCount: 0, failedCount: 0, message: "No users matched" };
   }
 
   // ================= FIREBASE =================
-  console.log("📩 Sending Firebase notification to tokens:", tokens.length);
-
   const firebaseMessage = {
     notification: {
       title,
@@ -300,9 +535,8 @@ const sendMerchantPromotion = async (payload: any, merchantId: string) => {
   };
 
   const response = await admin.messaging().sendEachForMulticast(firebaseMessage);
-  console.log("📩 Firebase Response:", response);
 
-  // ================= SOCKET NOTIFICATION =================
+  // ================= SOCKET =================
   await sendNotification({
     userIds: finalUserIds,
     title,
@@ -312,9 +546,8 @@ const sendMerchantPromotion = async (payload: any, merchantId: string) => {
     attachments: image ? [image] : [],
     channel: { socket: true, push: false },
   });
-  console.log("🔔 Socket notifications sent");
 
-  // ================= DB STORE =================
+  // ================= DB =================
   const pushDoc = await Push.create({
     title,
     body: message,
@@ -329,7 +562,8 @@ const sendMerchantPromotion = async (payload: any, merchantId: string) => {
     failedCount: response.failureCount,
     mediaUrl: image,
   });
-  console.log("💾 Push record saved in DB:", pushDoc._id);
+
+  console.log("💾 Saved:", pushDoc._id);
 
   return {
     sentCount: response.successCount,
@@ -338,8 +572,6 @@ const sendMerchantPromotion = async (payload: any, merchantId: string) => {
   };
 };
 
-
-// Helper functions
 function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371;
   const dLat = deg2rad(lat2 - lat1);
