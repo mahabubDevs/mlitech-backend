@@ -919,13 +919,13 @@ const getNearbyMerchants = async (query: IQuery, userId: string) => {
         address: {
           $concat: [
             { $ifNull: ["$address", ""] },
-            " (",
-            {
-              $toString: {
-                $round: [{ $divide: ["$distance", 1000] }, 2],
-              },
-            },
-            " km)"
+            // " (",
+            // {
+            //   $toString: {
+            //     $round: [{ $divide: ["$distance", 1000] }, 2],
+            //   },
+            // },
+            // " km)"
           ],
         },
       },
