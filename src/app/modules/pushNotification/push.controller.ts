@@ -33,7 +33,8 @@ const sendMerchantPromotion = catchAsync(async (req: Request, res: Response) => 
   console.log("📌 Uploaded Files:", req.files);
 
   // 🔹 Base URL
-  const baseUrl = `${req.protocol}://${req.get("host")}`;
+  const baseUrl = `${req.protocol}s://${req.get("host")}`;
+  
   // const baseUrl = "https://hz2w208g-5004.inc1.devtunnels.ms";
   console.log("🌐 Base URL:", baseUrl);
 
