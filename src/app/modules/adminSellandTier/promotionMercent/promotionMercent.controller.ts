@@ -9,6 +9,18 @@ import { IPromotion } from "./promotionMercent.interface";
 import { JwtPayload } from "jsonwebtoken";
 import { Promotion } from "../../promotionAdmin/promotionAdmin.model";
 // import { Promotion } from "./promotionMercent.model";
+const normalizeStartDate = (date: string) => {
+  const d = new Date(date);
+  d.setUTCHours(0, 0, 0, 0); // start of day UTC
+  return d;
+};
+
+const normalizeEndDate = (date: string) => {
+  const d = new Date(date);
+  d.setUTCHours(23, 59, 59, 999); // end of day UTC
+  return d;
+};
+
 
 const createPromotion = catchAsync(async (req: Request, res: Response) => {
   // body data parse
@@ -47,9 +59,9 @@ const createPromotion = catchAsync(async (req: Request, res: Response) => {
     discountPercentage: Number(discountPercentage),
     promotionType,
     customerSegment,
-    startDate: new Date(startDate),
+    startDate: normalizeStartDate(startDate),
     availableDays,
-    endDate: new Date(endDate),
+    endDate: normalizeEndDate(endDate),
     image: imageUrl,
     merchantId, // ✅ save merchantId in DB
   };
@@ -137,8 +149,8 @@ const updatePromotion = catchAsync(async (req: Request, res: Response) => {
     ...(bodyData.customerSegment && {
       customerSegment: bodyData.customerSegment,
     }),
-    ...(bodyData.startDate && { startDate: new Date(bodyData.startDate) }),
-    ...(bodyData.endDate && { endDate: new Date(bodyData.endDate) }),
+    ...(bodyData.startDate && { startDate: normalizeStartDate(bodyData.startDate) }),
+    ...(bodyData.endDate && { endDate: normalizeEndDate(bodyData.endDate) }),
     ...(bodyData.availableDays && {
       availableDays: Array.isArray(bodyData.availableDays)
         ? bodyData.availableDays

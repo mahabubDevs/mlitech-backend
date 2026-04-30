@@ -15,9 +15,26 @@ import { DigitalCard } from "../../customer/digitalCard/digitalCard.model";
 import { Rating } from "../../customer/rating/rating.model";
 import { MerchantCustomer } from "../merchantCustomer/merchantCustomer.model";
 
+
+const normalizeStartDate = (date: string) => {
+  const d = new Date(date);
+  d.setUTCHours(0, 0, 0, 0); // start of day UTC
+  return d;
+};
+
+const normalizeEndDate = (date: string) => {
+  const d = new Date(date);
+  d.setUTCHours(23, 59, 59, 999); // end of day UTC
+  return d;
+};
+
+
 const createPromotion = catchAsync(async (req: Request, res: Response) => {
+  console.log("📥 Incoming createPromotion request");
+
   // body data parse
   const bodyData = req.body.data ? JSON.parse(req.body.data) : {};
+  console.log("📦 Parsed bodyData:", bodyData);
 
   const {
     name,
@@ -30,26 +47,46 @@ const createPromotion = catchAsync(async (req: Request, res: Response) => {
     grossValue,
   } = bodyData;
 
+  console.log("🧾 Extracted fields:", {
+    name,
+    discountPercentage,
+    promotionType,
+    customerSegment,
+    startDate,
+    endDate,
+    availableDays,
+    grossValue,
+  });
+
   if (!name || !customerSegment || !promotionType || !grossValue) {
+    console.log("❌ Validation failed: Required fields missing");
     throw new ApiError(StatusCodes.BAD_REQUEST, "Required fields missing");
   }
 
   // IMAGE URL
   let imageUrl: string | undefined = undefined;
+
   if (req.files && (req.files as any).image && (req.files as any).image[0]) {
     const file = (req.files as any).image[0];
     imageUrl = `/images/${file.filename}`;
+
+    console.log("🖼️ Image uploaded:", imageUrl);
+  } else {
+    console.log("⚠️ No image uploaded");
   }
 
-  // 🔑 USER from auth middleware
+  // USER from auth middleware
   const user = req.user as any;
+  console.log("👤 Auth user:", user);
 
-  // ✅ APPLY YOUR LOGIC HERE
   const merchantId = user.isSubMerchant
     ? user.merchantId
     : user._id;
 
+  console.log("🏪 Resolved merchantId:", merchantId);
+
   if (!merchantId) {
+    console.log("❌ Merchant ID not found");
     throw new ApiError(StatusCodes.UNAUTHORIZED, "Merchant ID not found");
   }
 
@@ -58,23 +95,31 @@ const createPromotion = catchAsync(async (req: Request, res: Response) => {
     discountPercentage: Number(discountPercentage),
     promotionType,
     customerSegment,
-    startDate: new Date(startDate),
-    endDate: new Date(endDate),
+    startDate: normalizeStartDate(startDate),
+    endDate: normalizeEndDate(endDate),
     availableDays,
     image: imageUrl,
-    merchantId, // ✅ ALWAYS merchant ID
+    merchantId,
     grossValue: Number(grossValue),
   };
 
+  console.log("🚀 Final payload to DB:", payload);
+
   const result = await PromotionService.createPromotionToDB(payload);
 
+  console.log("💾 DB result:", result);
+
   if (result) {
+    console.log("🔔 Sending notification...");
+
     await sendNotification({
-      userIds: [merchantId], // ✅ notify real merchant
+      userIds: [merchantId],
       title: "Congratulations! promotion published",
       body: `Your promotion "${name}" has been published successfully`,
       type: NotificationType.PROMOTION,
     });
+
+    console.log("✅ Notification sent");
   }
 
   sendResponse(res, {
@@ -83,6 +128,8 @@ const createPromotion = catchAsync(async (req: Request, res: Response) => {
     message: "Promotion created successfully",
     data: result,
   });
+
+  console.log("🎉 Response sent successfully");
 });
 
 
@@ -235,8 +282,15 @@ const updatePromotion = catchAsync(async (req: Request, res: Response) => {
     ...(bodyData.customerSegment && {
       customerSegment: bodyData.customerSegment,
     }),
-    ...(bodyData.startDate && { startDate: new Date(bodyData.startDate) }),
-    ...(bodyData.endDate && { endDate: new Date(bodyData.endDate) }),
+     // 🔥 FIXED START DATE
+    ...(bodyData.startDate && {
+      startDate: normalizeStartDate(bodyData.startDate),
+    }),
+
+    // 🔥 FIXED END DATE
+    ...(bodyData.endDate && {
+      endDate: normalizeEndDate(bodyData.endDate),
+    }),
     ...(bodyData.availableDays && {
       availableDays: Array.isArray(bodyData.availableDays)
         ? bodyData.availableDays

@@ -206,7 +206,7 @@ const getAllUsersFromDB = async (requestingUserRole: string, query: Record<strin
   }
 
   // Base query
-  let baseQuery = User.find({ role: { $in: allowedRoles } });
+  let baseQuery = User.find({ role: { $in: allowedRoles, $ne: "SUPER_ADMIN" } });
 
   // QueryBuilder instance
   const qb = new QueryBuilder(baseQuery, query)
